@@ -1,0 +1,23 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# App data: SQLite database + the auto-generated encryption master key.
+# Losing .secret makes every stored API key unrecoverable. Back it up OUTSIDE git.
+apps/*/data/
+*.db
+*.db-wal
+*.db-shm
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+.claude/settings.local.json
+.vercel
+*.tsbuildinfo
+next-env.d.ts
