@@ -142,7 +142,13 @@ export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-function readUsage(
+/**
+ * Normalize a provider's usage block. Exported for tests: this is the path
+ * most likely to break silently, because a renamed field downgrades cost
+ * reporting to a ~4 chars/token guess with nothing but the `estimated`
+ * flag to signal it.
+ */
+export function readUsage(
   json: Record<string, unknown>,
   isAnthropic: boolean,
   promptText: string,

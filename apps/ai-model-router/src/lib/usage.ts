@@ -145,8 +145,14 @@ export function computeCost(
   inputCostPer1M: number,
   outputCostPer1M: number,
 ): { inputCostUsd: number; outputCostUsd: number; costUsd: number } {
-  const inputCostUsd = (inputTokens / 1_000_000) * (inputCostPer1M || 0);
-  const outputCostUsd = (outputTokens / 1_000_000) * (outputCostPer1M || 0);
+  // A freshly discovered model has no price yet, and a malformed catalogue
+  // entry can yield NaN. Either must resolve to 0, or a single bad row
+  // poisons every SUM() in the analytics queries with NaN.
+  const price = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
+  const tokens = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
+
+  const inputCostUsd = (tokens(inputTokens) / 1_000_000) * price(inputCostPer1M);
+  const outputCostUsd = (tokens(outputTokens) / 1_000_000) * price(outputCostPer1M);
   return { inputCostUsd, outputCostUsd, costUsd: inputCostUsd + outputCostUsd };
 }
 
