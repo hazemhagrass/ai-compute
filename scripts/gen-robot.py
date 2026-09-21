@@ -210,6 +210,14 @@ GLYPHS = {
     "word-documents": '<path d="M62 116 h24 l14 14 v28 H62z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M86 116 v14 h14" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M69 138 l4 12 4 -9 4 9 4 -12" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     # software-development
     "smythos-sdk": '<circle cx="80" cy="136" r="7" fill="none" stroke="{g}" stroke-width="3"/><circle cx="60" cy="124" r="4.5" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="100" cy="124" r="4.5" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="80" cy="154" r="4.5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M75 131 l-11 -5 M85 131 l11 -5 M80 143 v7" stroke="{g}" stroke-width="2.5"/>',
+    # office: spreadsheet family
+    "excel-formulas": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48" stroke="{g}" stroke-width="2.5"/><path d="M64 140 l6 8 M70 140 l-6 8" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M80 148 h4 a5 5 0 0 0 5 -5 v-3" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><circle cx="96" cy="138" r="2.5" fill="{g}"/>',
+    "excel-data-cleaning": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48 M80 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M62 138 h12 M62 146 h12" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M88 136 l6 6 8 -11" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+    "pivot-tables": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48 M74 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M80 138 h18 M80 146 h12" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M62 140 a6 6 0 1 0 6 -6 v6z" fill="{g}" opacity="0.75"/>',
+    # career
+    "latex-resume": '<path d="M62 114 h36 v46 H62z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><circle cx="74" cy="128" r="5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M67 140 q7 -6 14 0" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M86 126 h8 M86 133 h8 M70 150 h20" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
+    # research
+    "literature-review": '<path d="M80 124 q-9 -5 -20 -3.5 v26 q11 -1.5 20 3.5 q9 -5 20 -3.5 v-26 q-11 -1.5 -20 3.5z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M80 124 v26" stroke="{g}" stroke-width="2.5"/><circle cx="88" cy="143" r="6" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M92.5 147.5 l4.5 4.5" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
 }
 
 FALLBACK_GLYPH = (
