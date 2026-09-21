@@ -1,6 +1,70 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateTokens, extractModelIds, readUsage } from "./client";
+import { estimateTokens, extractModelIds, readUsage, redactSecrets } from "./client";
+
+describe("redactSecrets", () => {
+  const KEY = "sk-proj-abcdefghijklmnop1234567890";
+
+  it("removes a key echoed verbatim in an upstream error body", () => {
+    // The real leak: several providers include the submitted Authorization
+    // header in their 401 body, which then reaches an error toast.
+    const body = `{"error":{"message":"Incorrect API key provided: ${KEY}"}}`;
+
+    const safe = redactSecrets(body, KEY);
+
+    expect(safe).not.toContain(KEY);
+    expect(safe).toContain("[REDACTED]");
+  });
+
+  it("removes a key echoed as only a prefix", () => {
+    const body = `Invalid key starting with ${KEY.slice(0, 12)}...`;
+
+    expect(redactSecrets(body, KEY)).not.toContain(KEY.slice(0, 12));
+  });
+
+  it("removes a key echoed as only a suffix", () => {
+    const body = `Key ending in ${KEY.slice(-8)} is revoked`;
+
+    expect(redactSecrets(body, KEY)).not.toContain(KEY.slice(-8));
+  });
+
+  it("removes a Bearer header echoed back", () => {
+    const body = `Request had header: Authorization: Bearer ${KEY}`;
+
+    const safe = redactSecrets(body, KEY);
+
+    expect(safe).not.toContain(KEY);
+  });
+
+  it("removes a key belonging to a different provider than the one on file", () => {
+    // Generic shape matching covers the case where the echoed key is not the
+    // one currently stored, so the literal-string pass cannot catch it.
+    for (const other of [
+      "sk-ant-api03-zzzzzzzzzzzzzzzzzzzz",
+      "gsk_aaaaaaaaaaaaaaaaaaaaaaaa",
+      "xai-bbbbbbbbbbbbbbbbbbbbbbbb",
+      "AIzaSyAbcdefghijklmnopqrstuvwxyz0123456",
+    ]) {
+      expect(redactSecrets(`upstream said: ${other}`, KEY)).not.toContain(other);
+    }
+  });
+
+  it("leaves a harmless error message readable", () => {
+    // Over-redaction makes errors useless, which is its own failure.
+    const msg = "Model gpt-5.2 not found for this account";
+
+    expect(redactSecrets(msg, KEY)).toBe(msg);
+  });
+
+  it("works with no stored key", () => {
+    expect(redactSecrets("plain text")).toBe("plain text");
+    expect(redactSecrets(`leaked ${KEY}`)).not.toContain(KEY);
+  });
+
+  it("handles empty input", () => {
+    expect(redactSecrets("")).toBe("");
+  });
+});
 
 describe("readUsage", () => {
   it("reads the OpenAI shape", () => {

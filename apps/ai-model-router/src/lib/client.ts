@@ -6,6 +6,42 @@ function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
+/** Key shapes used by the major providers, for scrubbing echoed secrets. */
+const KEY_PATTERNS: RegExp[] = [
+  /\bsk-[A-Za-z0-9_-]{16,}/g, // OpenAI, Anthropic, DeepSeek, Mistral
+  /\bgsk_[A-Za-z0-9]{20,}/g, // Groq
+  /\bxai-[A-Za-z0-9]{20,}/g, // xAI
+  /\bAIza[A-Za-z0-9_-]{30,}/g, // Google
+  /\bfw_[A-Za-z0-9]{20,}/g, // Fireworks
+  /\bBearer\s+[A-Za-z0-9._-]{16,}/gi,
+];
+
+/**
+ * Scrub secrets out of anything shown to the user.
+ *
+ * Several providers echo the submitted Authorization header, or a fragment of
+ * the key, in their 401 body. That text reaches an error toast and any
+ * screenshot of it, so the literal stored key is removed first, then generic
+ * key shapes catch the case where the echo is mangled or a different key was
+ * sent than the one on file.
+ */
+export function redactSecrets(text: string, secret?: string): string {
+  if (!text) return text;
+  let out = text;
+
+  if (secret && secret.length >= 8) {
+    out = out.split(secret).join("[REDACTED]");
+    // Providers commonly echo only a prefix or suffix of the key.
+    const head = secret.slice(0, 12);
+    const tail = secret.slice(-8);
+    if (head.length >= 8) out = out.split(head).join("[REDACTED]");
+    if (tail.length >= 8) out = out.split(tail).join("[REDACTED]");
+  }
+
+  for (const pattern of KEY_PATTERNS) out = out.replace(pattern, "[REDACTED]");
+  return out;
+}
+
 /** Build URL + headers for a provider call, injecting the decrypted secret. */
 export function buildRequest(
   provider: Provider,
@@ -59,6 +95,7 @@ export async function testConnection(
 ): Promise<ConnectionResult> {
   const path = provider.modelsPath || "/models";
   const { url, headers } = buildRequest(provider, path);
+  const secret = getProviderSecret(provider.id);
   const started = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -73,18 +110,20 @@ export async function testConnection(
         ok: false,
         status: res.status,
         latencyMs,
-        error: text.slice(0, 400) || res.statusText,
+        error: redactSecrets(text.slice(0, 400) || res.statusText, secret),
       };
     }
 
     const models = extractModelIds(text);
     return { ok: true, status: res.status, latencyMs, modelCount: models.length, models };
   } catch (err) {
+    // A fetch failure message can contain the full URL, which carries the key
+    // for query-auth providers such as Google.
     return {
       ok: false,
       status: 0,
       latencyMs: Date.now() - started,
-      error: err instanceof Error ? err.message : String(err),
+      error: redactSecrets(err instanceof Error ? err.message : String(err), secret),
     };
   } finally {
     clearTimeout(timer);
@@ -204,6 +243,7 @@ export async function chat(
   const isAnthropic =
     provider.chatPath.includes("/messages") || provider.slug === "anthropic";
   const { url, headers } = buildRequest(provider, provider.chatPath || "/chat/completions");
+  const secret = getProviderSecret(provider.id);
 
   const body = isAnthropic
     ? {
@@ -248,7 +288,7 @@ export async function chat(
       return {
         ok: false,
         text: "",
-        error: text.slice(0, 600) || res.statusText,
+        error: redactSecrets(text.slice(0, 600) || res.statusText, secret),
         usage: { ...emptyUsage, inputTokens: estimateTokens(`${system}${user}`) },
         latencyMs,
       };
@@ -277,7 +317,7 @@ export async function chat(
     return {
       ok: false,
       text: "",
-      error: err instanceof Error ? err.message : String(err),
+      error: redactSecrets(err instanceof Error ? err.message : String(err), secret),
       usage: { ...emptyUsage, inputTokens: estimateTokens(`${system}${user}`) },
       latencyMs: Date.now() - started,
     };
