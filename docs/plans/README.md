@@ -53,10 +53,10 @@ within a week.
 | --- | --- | --- |
 | [1. Foundation](./phase-01-foundation.md) | Correctness, tests, CI | ✅ complete |
 | [2. Security](./phase-02-security.md) | Auth, tenancy, secret handling | ✅ complete |
-| [3. Router quality](./phase-03-router.md) | Scoring, evaluation, benchmarks | 17% · 1 / 6 |
-| [4. Analytics](./phase-04-analytics.md) | Budgets, reporting, exports | 20% · 1 / 5 |
+| [3. Router quality](./phase-03-router.md) | Scoring, evaluation, benchmarks | 50% · 3 / 6 |
+| [4. Analytics](./phase-04-analytics.md) | Budgets, reporting, exports | 60% · 3 / 5 |
 | [5. Providers](./phase-05-providers.md) | Streaming, fallback, coverage | not started · 0 / 5 |
-| [6. Release](./phase-06-release.md) | Packaging, deploy, backups | 20% · 1 / 5 |
+| [6. Release](./phase-06-release.md) | Packaging, deploy, backups | 40% · 2 / 5 |
 | [7. Skills](./phase-07-skills.md) | Agent skill authoring | ✅ complete |
 
 <!-- plans-table:end -->
