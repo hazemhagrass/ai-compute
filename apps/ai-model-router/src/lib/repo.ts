@@ -249,13 +249,64 @@ function mapModel(r: ModelRow): Model {
   };
 }
 
+export interface ModelQuery {
+  enabledOnly?: boolean;
+  providerId?: number;
+  /** Matches label, model id, or provider name. */
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function modelWhere(q: ModelQuery): { sql: string; params: unknown[] } {
+  const parts: string[] = [];
+  const params: unknown[] = [];
+  if (q.enabledOnly) parts.push("m.enabled = 1 AND p.enabled = 1");
+  if (q.providerId) {
+    parts.push("m.provider_id = ?");
+    params.push(q.providerId);
+  }
+  if (q.search) {
+    parts.push("(m.label LIKE ? OR m.model_id LIKE ? OR p.name LIKE ?)");
+    const like = `%${q.search}%`;
+    params.push(like, like, like);
+  }
+  return { sql: parts.length ? `WHERE ${parts.join(" AND ")}` : "", params };
+}
+
+/**
+ * Unpaginated list. Safe for the router, which must score every candidate,
+ * but never use it to feed a table: importing OpenRouter alone adds 446 rows.
+ */
 export function listModels(opts: { enabledOnly?: boolean } = {}): Model[] {
-  const where = opts.enabledOnly ? "WHERE m.enabled = 1 AND p.enabled = 1" : "";
+  const { sql, params } = modelWhere(opts);
   return (
     getDb()
-      .prepare(`${MODEL_SELECT} ${where} ORDER BY p.name, m.label`)
-      .all() as ModelRow[]
+      .prepare(`${MODEL_SELECT} ${sql} ORDER BY p.name, m.label`)
+      .all(...params) as ModelRow[]
   ).map(mapModel);
+}
+
+/** Paginated list plus the unpaginated total, for table UIs. */
+export function queryModels(q: ModelQuery = {}): { models: Model[]; total: number } {
+  const { sql, params } = modelWhere(q);
+  const db = getDb();
+
+  const total = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM models m JOIN providers p ON p.id = m.provider_id ${sql}`,
+      )
+      .get(...params) as { n: number }
+  ).n;
+
+  const limit = Math.min(500, Math.max(1, q.limit ?? 100));
+  const offset = Math.max(0, q.offset ?? 0);
+  const rows = db
+    .prepare(`${MODEL_SELECT} ${sql} ORDER BY p.name, m.label LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset) as ModelRow[];
+
+  return { models: rows.map(mapModel), total };
 }
 
 export function getModel(id: number): Model | null {

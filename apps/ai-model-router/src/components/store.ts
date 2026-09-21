@@ -57,7 +57,7 @@ export function useCatalog(initial: Catalog) {
     try {
       const [p, m, t] = await Promise.all([
         api<{ providers: Provider[] }>("/api/providers"),
-        api<{ models: Model[] }>("/api/models"),
+        api<{ models: Model[] }>("/api/models?all=1"),
         api<{ tasks: Task[] }>("/api/tasks"),
       ]);
       setError(null);

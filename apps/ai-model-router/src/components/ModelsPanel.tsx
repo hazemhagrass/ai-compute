@@ -49,22 +49,35 @@ export default function ModelsPanel({
   const [filter, setFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState<number | "all">("all");
   const [syncing, setSyncing] = useState(false);
+  const [page, setPage] = useState(0);
 
-  const shown = useMemo(
-    () =>
-      models.filter((m) => {
-        if (providerFilter !== "all" && m.providerId !== providerFilter) return false;
-        if (!filter) return true;
-        const q = filter.toLowerCase();
-        return (
-          m.label.toLowerCase().includes(q) ||
-          m.modelId.toLowerCase().includes(q) ||
-          m.providerName.toLowerCase().includes(q) ||
-          m.tags.some((t) => t.toLowerCase().includes(q))
-        );
-      }),
-    [models, filter, providerFilter],
-  );
+  const PAGE_SIZE = 50;
+
+  /**
+   * Filtering happens in the browser against the catalog the parent already
+   * holds, which the router needs in full anyway, so filtering server-side
+   * would add a request without removing any work. Pagination is still
+   * required: rendering 446 rows into one table is what actually hurts.
+   */
+  const matched = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    return models.filter((m) => {
+      if (providerFilter !== "all" && m.providerId !== providerFilter) return false;
+      if (!q) return true;
+      return (
+        m.label.toLowerCase().includes(q) ||
+        m.modelId.toLowerCase().includes(q) ||
+        m.providerName.toLowerCase().includes(q) ||
+        m.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    });
+  }, [models, filter, providerFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
+  // Clamp rather than reset: a filter change can shrink the list below the
+  // current page, and snapping to page 1 on every keystroke is worse.
+  const safePage = Math.min(page, pageCount - 1);
+  const shown = matched.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
   async function syncPrices(apply: boolean) {
     setSyncing(true);
@@ -116,15 +129,19 @@ export default function ModelsPanel({
       <div className="flex flex-wrap items-center gap-3">
         <input
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => {
+            setFilter(e.target.value);
+            setPage(0);
+          }}
           placeholder="Filter models, providers, tags…"
           className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
         />
         <select
           value={providerFilter}
-          onChange={(e) =>
-            setProviderFilter(e.target.value === "all" ? "all" : Number(e.target.value))
-          }
+          onChange={(e) => {
+            setProviderFilter(e.target.value === "all" ? "all" : Number(e.target.value));
+            setPage(0);
+          }}
           className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
         >
           <option value="all">All providers</option>
@@ -171,7 +188,11 @@ export default function ModelsPanel({
       )}
 
       <Card
-        title={`${shown.length} models`}
+        title={
+          matched.length === models.length
+            ? `${models.length} models`
+            : `${matched.length} of ${models.length} models`
+        }
         subtitle="Scores drive the router. Edit them to match your own experience."
       >
         {shown.length === 0 ? (
@@ -259,6 +280,29 @@ export default function ModelsPanel({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {pageCount > 1 && (
+          <div className="mt-4 flex items-center justify-between text-xs">
+            <button
+              disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 hover:bg-[var(--panel-2)] disabled:opacity-40"
+            >
+              ← Previous
+            </button>
+            <span className="text-[var(--fg-dim)]">
+              page {safePage + 1} of {pageCount} · showing {shown.length} of{" "}
+              {matched.length}
+            </span>
+            <button
+              disabled={safePage >= pageCount - 1}
+              onClick={() => setPage(safePage + 1)}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 hover:bg-[var(--panel-2)] disabled:opacity-40"
+            >
+              Next →
+            </button>
           </div>
         )}
       </Card>
