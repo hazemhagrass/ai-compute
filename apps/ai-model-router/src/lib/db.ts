@@ -85,6 +85,20 @@ function migrate(d: Database.Database) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- A recommendation the router produced, kept so a choice can be revisited
+    -- later instead of re-running the ranking. Stores the task, the ranked
+    -- list, and which model the user actually picked (nullable until chosen).
+    CREATE TABLE IF NOT EXISTS recommendations (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts           TEXT NOT NULL DEFAULT (datetime('now')),
+      task_slug    TEXT NOT NULL DEFAULT '',
+      task_label   TEXT NOT NULL DEFAULT '',
+      prompt       TEXT NOT NULL DEFAULT '',
+      ranked_json  TEXT NOT NULL DEFAULT '[]',
+      picked_model_row_id INTEGER,
+      picked_at    TEXT
+    );
+
     -- Every call made through the router: full prompt, full answer, cost, timing.
     CREATE TABLE IF NOT EXISTS usage_events (
       id               INTEGER PRIMARY KEY AUTOINCREMENT,

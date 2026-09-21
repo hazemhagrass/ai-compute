@@ -4,6 +4,7 @@ import { chat } from "@/lib/client";
 import { rankModels, taskFromText } from "@/lib/engine";
 import { explainExclusions } from "@/lib/exclusions";
 import { getProvider, getTask, getTaskBySlug, listModels, listProviders } from "@/lib/repo";
+import { saveRecommendation } from "@/lib/recommendations";
 import { parseBody, recommendSchema } from "@/lib/schemas";
 import { computeCost, recordUsage } from "@/lib/usage";
 import type { Recommendation, Scored, Task } from "@/lib/types";
@@ -84,7 +85,23 @@ export async function POST(request: Request) {
     if (ai) result.ai = ai;
   }
 
-  return NextResponse.json({ recommendation: result });
+  // Persist the recommendation so a choice can be revisited later. The ranked
+  // list is stored as a snapshot, not re-derived, because the point is to see
+  // what the router said at the time. A persistence failure must not fail the
+  // recommendation the user is waiting on.
+  let recommendationId: number | null = null;
+  try {
+    recommendationId = saveRecommendation({
+      taskSlug: task.slug,
+      taskLabel: task.label,
+      prompt: body.text ?? "",
+      ranked,
+    }).id;
+  } catch {
+    recommendationId = null;
+  }
+
+  return NextResponse.json({ recommendation: result, recommendationId });
 }
 
 /** Ask a configured LLM to choose among the top candidates, and log the call. */
