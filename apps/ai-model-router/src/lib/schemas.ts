@@ -62,6 +62,7 @@ export const createProviderSchema = z.object({
   slug: z.string().trim().optional(),
   kind: providerKind.optional(),
   chatPath: z.string().optional(),
+  shape: z.enum(["openai", "gemini", "bedrock"]).optional(),
   modelsPath: z.string().optional(),
   authType: authType.optional(),
   authHeaderName: z.string().optional(),
@@ -139,6 +140,65 @@ export const updateTaskSchema = createTaskSchema.partial();
 
 /* -------------------------------------------------------------- endpoints */
 
+/** One prior exchange in a multi-turn playground conversation. */
+export const playgroundMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z
+    .string({ error: "message content is required" })
+    .min(1, "message content is required"),
+});
+
+/**
+ * Cumulative usage the client has already measured for earlier turns of the
+ * conversation, so the response can report a running total across the whole
+ * thread rather than only the latest call. Never trusted blindly: every field
+ * is coerced to a non-negative finite number and defaults to zero.
+ */
+export const playgroundTotalsSchema = z
+  .object({
+    inputTokens: nonNegative.optional(),
+    outputTokens: nonNegative.optional(),
+    totalTokens: nonNegative.optional(),
+    costUsd: nonNegative.optional(),
+    turns: z.coerce.number().int().min(0).optional(),
+  })
+  .optional();
+
+export const playgroundSchema = z.object({
+  modelRowId: z.coerce.number().int().positive("modelRowId is required"),
+  prompt: z
+    .string({ error: "prompt is required" })
+    .trim()
+    .min(1, "prompt is required"),
+  /**
+   * Prior turns of the conversation, oldest first. The new `prompt` is sent
+   * after them as the latest user turn. Capped so a runaway client cannot
+   * push an unbounded transcript through the endpoint in one call.
+   */
+  messages: z.array(playgroundMessageSchema).max(200).optional(),
+  priorTotals: playgroundTotalsSchema,
+  system: z.string().optional(),
+  taskSlug: z.string().optional(),
+  maxTokens: z.coerce.number().int().min(64).max(8000).optional(),
+});
+
+export const compareSchema = z
+  .object({
+    modelRowIdA: z.coerce.number().int().positive("modelRowIdA is required"),
+    modelRowIdB: z.coerce.number().int().positive("modelRowIdB is required"),
+    prompt: z
+      .string({ error: "prompt is required" })
+      .trim()
+      .min(1, "prompt is required"),
+    system: z.string().optional(),
+    taskSlug: z.string().optional(),
+    maxTokens: z.coerce.number().int().min(64).max(8000).optional(),
+  })
+  .refine((b) => b.modelRowIdA !== b.modelRowIdB, {
+    message: "choose two different models to compare",
+    path: ["modelRowIdB"],
+  });
+
 export const recommendSchema = z
   .object({
     taskId: z.coerce.number().int().positive().optional(),
@@ -157,17 +217,6 @@ export const recommendSchema = z
   .refine((b) => b.taskId || b.taskSlug || b.text?.trim(), {
     message: "provide taskId, taskSlug, or text",
   });
-
-export const playgroundSchema = z.object({
-  modelRowId: z.coerce.number().int().positive("modelRowId is required"),
-  prompt: z
-    .string({ error: "prompt is required" })
-    .trim()
-    .min(1, "prompt is required"),
-  system: z.string().optional(),
-  taskSlug: z.string().optional(),
-  maxTokens: z.coerce.number().int().min(64).max(8000).optional(),
-});
 
 export const pricingSchema = z.object({
   apply: z.boolean().optional(),

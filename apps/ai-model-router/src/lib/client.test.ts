@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateTokens, extractModelIds, readUsage, redactSecrets } from "./client";
+import { estimateTokens, extractModelIds, normalizeShapeUsage, readUsage, redactSecrets, resolveShapeAdapter } from "./client";
+import type { Provider } from "./types";
+
+function baseProvider(overrides: Partial<Provider>): Provider {
+  return {
+    id: 1,
+    slug: "p",
+    name: "P",
+    kind: "cloud",
+    baseUrl: "https://api.example.com",
+    chatPath: "/chat/completions",
+    modelsPath: "/models",
+    authType: "bearer",
+    authHeaderName: "Authorization",
+    authQueryName: "",
+    headers: {},
+    meta: {},
+    enabled: true,
+    hasKey: false,
+    keyPreview: "",
+    createdAt: "",
+    updatedAt: "",
+    ...overrides,
+  };
+}
 
 describe("redactSecrets", () => {
   const KEY = "sk-proj-abcdefghijklmnop1234567890";
@@ -177,6 +201,105 @@ describe("readUsage", () => {
 
     expect(u.estimated).toBe(true);
     expect(Number.isFinite(u.inputTokens)).toBe(true);
+  });
+});
+
+describe("resolveShapeAdapter", () => {
+  it("returns null for the default OpenAI-compatible path", () => {
+    expect(resolveShapeAdapter(baseProvider({}), "")).toBeNull();
+  });
+
+  it("honors an explicit shape field over heuristics", () => {
+    expect(resolveShapeAdapter(baseProvider({ shape: "gemini" }), "k")).not.toBeNull();
+    expect(resolveShapeAdapter(baseProvider({ shape: "bedrock" }), "")).not.toBeNull();
+  });
+
+  it("lets shape openai short-circuit heuristic detection", () => {
+    const p = baseProvider({
+      shape: "openai",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      chatPath: "/chat/completions",
+    });
+    expect(resolveShapeAdapter(p, "")).toBeNull();
+  });
+
+  it("detects gemini natively when the openai shim is not used", () => {
+    const p = baseProvider({
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      chatPath: "/chat/completions",
+    });
+    expect(resolveShapeAdapter(p, "")).not.toBeNull();
+  });
+
+  it("keeps the gemini openai-compat shim on the default path", () => {
+    const p = baseProvider({
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      chatPath: "/openai/chat/completions",
+    });
+    expect(resolveShapeAdapter(p, "")).toBeNull();
+  });
+
+  it("detects bedrock from a converse chat path or the runtime host", () => {
+    expect(
+      resolveShapeAdapter(baseProvider({ chatPath: "/model/x/converse" }), ""),
+    ).not.toBeNull();
+    expect(
+      resolveShapeAdapter(
+        baseProvider({ baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com" }),
+        "",
+      ),
+    ).not.toBeNull();
+  });
+});
+
+describe("normalizeShapeUsage", () => {
+  it("merges adapter usage into the shared usage shape", () => {
+    const u = normalizeShapeUsage(
+      { inputTokens: 120, outputTokens: 40, totalTokens: 160, cachedTokens: 30, reasoningTokens: 12 },
+      "prompt text that should be ignored here",
+      "answer text that should be ignored here",
+    );
+    expect(u).toEqual({
+      inputTokens: 120,
+      outputTokens: 40,
+      totalTokens: 160,
+      cachedTokens: 30,
+      reasoningTokens: 12,
+      estimated: false,
+    });
+  });
+
+  it("derives totals when the adapter omitted totalTokens", () => {
+    const u = normalizeShapeUsage({ inputTokens: 7, outputTokens: 3, totalTokens: 0 }, "p", "a");
+    expect(u.totalTokens).toBe(10);
+    expect(u.cachedTokens).toBe(0);
+    expect(u.reasoningTokens).toBe(0);
+    expect(u.estimated).toBe(false);
+  });
+
+  it("falls back to text-length estimation when no usage arrived", () => {
+    const prompt = "a".repeat(40); // 10 tokens at 4 chars/token
+    const answer = "b".repeat(8); // 2 tokens
+    const u = normalizeShapeUsage(null, prompt, answer);
+    expect(u).toEqual({
+      inputTokens: 10,
+      outputTokens: 2,
+      totalTokens: 12,
+      cachedTokens: 0,
+      reasoningTokens: 0,
+      estimated: true,
+    });
+  });
+
+  it("treats an all-zero usage block as absent", () => {
+    const u = normalizeShapeUsage(
+      { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      "abcd", // 1 token
+      "efgh", // 1 token
+    );
+    expect(u.estimated).toBe(true);
+    expect(u.inputTokens).toBe(1);
+    expect(u.outputTokens).toBe(1);
   });
 });
 

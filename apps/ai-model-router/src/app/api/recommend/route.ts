@@ -69,11 +69,7 @@ export async function POST(request: Request) {
     limit: Math.min(25, Math.max(1, body.limit ?? 8)),
     task,
   };
-  const ranked = rankModels(
-    task,
-    models,
-    (({ task: _t, ...opts }) => opts)(criteria),
-  );
+  const ranked = rankModels(task, models, criteria);
   const exclusions = explainExclusions(models, criteria);
 
   const result: Recommendation = {

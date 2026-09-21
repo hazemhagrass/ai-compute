@@ -118,36 +118,27 @@ A plain `cp` of a live SQLite database is not safe. The database is in WAL
 mode, and recent commits may sit in `router.db-wal` while `cp` reads only
 `router.db`. The copy can be silently missing recent data (verified: a naive
 `cp` of a live db produced a file whose `settings` table was empty) or torn
-mid-page. Use SQLite's own backup path instead, which takes the necessary locks
-and produces a consistent single file:
+mid-page. Use SQLite's own backup API instead, which takes the necessary
+locks and produces a consistent single file. The app ships a script for this,
+runnable from `apps/ai-model-router` while the app is running:
 
 ```bash
 STAMP=$(date +%Y%m%d-%H%M%S)
-DEST=~/amr-backups/$STAMP
-mkdir -p "$DEST"
-sqlite3 "$AMR_DATA_DIR/router.db" ".backup '$DEST/router.db'"
-cp -p "$AMR_DATA_DIR/.secret" "$DEST/.secret"   # or export AMR_SECRET's value
-chmod 600 "$DEST/.secret"
+node scripts/backup.mjs ~/amr-backups/$STAMP
 ```
 
-`sqlite3 ... ".backup '...'"` works while the app is running and writes a
-checkpointed, self-contained copy (no `-wal`/`-shm` needed). The `.recover`
-command used later is from the same CLI. If the `sqlite3` binary is missing
-(debian-slim containers do not ship it), `better-sqlite3` provides the same
-thing in Node, runnable from `apps/ai-model-router`:
+The script (`scripts/backup.mjs`, backed by `src/lib/backup.ts`) uses
+`better-sqlite3`'s `db.backup` to snapshot the live database, runs
+`PRAGMA integrity_check` on the result before exiting, and copies `.secret`
+alongside the snapshot with mode 600, so one command produces the matched
+pair. The output directory ends up with:
 
-```bash
-mkdir -p ~/amr-backups/$(date +%Y%m%d-%H%M%S)
-cat > backup-db.mjs <<'EOF'
-import { DATA_DIR } from "./src/lib/paths";
-import { getDb } from "./src/lib/db";
-const dest = process.argv[2];
-await getDb().backup(dest);
-console.log(`backed up to ${dest}`);
-EOF
-pnpm exec jiti backup-db.mjs ~/amr-backups/$(date +%Y%m%d-%H%M%S)/router.db
-rm backup-db.mjs   # scratch file; do not commit it
-```
+- `router.db`: checkpointed, self-contained snapshot (no `-wal`/`-shm`
+  companions needed).
+- `.secret`: the master key file. If the deployment uses `AMR_SECRET` from
+  the environment instead of a `.secret` file, the script says so, and you
+  must back that value up from your secret manager: without the master key
+  the snapshot is unrecoverable.
 
 Never back the key up into the git repository. `apps/*/data/` and `*.db` are
 gitignored precisely because of this; keep the pair outside the repo, with
@@ -164,79 +155,39 @@ Restoring is only meaningful as a pair. Steps:
    docker compose stop app          # or stop your process manager unit
    ```
 
-2. Put the pair back in place. For the file-key layout:
+2. Validate and swap with the restore script, from `apps/ai-model-router`:
 
    ```bash
-   cp "$RESTORE_DIR/router.db"  "$AMR_DATA_DIR/router.db"
-   cp "$RESTORE_DIR/.secret"    "$AMR_DATA_DIR/.secret"
-   chmod 600 "$AMR_DATA_DIR/.secret"
-   rm -f "$AMR_DATA_DIR"/router.db-wal "$AMR_DATA_DIR"/router.db-shm
-   # stale WAL/SHM from the previous life of this data dir would confuse SQLite
+   AMR_DATA_DIR=/var/lib/ai-model-router \
+     node scripts/restore.mjs "$RESTORE_DIR"
    ```
 
-   If the deployment uses `AMR_SECRET` from the environment instead of the
-   `.secret` file, restore by setting `AMR_SECRET` to the backed-up value; do
-   not also drop in a `.secret` file, since a set `AMR_SECRET` silently wins
-   and the file is never read.
-
-3. Verify the restore before declaring success. A file that is present is not
-   a file that works. The script below checks database integrity AND that
-   every stored provider key decrypts under the master key in force, and
-   exits 0 only when both pass. Write it INSIDE `apps/ai-model-router`
-   (Node resolves `better-sqlite3` from the script's own directory, so a copy
-   under `/tmp` cannot find the installed module):
-
-   ```bash
-   cd apps/ai-model-router
-   cat > verify-restore.mjs <<'EOF'
-   import crypto from "node:crypto";
-   import fs from "node:fs";
-   import Database from "better-sqlite3";
-
-   const DATA_DIR = process.env.AMR_DATA_DIR ?? "./data";
-   const secret = process.env.AMR_SECRET?.length >= 16
-     ? process.env.AMR_SECRET
-     : fs.readFileSync(`${DATA_DIR}/.secret`, "utf8").trim();
-   const key = crypto.scryptSync(secret, "ai-model-router.v1", 32);
-   const db = new Database(`${DATA_DIR}/router.db`, { readonly: true });
-
-   const integrity = db.prepare("PRAGMA integrity_check").pluck().get();
-   if (String(integrity).trim() !== "ok") {
-     console.error(`integrity check failed: ${JSON.stringify(integrity)}`);
-     process.exit(1);
-   }
-
-   const rows = db
-     .prepare("SELECT slug, api_key_enc FROM providers WHERE api_key_enc != ''")
-     .all();
-   let bad = 0;
-   for (const r of rows) {
-     const p = r.api_key_enc.split(".");
-     try {
-       const d = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(p[1], "base64url"));
-       d.setAuthTag(Buffer.from(p[2], "base64url"));
-       Buffer.concat([d.update(Buffer.from(p[3], "base64url")), d.final()]);
-     } catch {
-       bad++;
-       console.error(`cannot decrypt key for provider '${r.slug}'`);
-     }
-   }
-   console.log(`integrity ok; ${rows.length} stored key(s), ${bad} unreadable`);
-   process.exit(bad ? 1 : 0);
-   EOF
-   AMR_DATA_DIR=/var/lib/ai-model-router pnpm exec jiti verify-restore.mjs \
-     && echo RESTORE VERIFIED || echo RESTORE FAILED
-   rm verify-restore.mjs   # scratch file; do not commit it
-   ```
+   `scripts/restore.mjs` (backed by `src/lib/restore.ts`) refuses to touch the
+   live directory until the backup has passed every check: the snapshot must
+   be a valid SQLite database, `PRAGMA integrity_check` must pass, and every
+   stored provider key must decrypt under the master key currently in force.
+   Only then does it swap the snapshot in, renaming the previous live database
+   to `router.db.pre-restore-<timestamp>` and removing stale `router.db-wal` /
+   `router.db-shm` sidecars (leftovers from the previous life of this data
+   directory would confuse SQLite). If the deployment uses `AMR_SECRET` from
+   the environment instead of the `.secret` file, the value must be set before
+   running the script; do not also drop in a `.secret` file, since a set
+   `AMR_SECRET` silently wins and the file is never read.
 
    The double failure mode this catches: a database restored with the wrong
    master key passes the integrity check (the file is a perfect SQLite file)
    and fails only at decryption, and a torn copy fails integrity while its
-   keys look fine. Both were reproduced while writing this guide. `jiti` is
-   already in the dependency tree (Next and ESLint pull it in), so
-   `pnpm exec jiti` resolves without installing anything.
+   keys look fine. Both were reproduced while writing this guide.
 
-4. Start the app and log in with the password that was in the restored
+   When the keys do not decrypt, the script exits 1 with the offending slugs
+   and the live data directory is untouched. If that failure is expected
+   because you intentionally changed the master key, re-run with `--rekey`
+   (the script applies the swap and prints a warning to run a key rotation
+   immediately, see section 4), or rotate with `rotateMasterKey` first and
+   then restore. Add `--dry-run` to run all validation without swapping
+   anything.
+
+3. Start the app and log in with the password that was in the restored
    database. Password hashes and session secrets live in the `settings` table
    inside `router.db`, so they restore with it.
 

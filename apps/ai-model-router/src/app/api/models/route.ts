@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { createModel, listModels, queryModels } from "@/lib/repo";
+import { createModel, listModels, queryModels, getProvider } from "@/lib/repo";
 import { createModelSchema, parseBody } from "@/lib/schemas";
 import { requireAuth } from "@/lib/auth";
+import { validateModelIdAgainstProvider } from "@/lib/model-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,24 @@ export async function POST(request: Request) {
 
   const parsed = await parseBody(request, createModelSchema);
   if (!parsed.ok) return parsed.response;
+
+  const provider = getProvider(parsed.data.providerId);
+  if (!provider) {
+    return NextResponse.json({ error: "provider not found" }, { status: 404 });
+  }
+  const check = await validateModelIdAgainstProvider(provider, parsed.data.modelId);
+  if (check.status === "mismatch") {
+    return NextResponse.json(
+      {
+        error: `model id "${check.modelId}" was not found in ${provider.name}'s model catalogue`,
+        code: "model_id_not_found",
+        modelId: check.modelId,
+        didYouMean: check.suggestions,
+        catalogueSize: check.catalogueSize,
+      },
+      { status: 409 },
+    );
+  }
 
   return NextResponse.json({ model: createModel(parsed.data) }, { status: 201 });
 }

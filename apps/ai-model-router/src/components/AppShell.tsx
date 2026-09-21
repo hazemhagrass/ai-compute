@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import AnalyticsPanel from "@/components/AnalyticsPanel";
+import ComparePanel from "@/components/ComparePanel";
+import HealthPanel from "@/components/HealthPanel";
 import LogsPanel from "@/components/LogsPanel";
 import ModelsPanel from "@/components/ModelsPanel";
 import PlaygroundPanel from "@/components/PlaygroundPanel";
@@ -14,9 +16,11 @@ import type { InitialData } from "@/lib/server-data";
 const TABS = [
   { id: "router", label: "Router", hint: "pick the right model" },
   { id: "playground", label: "Playground", hint: "run a prompt" },
+  { id: "compare", label: "Compare", hint: "two models, one prompt" },
   { id: "analytics", label: "Analytics", hint: "spend & usage" },
   { id: "logs", label: "Logs", hint: "every prompt" },
   { id: "providers", label: "Providers", hint: "keys & endpoints" },
+  { id: "health", label: "Health", hint: "connection status" },
   { id: "models", label: "Models", hint: "scores & prices" },
 ] as const;
 
@@ -105,6 +109,7 @@ export default function AppShell({ initial }: { initial: InitialData }) {
         {tab === "playground" && (
           <PlaygroundPanel models={models} tasks={tasks} onToast={push} />
         )}
+        {tab === "compare" && <ComparePanel models={models} />}
         {tab === "analytics" && (
           <AnalyticsPanel initial={initial.analytics} onToast={push} />
         )}
@@ -119,6 +124,7 @@ export default function AppShell({ initial }: { initial: InitialData }) {
         {tab === "providers" && (
           <ProvidersPanel providers={providers} onToast={push} onRefresh={refresh} />
         )}
+        {tab === "health" && <HealthPanel onToast={push} />}
         {tab === "models" && (
           <ModelsPanel
             providers={providers}

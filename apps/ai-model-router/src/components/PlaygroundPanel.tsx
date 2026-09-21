@@ -2,246 +2,304 @@
 
 import { useState } from "react";
 
-import { api } from "./store";
-import { Card, fmtNum, fmtPct, fmtUsd } from "./ui";
 import type { Model, Task } from "@/lib/types";
-import type { UsageEvent } from "@/lib/usage";
 
-/**
- * Run a real prompt against any configured model. Every call is logged with
- * prompt, answer, tokens, latency, and cost — which is what feeds Analytics.
- */
-export default function PlaygroundPanel({
-  models,
-  tasks,
-  onToast,
-}: {
+/** One turn rendered in the conversation thread. */
+interface Turn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Cumulative usage across the whole conversation, as reported by the API. */
+interface Totals {
+  turns: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+}
+
+interface RunEvent {
+  costUsd: number;
+  totalTokens: number;
+  latencyMs: number;
+  ok: boolean;
+}
+
+/** NDJSON frames streamed back by /api/playground. */
+type StreamFrame =
+  | { type: "token"; text: string }
+  | { type: "done"; text: string; event: RunEvent; totals: Totals; streamed: boolean }
+  | { type: "error"; error: string; event: RunEvent | null; totals: Totals | null };
+
+interface Props {
   models: Model[];
   tasks: Task[];
-  onToast: (m: string, t?: "info" | "good" | "bad") => void;
-}) {
-  const enabled = models.filter((m) => m.enabled && !m.features.embedding);
-  const [modelRowId, setModelRowId] = useState<number>(enabled[0]?.id ?? 0);
-  const [taskSlug, setTaskSlug] = useState("");
-  const [system, setSystem] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [maxTokens, setMaxTokens] = useState(2000);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ text: string; event: UsageEvent } | null>(null);
+  onToast: (message: string, tone?: "info" | "good" | "bad") => void;
+}
 
-  const model = enabled.find((m) => m.id === modelRowId);
+export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
+  const enabled = models.filter((m) => m.enabled);
+  // The default model is derived at render time rather than stored in state,
+  // so no setState runs inside an effect to pick the first enabled model.
+  const [chosenModelRowId, setChosenModelRowId] = useState<number | null>(null);
+  const modelRowId =
+    chosenModelRowId !== null && enabled.some((m) => m.id === chosenModelRowId)
+      ? chosenModelRowId
+      : (enabled[0]?.id ?? null);
+  const [taskSlug, setTaskSlug] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [system, setSystem] = useState("");
+  const [thread, setThread] = useState<Turn[]>([]);
+  const [totals, setTotals] = useState<Totals | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
+
+  const modelLabel = enabled.find((m) => m.id === modelRowId)?.label ?? "";
+
+  /**
+   * Start a fresh conversation. Called from user actions (model/task switch,
+   * New chat) rather than an effect, so prior turns are never billed against
+   * a configuration that never saw them and no setState runs inside an effect.
+   */
+  function resetThread() {
+    setThread([]);
+    setTotals(null);
+    setLatencyMs(null);
+    setError("");
+  }
+
+  // Switching model or task starts a fresh conversation from user actions
+  // (not an effect), so prior turns are never billed against a configuration
+  // that never saw them and no setState runs inside an effect body.
+  function pickModel(id: number) {
+    setChosenModelRowId(id);
+    resetThread();
+  }
+
+  function pickTask(slug: string) {
+    setTaskSlug(slug);
+    resetThread();
+  }
+
+  /** Surface a failure in the panel and via the shared toast queue. */
+  function fail(message: string) {
+    setError(message);
+    onToast(message, "bad");
+  }
+
+  /** Apply one streamed frame to the UI; token frames append to the last assistant turn. */
+  function applyFrame(frame: StreamFrame): void {
+    if (frame.type === "token") {
+      setThread((t) => {
+        const next = [...t];
+        const last = next[next.length - 1];
+        if (last?.role === "assistant") {
+          next[next.length - 1] = { ...last, content: last.content + frame.text };
+        }
+        return next;
+      });
+      return;
+    }
+    if (frame.totals) setTotals(frame.totals);
+    if (frame.event) setLatencyMs(frame.event.latencyMs);
+    if (frame.type === "error") {
+      fail(frame.error);
+      // Drop the empty assistant placeholder when nothing arrived.
+      setThread((t) => {
+        const last = t[t.length - 1];
+        return last?.role === "assistant" && !last.content ? t.slice(0, -1) : t;
+      });
+      return;
+    }
+    // done: swap the accumulated partial for the final server text so the
+    // thread matches the recorded usage exactly, even on the fallback path.
+    setThread((t) => {
+      const next = [...t];
+      const last = next[next.length - 1];
+      if (last?.role === "assistant") {
+        next[next.length - 1] = { ...last, content: frame.text };
+      }
+      return next;
+    });
+  }
 
   async function run() {
-    if (!modelRowId) {
-      onToast("Pick a model", "bad");
-      return;
-    }
-    if (!prompt.trim()) {
-      onToast("Write a prompt", "bad");
-      return;
-    }
-    setBusy(true);
-    setResult(null);
+    if (!modelRowId || !prompt.trim() || running) return;
+    setRunning(true);
+    setError("");
+    const userText = prompt.trim();
+    // Append the user turn and an empty assistant turn up front; token frames
+    // grow the assistant bubble live as they stream in.
+    setThread((t) => [
+      ...t,
+      { role: "user", content: userText },
+      { role: "assistant", content: "" },
+    ]);
     try {
-      const res = await api<{ text: string; event: UsageEvent }>("/api/playground", {
+      const res = await fetch("/api/playground", {
         method: "POST",
-        json: { modelRowId, prompt, system, taskSlug, maxTokens },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modelRowId,
+          prompt: userText,
+          system: system || undefined,
+          taskSlug: taskSlug || undefined,
+          // Prior turns so the model sees the whole conversation, and the
+          // totals measured so far so the API returns a running total.
+          messages: thread,
+          priorTotals: totals ?? undefined,
+        }),
       });
-      setResult(res);
-      onToast(
-        `Done — ${fmtNum(res.event.totalTokens)} tokens, ${fmtUsd(res.event.costUsd)}`,
-        "good",
-      );
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : "Call failed", "bad");
+      if (!res.ok) {
+        // Pre-stream failures (404 model, 400 body) still arrive as JSON.
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        fail(data?.error ?? `HTTP ${res.status}`);
+        setThread((t) => t.slice(0, -2));
+        return;
+      }
+      if (!res.body) {
+        fail("response has no body");
+        setThread((t) => t.slice(0, -2));
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          applyFrame(JSON.parse(line) as StreamFrame);
+        }
+      }
+      buffer += decoder.decode();
+      if (buffer.trim()) applyFrame(JSON.parse(buffer) as StreamFrame);
+
+      setPrompt("");
+    } catch (e) {
+      fail(e instanceof Error ? e.message : String(e));
+      setThread((t) => {
+        const last = t[t.length - 1];
+        return last?.role === "assistant" && !last.content ? t.slice(0, -1) : t;
+      });
     } finally {
-      setBusy(false);
+      setRunning(false);
     }
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <Card title="Prompt" subtitle="every run is logged with its exact cost">
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
-                Model
-              </span>
-              <select
-                value={modelRowId}
-                onChange={(e) => setModelRowId(Number(e.target.value))}
-                className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-              >
-                {enabled.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.providerName} — {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
-                Tag as task (optional)
-              </span>
-              <select
-                value={taskSlug}
-                onChange={(e) => setTaskSlug(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-              >
-                <option value="">— none —</option>
-                {tasks.map((t) => (
-                  <option key={t.id} value={t.slug}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
-              System prompt
-            </span>
-            <textarea
-              value={system}
-              onChange={(e) => setSystem(e.target.value)}
-              rows={2}
-              placeholder="optional"
-              className="mt-1.5 w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
-              Prompt
-            </span>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={10}
-              placeholder="Ask it anything…"
-              className="mt-1.5 w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 font-mono text-xs outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
-            />
-          </label>
-
-          <label className="block">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="uppercase tracking-wider text-[var(--fg-dim)]">
-                Max output tokens
-              </span>
-              <span className="font-mono text-[var(--fg-muted)]">{maxTokens}</span>
-            </div>
-            <input
-              type="range"
-              min={64}
-              max={8000}
-              step={64}
-              value={maxTokens}
-              onChange={(e) => setMaxTokens(Number(e.target.value))}
-              className="mt-1 w-full"
-            />
-          </label>
-
-          {model && (
-            <p className="text-[11px] text-[var(--fg-dim)]">
-              Est. ceiling:{" "}
-              <span className="font-mono text-[var(--fg-muted)]">
-                {fmtUsd(
-                  (prompt.length / 4 / 1_000_000) * model.inputCost +
-                    (maxTokens / 1_000_000) * model.outputCost,
-                )}
-              </span>{" "}
-              · {fmtNum(model.contextWindow)} context
-            </p>
-          )}
-
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          Playground: {modelLabel || "pick a model"}
+        </h3>
+        {thread.length > 0 && (
           <button
-            onClick={run}
-            disabled={busy}
-            className="w-full rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] px-4 py-3 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+            onClick={resetThread}
+            className="text-xs text-zinc-500 underline hover:text-zinc-700 dark:hover:text-zinc-300"
           >
-            {busy ? "Running…" : "Send prompt"}
+            New chat
           </button>
-        </div>
-      </Card>
-
-      <Card title="Response">
-        {busy && (
-          <div className="amr-pulse py-10 text-center text-sm text-[var(--fg-dim)]">
-            Waiting on {model?.label}…
-          </div>
         )}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <select
+          value={modelRowId ?? ""}
+          onChange={(e) => pickModel(Number(e.target.value))}
+          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+        >
+          {modelRowId === null && <option value="">Pick a model</option>}
+          {enabled.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={taskSlug}
+          onChange={(e) => pickTask(e.target.value)}
+          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+        >
+          <option value="">No task</option>
+          {tasks.map((t) => (
+            <option key={t.slug} value={t.slug}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <input
+        type="text"
+        value={system}
+        onChange={(e) => setSystem(e.target.value)}
+        placeholder="System prompt (optional)"
+        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+      />
 
-        {!busy && !result && (
-          <div className="py-10 text-center text-sm text-[var(--fg-dim)]">
-            The answer, token counts, and exact cost show up here — and in Logs.
-          </div>
-        )}
-
-        {result && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Mini label="Cost" value={fmtUsd(result.event.costUsd)} accent />
-              <Mini
-                label="Tokens"
-                value={`${fmtNum(result.event.inputTokens)}→${fmtNum(result.event.outputTokens)}`}
-              />
-              <Mini label="Latency" value={`${result.event.latencyMs}ms`} />
-              <Mini
-                label="Speed"
-                value={`${result.event.tokensPerSec.toFixed(1)}/s`}
-              />
+      {thread.length > 0 && (
+        <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-950">
+          {thread.map((turn, i) => (
+            <div key={i} className="text-sm">
+              <span
+                className={`text-xs font-semibold uppercase ${
+                  turn.role === "user"
+                    ? "text-indigo-600 dark:text-indigo-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                {turn.role === "user" ? "You" : modelLabel || "Model"}
+              </span>
+              <p className="whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
+                {turn.content}
+                {running && i === thread.length - 1 && turn.role === "assistant" && (
+                  <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-emerald-500 align-baseline" />
+                )}
+              </p>
             </div>
+          ))}
+        </div>
+      )}
 
-            {result.event.contextWindow > 0 && (
-              <div>
-                <div className="mb-1 flex justify-between text-[11px] text-[var(--fg-muted)]">
-                  <span>Context used</span>
-                  <span className="font-mono">
-                    {fmtPct(result.event.contextFill)}
-                  </span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-[var(--panel-2)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--accent)]"
-                    style={{ width: `${Math.max(1, result.event.contextFill * 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--border-soft)] bg-[var(--panel-2)]/50 px-3.5 py-3 font-mono text-[11px] leading-relaxed">
-              {result.text}
-            </pre>
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-function Mini({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--panel-2)]/50 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-[var(--fg-dim)]">
-        {label}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && run()}
+          placeholder={thread.length > 0 ? "Continue the conversation" : "Type a prompt and press Enter"}
+          className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+        />
+        <button
+          onClick={run}
+          disabled={!modelRowId || running || !prompt.trim()}
+          className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {running ? "Running..." : thread.length > 0 ? "Send" : "Run"}
+        </button>
       </div>
-      <div
-        className="mt-0.5 font-mono text-sm font-semibold tabular-nums"
-        style={{ color: accent ? "var(--accent)" : "var(--fg)" }}
-      >
-        {value}
-      </div>
+
+      {error && (
+        <pre className="rounded-lg bg-red-50 p-3 text-xs whitespace-pre-wrap text-red-700 dark:bg-red-950 dark:text-red-300">
+          {error}
+        </pre>
+      )}
+
+      {totals && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+          Conversation totals ({totals.turns} turn{totals.turns === 1 ? "" : "s"}):{" "}
+          {totals.totalTokens.toLocaleString()} tokens (
+          {totals.inputTokens.toLocaleString()} in / {totals.outputTokens.toLocaleString()} out), $
+          {totals.costUsd.toFixed(4)}
+          {latencyMs !== null ? `, last call ${latencyMs}ms` : ""}
+        </div>
+      )}
     </div>
   );
 }

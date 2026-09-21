@@ -6,6 +6,14 @@ export type ProviderKind = "cloud" | "local" | "gateway" | "custom";
 
 export type AuthType = "bearer" | "header" | "query" | "basic" | "none";
 
+/**
+ * Wire shape used when chatting with this provider.
+ * "openai" is the default (OpenAI-compatible / Anthropic messages path);
+ * "gemini" and "bedrock" route through the native adapters in
+ * lib/provider-shapes/ instead.
+ */
+export type ProviderShape = "openai" | "gemini" | "bedrock";
+
 export interface Provider {
   id: number;
   slug: string;
@@ -14,6 +22,8 @@ export interface Provider {
   baseUrl: string;
   /** Path appended to baseUrl for chat completions, e.g. /chat/completions */
   chatPath: string;
+  /** Native request shape; omitted on older rows means "openai". */
+  shape?: ProviderShape;
   /** Path used to list models, e.g. /models  (blank = no discovery) */
   modelsPath: string;
   authType: AuthType;
@@ -38,6 +48,7 @@ export interface ProviderInput {
   kind?: ProviderKind;
   baseUrl: string;
   chatPath?: string;
+  shape?: ProviderShape;
   modelsPath?: string;
   authType?: AuthType;
   authHeaderName?: string;
