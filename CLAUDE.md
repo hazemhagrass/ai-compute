@@ -26,6 +26,29 @@ this repo's README.
 auto-generated `.secret` master key. Losing `.secret` makes stored keys
 unrecoverable, so back it up outside git.
 
+## The router app
+
+`apps/ai-model-router` is a self-contained Next.js app. Its `package.json` is
+the pnpm root: there is no workspace root, so run every command from inside
+that directory.
+
+```bash
+cd apps/ai-model-router
+pnpm typecheck   # next typegen + tsc --noEmit
+pnpm lint        # eslint src --max-warnings 0
+pnpm test        # vitest run
+pnpm build       # next build
+```
+
+Commits use `Refs #N`, never `Closes #N`: GitHub closes an issue on `Closes`,
+and closing is the human's call. A ticket is finished only after typecheck,
+lint, tests, and build all pass, and the behavior is verified against a running
+instance.
+
+A skill lives at `skills/<category>/<name>/SKILL.md`. Sync the phase docs after
+any issue state change with `node scripts/sync-plans.mjs --write` (the script
+is `.mjs`, not `.sh`).
+
 ## Writing skills
 
 Write lessons, not logs. One rule per line, imperative mood, and state the
