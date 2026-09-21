@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { chat } from "@/lib/client";
 import { rankModels, taskFromText } from "@/lib/engine";
+import { explainExclusions } from "@/lib/exclusions";
 import { getProvider, getTask, getTaskBySlug, listModels, listProviders } from "@/lib/repo";
 import { parseBody, recommendSchema } from "@/lib/schemas";
 import { computeCost, recordUsage } from "@/lib/usage";
@@ -57,18 +58,28 @@ export async function POST(request: Request) {
     : body.providerIds;
 
   const models = listModels({ enabledOnly: true });
-  const ranked = rankModels(task, models, {
+  // The report must see the same population the ranker filters, including the
+  // disabled rows, or the result would claim exclusions it never considered.
+  const criteria = {
     overrideWeights: body.overrideWeights,
     providerIds,
     ignorePin: body.ignorePin,
     maxOutputCost: body.maxOutputCost,
     minContext: body.minContext,
     limit: Math.min(25, Math.max(1, body.limit ?? 8)),
-  });
+    task,
+  };
+  const ranked = rankModels(
+    task,
+    models,
+    (({ task: _t, ...opts }) => opts)(criteria),
+  );
+  const exclusions = explainExclusions(models, criteria);
 
   const result: Recommendation = {
     task,
     ranked,
+    exclusions,
     generatedAt: new Date().toISOString(),
   };
 

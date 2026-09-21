@@ -1,0 +1,71 @@
+# Keep the build context small and, more importantly, keep secrets and local
+# state OUT of the image. Anything listed here is invisible to every COPY.
+
+# Dependencies: always reinstalled inside the image from the lockfile.
+# Copying a host node_modules would also drag in a better-sqlite3 binding
+# compiled for the host, which is the wrong ABI/libc for the container.
+node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+
+# Build output: rebuilt inside the image.
+.next
+**/.next
+out
+**/out
+dist
+**/dist
+build
+**/build
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# VCS and CI metadata.
+.git
+.gitignore
+.github
+
+# Local application data. The SQLite file holds ENCRYPTED provider API keys and
+# data/.secret holds the master key that decrypts them. Baking either into an
+# image layer would hand every puller a copy of someone's credentials, and image
+# layers are forever even if a later stage deletes the file.
+data
+**/data
+*.db
+*.db-wal
+*.db-shm
+**/*.db
+**/*.db-wal
+**/*.db-shm
+.secret
+**/.secret
+
+# Environment files.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+
+# Docker's own files: changing them should not bust cached COPY layers.
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs, agent config and editor noise: not needed to build or run.
+*.md
+**/*.md
+docs
+claude
+skills
+hermes
+scripts
+.claude
+.claude-plugin
+.vscode
+.idea
+.DS_Store
+*.log
+coverage
+**/coverage

@@ -1,5 +1,7 @@
 /** Shared domain types for the AI Model Router. */
 
+import type { ExclusionReport } from "./exclusions";
+
 export type ProviderKind = "cloud" | "local" | "gateway" | "custom";
 
 export type AuthType = "bearer" | "header" | "query" | "basic" | "none";
@@ -147,6 +149,8 @@ export interface Scored {
 export interface Recommendation {
   task: Task;
   ranked: Scored[];
+  /** Why the candidates that did NOT rank were thrown out. */
+  exclusions?: ExclusionReport;
   generatedAt: string;
   /** Present when the LLM-assisted picker was used. */
   ai?: {

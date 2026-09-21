@@ -1,0 +1,80 @@
+# ai-model-router: Next.js + better-sqlite3, single service.
+#
+#   docker compose up -d --build
+#   docker compose logs -f app
+#
+# Set AMR_SECRET in a local .env file (NOT committed) before first run.
+
+services:
+  app:
+    build:
+      # The Dockerfile expects the repo root as its context: it copies from
+      # apps/ai-model-router/ explicitly.
+      context: .
+      dockerfile: Dockerfile
+    image: ai-model-router:latest
+    container_name: ai-model-router
+
+    # unless-stopped, not "always": the container comes back after a crash or a
+    # host reboot, but a deliberate `docker compose stop` stays stopped.
+    restart: unless-stopped
+
+    ports:
+      # host:container. Change only the LEFT side to move the published port;
+      # the app listens on 3000 inside the container via PORT/HOSTNAME.
+      - "3000:3000"
+
+    environment:
+      NODE_ENV: production
+      # HOSTNAME must be 0.0.0.0, not localhost, or the server binds to the
+      # container loopback and the published port answers with connection reset.
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+      # Read by src/lib/paths.ts. Both point inside the named volume below so
+      # the database and the master key survive container replacement.
+      AMR_DATA_DIR: /data
+      AMR_DB_PATH: /data/router.db
+
+      # Master key used by src/lib/crypto.ts to encrypt provider API keys.
+      # If unset, the app generates /data/.secret on first boot and keeps using
+      # it, which works but ties every stored key to that one volume. Setting it
+      # explicitly (32+ random chars, e.g. `openssl rand -base64 36`) lets you
+      # restore a backup onto a fresh volume. LOSING THIS KEY MAKES EVERY STORED
+      # PROVIDER KEY PERMANENTLY UNREADABLE, so back it up outside the repo.
+      # Supplied from a local .env file so it never lands in git or an image.
+      AMR_SECRET: ${AMR_SECRET:-}
+
+    volumes:
+      # Named volume, not a bind mount: a container filesystem is ephemeral, so
+      # without this every `docker compose up --build` would silently discard
+      # router.db and .secret, taking all provider keys and request history with
+      # it. A named volume also keeps ownership under the image's node user
+      # (uid 1000) rather than inheriting host uids the way a bind mount does.
+      - amr-data:/data
+
+    # Healthcheck lives in the Dockerfile so `docker run` gets it too. Compose
+    # only needs the grace period for the first boot, when Next.js is still
+    # warming up and SQLite is creating the schema.
+    healthcheck:
+      start_period: 40s
+
+    # SQLite writes are local and the app talks to provider APIs over HTTPS.
+    # Nothing here needs extra privileges, so drop them all.
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  amr-data:
+    # Holds router.db (+ -wal/-shm) and the .secret master key.
+    # Back it up with:
+    #   docker run --rm -v ai-computer_amr-data:/data -v "$PWD:/backup" \
+    #     busybox tar czf /backup/amr-data.tgz -C /data .
+    driver: local
