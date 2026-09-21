@@ -346,13 +346,12 @@ pytest tests/test_import.py::test_malformed_date -x
 
 ## See Also
 
-- [Test-Driven Development](../testing/tdd.md): Write the failing test first, which forces a reliable repro
-- [Code Review](../review/code-review.md): Root cause statements belong in commit messages
-- [Logging Best Practices](../observability/logging.md): Structure logs for debugging, not just milestones
-- [Git Workflow](../git/workflow.md): Keep debugging commits atomic (one fix per commit)
-- [Performance Profiling](../performance/profiling.md): When the bug is "too slow" instead of "crashes"
-- [Integration Testing](../testing/integration.md): Verify fixes against real external dependencies
-- [Production Debugging](../observability/production-debugging.md): Debugging in live systems with limited access
+- [Test Strategy](../test-strategy/SKILL.md): Write the failing test first, which forces a reliable repro
+- [Code Review](../code-review/SKILL.md): Root cause statements belong in commit messages
+- [Git Workflow](../../devtools/git-workflow/SKILL.md): Keep debugging commits atomic (one fix per commit)
+- [Performance Profiling](../performance-profiling/SKILL.md): When the bug is "too slow" instead of "crashes"
+- [API Integration](../api-integration/SKILL.md): Verify fixes against real external dependencies
+- [Kubernetes Debugging](../../devops/kubernetes-debugging/SKILL.md): Debugging in live systems with limited access
 
 ## Tools Reference
 

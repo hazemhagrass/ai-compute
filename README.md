@@ -18,13 +18,24 @@ Each skill is a portable markdown file that teaches AI agents how to handle real
 
 ```
 ai-computer/
-├── skills/                     # 30+ portable agent skills (the core value)
-│   ├── engineering/            # 12 skills: refactoring, security, SQL, API integration
-│   ├── productivity/           # 9 skills: planning, grill-me, autonomous tasks, git commits
-│   ├── devops/                 # 3 skills: Docker, Kubernetes, CI/CD debugging
-│   ├── homelab/                # 3 skills: Lancache, Unraid, AdGuard Home (coming)
-│   ├── ai/                     # 2 skills: prompt engineering, model selection
-│   └── software-development/   # 1 skill: SmythOS SDK
+├── skills/                     # 38 portable agent skills (the core value)
+│   ├── TAXONOMY.md             # Which category a skill belongs in, and why
+│   ├── engineering/            # Writing and reviewing code: API design, refactoring, testing
+│   ├── devtools/               # The developer's own toolchain: git, tmux, dotfiles, regex
+│   ├── devops/                 # Running systems: Docker, Kubernetes, CI/CD
+│   ├── security/               # Finding and preventing vulnerabilities
+│   ├── data/                   # Analysis and querying: pandas, SQL for analysts
+│   ├── ai/                     # Working with models: prompting, model choice, agent SDKs
+│   ├── workflow/               # How work gets planned and driven to done
+│   ├── writing/                # Prose for humans: docs, blogs, email
+│   ├── design/                 # What the user sees: slides, UX, accessibility
+│   ├── research/               # Finding and verifying information
+│   ├── office/                 # Document and spreadsheet formats: xlsx, docx, pptx
+│   ├── career/                 # Resumes, interviews, negotiation
+│   ├── finance/                # Personal money modelling
+│   ├── learning/               # Acquiring and retaining knowledge
+│   ├── homelab/                # Self-hosted infrastructure
+│   └── meta/                   # Skills about maintaining this repo
 ├── apps/                       # Real applications built with these skills
 │   └── ai-model-router/        # Next.js: route prompts to the right model, track cost
 ├── hermes/                     # Hermes config (model routing, providers, fallback chain)
@@ -32,6 +43,7 @@ ai-computer/
 ├── scripts/
 │   ├── install.sh              # Symlink skills into ~/.hermes and ~/.claude
 │   ├── doctor.sh               # Verify all links resolve
+│   ├── gen-robot.py            # Generate each skill's unique robot SVG
 │   └── create-skill-issues.sh  # Batch-create skill tracking issues
 └── docs/                       # Plans, operations guides, ADRs
 ```
@@ -45,7 +57,7 @@ A skill is a markdown file that teaches an AI agent a workflow, not just facts. 
 - **References** (`references/` directory) for deep technical details
 - **Templates** (`templates/` directory) for config files, docs, etc.
 
-Example: [`skills/engineering/sql-optimization/SKILL.md`](skills/engineering/sql-optimization/SKILL.md) teaches an agent to read EXPLAIN plans, suggest indexes, and rewrite slow queries. [`skills/productivity/grill-me/SKILL.md`](skills/productivity/grill-me/SKILL.md) teaches relentless interviewing to stress-test plans before you commit.
+Example: [`skills/engineering/sql-optimization/SKILL.md`](skills/engineering/sql-optimization/SKILL.md) teaches an agent to read EXPLAIN plans, suggest indexes, and rewrite slow queries. [`skills/workflow/grill-me/SKILL.md`](skills/workflow/grill-me/SKILL.md) teaches relentless interviewing to stress-test plans before you commit.
 
 ## Skill categories
 
@@ -109,8 +121,8 @@ See [`apps/ai-model-router/README.md`](apps/ai-model-router/README.md) for featu
 ## Creating a new skill
 
 ```bash
-mkdir -p skills/productivity/my-skill
-cat > skills/productivity/my-skill/SKILL.md <<'EOF'
+mkdir -p skills/workflow/my-skill
+cat > skills/workflow/my-skill/SKILL.md <<'EOF'
 ---
 name: my-skill
 description: Use when <trigger situation>. <one-line behavior>.
@@ -148,16 +160,16 @@ What it does and why it exists.
 EOF
 
 # Optional: add scripts
-mkdir -p skills/productivity/my-skill/scripts
-echo '#!/bin/bash' > skills/productivity/my-skill/scripts/automate.sh
+mkdir -p skills/workflow/my-skill/scripts
+echo '#!/bin/bash' > skills/workflow/my-skill/scripts/automate.sh
 
 # Optional: add references
-mkdir -p skills/productivity/my-skill/references
-echo '# Deep dive into X' > skills/productivity/my-skill/references/deep-dive.md
+mkdir -p skills/workflow/my-skill/references
+echo '# Deep dive into X' > skills/workflow/my-skill/references/deep-dive.md
 
 # Optional: add templates
-mkdir -p skills/productivity/my-skill/templates
-echo 'config template here' > skills/productivity/my-skill/templates/config.yaml
+mkdir -p skills/workflow/my-skill/templates
+echo 'config template here' > skills/workflow/my-skill/templates/config.yaml
 
 ./scripts/install.sh  # Re-symlink if needed
 ```
@@ -171,7 +183,7 @@ echo 'config template here' > skills/productivity/my-skill/templates/config.yaml
 5. **Zero em-dashes.** Use commas, colons, or parentheses instead (verified before commit).
 6. **Progressive disclosure.** Core rules in the SKILL.md body, deep details in `references/`, loaded on demand.
 
-See [`skills/productivity/skill-authoring/SKILL.md`](skills/productivity/skill-authoring/SKILL.md) for the complete meta-skill.
+See [`skills/meta/skill-authoring/SKILL.md`](skills/meta/skill-authoring/SKILL.md) for the complete meta-skill.
 
 ## Contributing
 

@@ -301,4 +301,4 @@ console.error('failed', { url, status: res.status, headers: redactHeaders(option
 - [`../api-design/`](../api-design/) - the other side of the wire: designing the API you expose.
 - [`../test-strategy/`](../test-strategy/) - where mocked integration tests fit in the wider pyramid.
 - [`../debugging/`](../debugging/) - tracing an intermittent failure back to its root cause.
-- [`../security-audit/`](../security-audit/) - credential storage, secret scanning, and log hygiene.
+- [`../security-audit/`](../../security/security-audit/SKILL.md) - credential storage, secret scanning, and log hygiene.

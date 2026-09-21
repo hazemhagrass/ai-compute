@@ -7,9 +7,9 @@ FAIL=0
 
 ok()   { printf '\033[32m  ok\033[0m   %s\n' "$*"; }
 bad()  { printf '\033[31m  FAIL\033[0m %s\n' "$*"; FAIL=1; }
-head() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+section() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
-head "Symlinks"
+section "Symlinks"
 check_link() {
   local dst="$1"
   if [ ! -L "$dst" ]; then
@@ -34,11 +34,11 @@ for f in "$HOME/.hermes/config.yaml" "$HOME/.claude/CLAUDE.md"; do
   [ -e "$f" ] && check_link "$f"
 done
 
-head "Skill frontmatter"
+section "Skill frontmatter"
 shopt -s nullglob
 for skill in "$REPO"/skills/*/*/SKILL.md; do
   rel="${skill#"$REPO"/}"
-  if ! head -n1 "$skill" | grep -q '^---$'; then
+  if ! command head -n1 "$skill" | grep -q '^---$'; then
     bad "$rel: missing YAML frontmatter"
   elif ! grep -qm1 '^name:' "$skill"; then
     bad "$rel: frontmatter has no name:"
@@ -49,7 +49,35 @@ for skill in "$REPO"/skills/*/*/SKILL.md; do
   fi
 done
 
-head "Tooling"
+section "Skill structure"
+for skill in "$REPO"/skills/*/*/SKILL.md; do
+  dir="$(dirname "$skill")"
+  rel="${dir#"$REPO"/}"
+  problems=""
+  [ -f "$dir/README.md" ]        || problems="$problems no-README"
+  [ -f "$dir/assets/robot.svg" ] || problems="$problems no-robot"
+  grep -qm1 '<!-- robot-banner -->' "$dir/README.md" 2>/dev/null || problems="$problems no-banner"
+  if grep -qlm1 '—' "$skill" "$dir/README.md" 2>/dev/null; then
+    problems="$problems em-dash"
+  fi
+  # the category must be documented in TAXONOMY.md
+  cat_name="$(basename "$(dirname "$dir")")"
+  grep -qm1 "^| \`$cat_name\`" "$REPO/skills/TAXONOMY.md" || problems="$problems undocumented-category"
+  if [ -n "$problems" ]; then
+    bad "$rel:$problems"
+  else
+    ok "$rel"
+  fi
+done
+
+section "Robot art"
+if python3 "$REPO/scripts/gen-robot.py" --check >/dev/null 2>&1; then
+  ok "every skill has a unique robot"
+else
+  bad "$(python3 "$REPO/scripts/gen-robot.py" --check 2>&1 | head -n3)"
+fi
+
+section "Tooling"
 for bin in node pnpm git; do
   if command -v "$bin" >/dev/null 2>&1; then
     ok "$bin ($(command -v "$bin"))"
@@ -58,13 +86,13 @@ for bin in node pnpm git; do
   fi
 done
 
-head "Secrets hygiene"
+section "Secrets hygiene"
 if git -C "$REPO" ls-files --error-unmatch '**/.env' >/dev/null 2>&1; then
   bad "a .env file is tracked by git"
 else
   ok "no tracked .env files"
 fi
-if git -C "$REPO" grep -qIn -E 'sk-[A-Za-z0-9]{20,}' -- . ':!*doctor.sh' 2>/dev/null; then
+if git -C "$REPO" grep -qIn -E 'sk-[A-Za-z0-9]{20,}' -- . ':!*doctor.sh' ':!*.test.ts' ':!*.spec.ts' 2>/dev/null; then
   bad "possible API key committed, run: git grep -n 'sk-'"
 else
   ok "no obvious API keys in tracked files"
