@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createProvider, listProviders } from "@/lib/repo";
-import type { ProviderInput } from "@/lib/types";
+import { createProviderSchema, parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -10,19 +10,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as ProviderInput;
-    if (!body?.name?.trim()) {
-      return NextResponse.json({ error: "name is required" }, { status: 400 });
-    }
-    if (!body?.baseUrl?.trim()) {
-      return NextResponse.json({ error: "baseUrl is required" }, { status: 400 });
-    }
-    return NextResponse.json({ provider: createProvider(body) }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "invalid request" },
-      { status: 400 },
-    );
-  }
+  const parsed = await parseBody(request, createProviderSchema);
+  if (!parsed.ok) return parsed.response;
+
+  return NextResponse.json({ provider: createProvider(parsed.data) }, { status: 201 });
 }

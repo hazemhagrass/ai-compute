@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { deleteModel, getModel, updateModel } from "@/lib/repo";
-import type { ModelInput } from "@/lib/types";
+import { parseBody, updateModelSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +14,12 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/models/[id]">) 
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/models/[id]">) {
   const { id } = await ctx.params;
-  try {
-    const body = (await request.json()) as Partial<ModelInput>;
-    const model = updateModel(Number(id), body);
-    if (!model) return NextResponse.json({ error: "not found" }, { status: 404 });
-    return NextResponse.json({ model });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "invalid request" },
-      { status: 400 },
-    );
-  }
+  const parsed = await parseBody(request, updateModelSchema);
+  if (!parsed.ok) return parsed.response;
+
+  const model = updateModel(Number(id), parsed.data);
+  if (!model) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json({ model });
 }
 
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/models/[id]">) {

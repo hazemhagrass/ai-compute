@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { deleteTask, getTask, updateTask } from "@/lib/repo";
-import type { TaskInput } from "@/lib/types";
+import { parseBody, updateTaskSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +14,12 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[id]">) {
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/tasks/[id]">) {
   const { id } = await ctx.params;
-  try {
-    const body = (await request.json()) as Partial<TaskInput>;
-    const task = updateTask(Number(id), body);
-    if (!task) return NextResponse.json({ error: "not found" }, { status: 404 });
-    return NextResponse.json({ task });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "invalid request" },
-      { status: 400 },
-    );
-  }
+  const parsed = await parseBody(request, updateTaskSchema);
+  if (!parsed.ok) return parsed.response;
+
+  const task = updateTask(Number(id), parsed.data);
+  if (!task) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json({ task });
 }
 
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/tasks/[id]">) {

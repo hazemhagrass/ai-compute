@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { deleteProvider, getProvider, updateProvider } from "@/lib/repo";
-import type { ProviderInput } from "@/lib/types";
+import { parseBody, updateProviderSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +14,14 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/providers/[id]"
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/providers/[id]">) {
   const { id } = await ctx.params;
-  try {
-    const body = (await request.json()) as Partial<ProviderInput>;
-    const provider = updateProvider(Number(id), body);
-    if (!provider) return NextResponse.json({ error: "not found" }, { status: 404 });
-    return NextResponse.json({ provider });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "invalid request" },
-      { status: 400 },
-    );
-  }
+  const parsed = await parseBody(request, updateProviderSchema);
+  if (!parsed.ok) return parsed.response;
+
+  // apiKey stays tri-state through the schema: absent keeps the stored key,
+  // "" clears it, a value replaces it. Do not default it anywhere.
+  const provider = updateProvider(Number(id), parsed.data);
+  if (!provider) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json({ provider });
 }
 
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/providers/[id]">) {

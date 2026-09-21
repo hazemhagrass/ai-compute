@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fetchCatalog, recalcCheapness, syncPricing } from "@/lib/pricing";
+import { pricingSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -33,11 +34,12 @@ export async function GET(request: Request) {
 
 /** POST: sync stored model prices against OpenRouter. { apply, recalc } */
 export async function POST(request: Request) {
+  // An empty body is a valid dry run, so a parse failure is not an error here.
   let body: { apply?: boolean; recalcCheapness?: boolean } = {};
   try {
-    body = (await request.json()) as typeof body;
+    body = pricingSchema.parse(await request.json());
   } catch {
-    /* empty body = dry run */
+    body = {};
   }
   try {
     const result = await syncPricing(body.apply === true);

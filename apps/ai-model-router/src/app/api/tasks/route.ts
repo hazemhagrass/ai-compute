@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createTask, listTasks } from "@/lib/repo";
-import type { TaskInput } from "@/lib/types";
+import { createTaskSchema, parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -10,16 +10,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as TaskInput;
-    if (!body?.label?.trim()) {
-      return NextResponse.json({ error: "label is required" }, { status: 400 });
-    }
-    return NextResponse.json({ task: createTask(body) }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "invalid request" },
-      { status: 400 },
-    );
-  }
+  const parsed = await parseBody(request, createTaskSchema);
+  if (!parsed.ok) return parsed.response;
+
+  return NextResponse.json({ task: createTask(parsed.data) }, { status: 201 });
 }

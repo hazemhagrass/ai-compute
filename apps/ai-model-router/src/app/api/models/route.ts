@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createModel, listModels, queryModels } from "@/lib/repo";
-import type { ModelInput } from "@/lib/types";
+import { createModelSchema, parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -36,19 +36,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as ModelInput;
-    if (!body?.providerId) {
-      return NextResponse.json({ error: "providerId is required" }, { status: 400 });
-    }
-    if (!body?.modelId?.trim()) {
-      return NextResponse.json({ error: "modelId is required" }, { status: 400 });
-    }
-    return NextResponse.json({ model: createModel(body) }, { status: 201 });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "invalid request" },
-      { status: 400 },
-    );
-  }
+  const parsed = await parseBody(request, createModelSchema);
+  if (!parsed.ok) return parsed.response;
+
+  return NextResponse.json({ model: createModel(parsed.data) }, { status: 201 });
 }

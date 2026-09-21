@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { chat } from "@/lib/client";
 import { getModel, getProvider, getTaskBySlug } from "@/lib/repo";
+import { parseBody, playgroundSchema } from "@/lib/schemas";
 import { computeCost, recordUsage } from "@/lib/usage";
 
 export const dynamic = "force-dynamic";
@@ -17,19 +18,9 @@ interface PlaygroundBody {
 
 /** Run a real prompt against a chosen model and log prompt/answer/cost. */
 export async function POST(request: Request) {
-  let body: PlaygroundBody;
-  try {
-    body = (await request.json()) as PlaygroundBody;
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  }
-
-  if (!body?.modelRowId) {
-    return NextResponse.json({ error: "modelRowId is required" }, { status: 400 });
-  }
-  if (!body?.prompt?.trim()) {
-    return NextResponse.json({ error: "prompt is required" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, playgroundSchema);
+  if (!parsed.ok) return parsed.response;
+  const body: PlaygroundBody = parsed.data;
 
   const model = getModel(body.modelRowId);
   if (!model) return NextResponse.json({ error: "model not found" }, { status: 404 });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { chat } from "@/lib/client";
 import { rankModels, taskFromText } from "@/lib/engine";
 import { getProvider, getTask, getTaskBySlug, listModels, listProviders } from "@/lib/repo";
+import { parseBody, recommendSchema } from "@/lib/schemas";
 import { computeCost, recordUsage } from "@/lib/usage";
 import type { Recommendation, Scored, Task } from "@/lib/types";
 
@@ -34,19 +35,13 @@ function resolveTask(body: RecommendBody): Task | null {
 }
 
 export async function POST(request: Request) {
-  let body: RecommendBody;
-  try {
-    body = (await request.json()) as RecommendBody;
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, recommendSchema);
+  if (!parsed.ok) return parsed.response;
+  const body: RecommendBody = parsed.data;
 
   const task = resolveTask(body);
   if (!task) {
-    return NextResponse.json(
-      { error: "provide taskId, taskSlug, or text" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "task not found" }, { status: 404 });
   }
 
   const providers = listProviders();
