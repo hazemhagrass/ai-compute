@@ -12,17 +12,17 @@ live issue state so a closed issue flips its own box.
 
 <!-- Generated from GitHub issues. Edit the issues, not these numbers. -->
 
-**0% done**
+**17% done**
 
-`⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜`
+`🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜`
 
-🟩 **0 done** · 🟧 **0 in progress** · ⬜ **6 remaining** — 6 tickets
+🟩 **1 done** · 🟧 **0 in progress** · ⬜ **5 remaining** — 6 tickets
 
 <!-- tracker:end -->
 
 ## Tickets
 
-- [ ] **[#13](https://github.com/hazemhagrass/ai-compute/issues/13) · Explain why a model was excluded, not just which ones ranked** `S` — rankModels silently drops anything failing a hard requirement. When a user constrains the search and gets two results, there is no way to tell whether the other twenty were expensive, incapa…
+- [x] **[#13](https://github.com/hazemhagrass/ai-compute/issues/13) · Explain why a model was excluded, not just which ones ranked** `S` — rankModels silently drops anything failing a hard requirement. When a user constrains the search and gets two results, there is no way to tell whether the other twenty were expensive, incapa…
 - [ ] **[#16](https://github.com/hazemhagrass/ai-compute/issues/16) · Persist recommendations so a choice can be revisited** `S` — A recommendation exists only in React state. Reload the page and the reasoning is gone, which makes it impossible to ask "why did I pick this three weeks ago".
 - [ ] **[#12](https://github.com/hazemhagrass/ai-compute/issues/12) · Measure real latency and throughput instead of assuming a speed score** `M` — speed is a hand-assigned 0-100, but usage_events already records true latencyMs and tokensPerSec for every call. The data to replace the guess is sitting in the table unused.
 - [ ] **[#14](https://github.com/hazemhagrass/ai-compute/issues/14) · Let a task fall back to a second model when the first fails** `M` — The router names one model. In practice a provider 429s, a local box is asleep, or a model is deprecated, and the answer should be "use this, or that if it is down" rather than a dead end.
