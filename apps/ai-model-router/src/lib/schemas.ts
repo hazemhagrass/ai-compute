@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { assertSafeProviderUrl } from "./url-guard";
+import { assertSafeProviderUrl, defaultAllowPrivate } from "./url-guard";
 
 /**
  * Request body schemas.
@@ -36,31 +36,12 @@ const apiKey = z.string();
 export const providerKind = z.enum(["cloud", "local", "gateway", "custom"]);
 export const authType = z.enum(["bearer", "header", "query", "basic", "none"]);
 
-export const createProviderSchema = z.object({
-  name: z.string({ error: "name is required" }).trim().min(1, "name is required"),
-  baseUrl: z
-    .string({ error: "baseUrl is required" })
-    .trim()
-    .min(1, "baseUrl is required")
-    // Enforced here rather than in each route: the server fetches this URL, so
-    // an unchecked value is an SSRF hole into cloud metadata and internal
-    // services. One choke point means a new route cannot forget the check.
-    .refine(
-      (value) => {
-        try {
-          assertSafeProviderUrl(value);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      {
-        error:
-          "baseUrl must be a public http(s) address (private and link-local addresses are refused)",
-      },
-    ),
-  slug: z.string().trim().optional(),
-  kind: providerKind.optional(),
+const baseProviderSchema = z
+  .object({
+    name: z.string({ error: "name is required" }).trim().min(1, "name is required"),
+    baseUrl: z.string({ error: "baseUrl is required" }).trim().min(1, "baseUrl is required"),
+    slug: z.string().trim().optional(),
+    kind: providerKind.optional(),
   chatPath: z.string().optional(),
   shape: z.enum(["openai", "gemini", "bedrock"]).optional(),
   modelsPath: z.string().optional(),
@@ -73,7 +54,25 @@ export const createProviderSchema = z.object({
   apiKey: apiKey.optional(),
 });
 
-export const updateProviderSchema = createProviderSchema.partial();
+const providerSsrfGuard = (data: { baseUrl?: string; kind?: string }) => {
+  if (!data.baseUrl) return true; // skip validation if baseUrl is absent (update case)
+  try {
+    assertSafeProviderUrl(data.baseUrl, { allowPrivate: data.kind === "local" });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const createProviderSchema = baseProviderSchema.refine(providerSsrfGuard, {
+  message: 'baseUrl must be a public http(s) address (use kind="local" for Ollama on localhost)',
+  path: ["baseUrl"],
+});
+
+export const updateProviderSchema = baseProviderSchema.partial().refine(providerSsrfGuard, {
+  message: 'baseUrl must be a public http(s) address (use kind="local" for Ollama on localhost)',
+  path: ["baseUrl"],
+});
 
 /* ----------------------------------------------------------------- models */
 
