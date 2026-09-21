@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 
 import { deleteTask, getTask, updateTask } from "@/lib/repo";
 import { parseBody, updateTaskSchema } from "@/lib/schemas";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[id]">) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await ctx.params;
   const task = getTask(Number(id));
   if (!task) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -13,6 +17,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[id]">) {
 }
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/tasks/[id]">) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await ctx.params;
   const parsed = await parseBody(request, updateTaskSchema);
   if (!parsed.ok) return parsed.response;
@@ -23,6 +30,9 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/tasks/[id]
 }
 
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/tasks/[id]">) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await ctx.params;
   const task = getTask(Number(id));
   if (!task) return NextResponse.json({ error: "not found" }, { status: 404 });

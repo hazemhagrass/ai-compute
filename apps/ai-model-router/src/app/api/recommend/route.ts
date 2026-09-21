@@ -6,6 +6,7 @@ import { getProvider, getTask, getTaskBySlug, listModels, listProviders } from "
 import { parseBody, recommendSchema } from "@/lib/schemas";
 import { computeCost, recordUsage } from "@/lib/usage";
 import type { Recommendation, Scored, Task } from "@/lib/types";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,9 @@ function resolveTask(body: RecommendBody): Task | null {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const parsed = await parseBody(request, recommendSchema);
   if (!parsed.ok) return parsed.response;
   const body: RecommendBody = parsed.data;

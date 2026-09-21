@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 
 import { fetchCatalog, recalcCheapness, syncPricing } from "@/lib/pricing";
 import { pricingSchema } from "@/lib/schemas";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /** GET: browse the OpenRouter public catalogue (prices per 1M tokens). */
 export async function GET(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const sp = new URL(request.url).searchParams;
   const q = (sp.get("q") ?? "").toLowerCase();
   const limit = Math.min(500, Number(sp.get("limit")) || 100);
@@ -34,6 +38,9 @@ export async function GET(request: Request) {
 
 /** POST: sync stored model prices against OpenRouter. { apply, recalc } */
 export async function POST(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   // An empty body is a valid dry run, so a parse failure is not an error here.
   let body: { apply?: boolean; recalcCheapness?: boolean } = {};
   try {

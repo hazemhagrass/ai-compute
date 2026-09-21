@@ -2,7 +2,15 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   // Vite resolves tsconfig `paths` natively, so `@/…` imports work without a plugin.
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    alias: {
+      // `server-only` is a build-time guard with no runtime implementation, so
+      // importing it under Vitest throws. Stubbing it keeps the guard in the
+      // source (where it does its job) without breaking the tests.
+      "server-only": new URL("./src/test/server-only-stub.ts", import.meta.url).pathname,
+    },
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],

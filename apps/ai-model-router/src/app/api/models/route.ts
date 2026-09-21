@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createModel, listModels, queryModels } from "@/lib/repo";
 import { createModelSchema, parseBody } from "@/lib/schemas";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,9 @@ export const dynamic = "force-dynamic";
  * importing the OpenRouter catalogue alone adds 446 rows.
  */
 export async function GET(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const sp = new URL(request.url).searchParams;
   const enabledOnly = sp.get("enabled") === "1";
 
@@ -36,6 +40,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const parsed = await parseBody(request, createModelSchema);
   if (!parsed.ok) return parsed.response;
 

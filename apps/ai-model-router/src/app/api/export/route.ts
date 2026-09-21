@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { listModels, listProviders, listTasks } from "@/lib/repo";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
  * one, so you re-enter secrets on the new machine.
  */
 export async function GET() {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const payload = {
     version: 1,
     exportedAt: new Date().toISOString(),

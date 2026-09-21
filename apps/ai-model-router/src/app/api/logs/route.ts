@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { clearUsage, listUsage } from "@/lib/usage";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const sp = new URL(request.url).searchParams;
   const num = (k: string) => {
     const v = Number(sp.get(k));
@@ -25,5 +29,8 @@ export async function GET(request: Request) {
 }
 
 export async function DELETE() {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   return NextResponse.json({ deleted: clearUsage() });
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { testConnection } from "@/lib/client";
 import { cheapnessFromPrice, fetchCatalog, type CatalogEntry } from "@/lib/pricing";
 import { createModel, getProvider, listModels } from "@/lib/repo";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -29,6 +30,9 @@ export async function POST(
   _req: Request,
   ctx: RouteContext<"/api/providers/[id]/discover">,
 ) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const { id } = await ctx.params;
   const providerId = Number(id);
   const provider = getProvider(providerId);

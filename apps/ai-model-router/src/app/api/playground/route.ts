@@ -4,6 +4,7 @@ import { chat } from "@/lib/client";
 import { getModel, getProvider, getTaskBySlug } from "@/lib/repo";
 import { parseBody, playgroundSchema } from "@/lib/schemas";
 import { computeCost, recordUsage } from "@/lib/usage";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -18,6 +19,9 @@ interface PlaygroundBody {
 
 /** Run a real prompt against a chosen model and log prompt/answer/cost. */
 export async function POST(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
   const parsed = await parseBody(request, playgroundSchema);
   if (!parsed.ok) return parsed.response;
   const body: PlaygroundBody = parsed.data;
