@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch cancels the first: no point burning
+# minutes on a commit that is already superseded.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  router:
+    name: ai-model-router
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ai-model-router
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/ai-model-router/pnpm-lock.yaml
+
+      # better-sqlite3 is a native module; --frozen-lockfile keeps the
+      # prebuilt binary resolution deterministic across runs.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Must run before tsc: RouteContext is a global Next generates into
+      # .next/types, so a bare `tsc --noEmit` fails on every dynamic route.
+      # Do not "fix" that by hand-declaring the global.
+      - name: Generate route types
+        run: pnpm exec next typegen
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      # Zero warnings tolerated: the React 19 compiler rules here catch real
+      # bugs (a mid-render mutation in the donut chart was found this way)
+      # and are worthless if warnings are allowed to accumulate.
+      - name: Lint
+        run: pnpm exec eslint src --max-warnings 0
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  plans:
+    name: plans in sync
+    runs-on: ubuntu-latest
+    # Only meaningful on main: a PR branch legitimately lags the issue state.
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Regenerate the phase trackers and fail if they differ from what is
+      # committed. Hand-typed progress numbers have read 100% complete with
+      # whole sections unbuilt, so drift is treated as a build failure.
+      - name: Check derived progress numbers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/sync-plans.mjs --write
+          if ! git diff --quiet docs/plans; then
+            echo "::error::docs/plans is stale. Run: node scripts/sync-plans.mjs --write"
+            git diff --stat docs/plans
+            exit 1
+          fi

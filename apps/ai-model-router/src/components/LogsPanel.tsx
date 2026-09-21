@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { api } from "./store";
 import { Card, Empty, fmtNum, fmtPct, fmtUsd } from "./ui";
@@ -10,62 +10,101 @@ import type { UsageEvent } from "@/lib/usage";
 export default function LogsPanel({
   providers,
   models,
+  initial,
   onToast,
 }: {
   providers: Provider[];
   models: Model[];
+  initial: { events: UsageEvent[]; total: number };
   onToast: (m: string, t?: "info" | "good" | "bad") => void;
 }) {
-  const [events, setEvents] = useState<UsageEvent[]>([]);
-  const [total, setTotal] = useState(0);
+  // Seeded from the server render: no fetch-on-mount, no first-paint spinner.
+  // Every refetch below is triggered by a user action, never by an effect.
+  const [events, setEvents] = useState<UsageEvent[]>(initial.events);
+  const [total, setTotal] = useState(initial.total);
   const [offset, setOffset] = useState(0);
   const [q, setQ] = useState("");
   const [providerId, setProviderId] = useState<number | "all">("all");
   const [modelRowId, setModelRowId] = useState<number | "all">("all");
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState<UsageEvent | null>(null);
 
   const LIMIT = 25;
 
-  // Awaits before any setState (React 19 compiler rule); filter handlers
-  // switch the spinner on instead.
-  const load = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({
-        limit: String(LIMIT),
-        offset: String(offset),
-      });
-      if (q) params.set("q", q);
-      if (providerId !== "all") params.set("providerId", String(providerId));
-      if (modelRowId !== "all") params.set("modelRowId", String(modelRowId));
-      if (errorsOnly) params.set("errors", "1");
-      const res = await api<{ events: UsageEvent[]; total: number }>(
-        `/api/logs?${params}`,
-      );
-      setEvents(res.events);
-      setTotal(res.total);
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : "Log load failed", "bad");
-    } finally {
-      setLoading(false);
-    }
-  }, [offset, q, providerId, modelRowId, errorsOnly, onToast]);
+  interface Query {
+    offset: number;
+    q: string;
+    providerId: number | "all";
+    modelRowId: number | "all";
+    errorsOnly: boolean;
+  }
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const current = (): Query => ({ offset, q, providerId, modelRowId, errorsOnly });
 
-  /** Any filter change: show the spinner and jump back to the first page. */
-  function applyFilter(fn: () => void) {
-    setLoading(true);
+  /**
+   * Fetch for an explicit query rather than reading state.
+   *
+   * Taking the query as an argument is what lets every call site be an event
+   * handler: there is no effect watching state, so no cascading render, and
+   * the request always matches the values the user just chose rather than the
+   * ones from the previous render.
+   */
+  const load = useCallback(
+    async (query: Query) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          limit: String(LIMIT),
+          offset: String(query.offset),
+        });
+        if (query.q) params.set("q", query.q);
+        if (query.providerId !== "all")
+          params.set("providerId", String(query.providerId));
+        if (query.modelRowId !== "all")
+          params.set("modelRowId", String(query.modelRowId));
+        if (query.errorsOnly) params.set("errors", "1");
+
+        const res = await api<{ events: UsageEvent[]; total: number }>(
+          `/api/logs?${params}`,
+        );
+        setEvents(res.events);
+        setTotal(res.total);
+      } catch (err) {
+        onToast(err instanceof Error ? err.message : "Log load failed", "bad");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [onToast],
+  );
+
+  /** A filter changed: reset to the first page and refetch. */
+  function applyFilter(patch: Partial<Query>) {
+    const next = { ...current(), ...patch, offset: 0 };
     setOffset(0);
-    fn();
+    if (patch.q !== undefined) setQ(patch.q);
+    if (patch.providerId !== undefined) setProviderId(patch.providerId);
+    if (patch.modelRowId !== undefined) setModelRowId(patch.modelRowId);
+    if (patch.errorsOnly !== undefined) setErrorsOnly(patch.errorsOnly);
+    void load(next);
+  }
+
+  // Search fires per keystroke, so it is debounced; the other filters are
+  // discrete choices and fire immediately.
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function onSearch(value: string) {
+    setQ(value);
+    setOffset(0);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      void load({ ...current(), q: value, offset: 0 });
+    }, 300);
   }
 
   function goToPage(next: number) {
-    setLoading(true);
     setOffset(next);
+    void load({ ...current(), offset: next });
   }
 
   async function clearAll() {
@@ -73,13 +112,13 @@ export default function LogsPanel({
     const res = await api<{ deleted: number }>("/api/logs", { method: "DELETE" });
     onToast(`Cleared ${res.deleted} log entries`, "good");
     setOffset(0);
-    void load();
+    void load({ ...current(), offset: 0 });
   }
 
   async function removeOne(id: number) {
     await api(`/api/logs/${id}`, { method: "DELETE" });
     setOpen(null);
-    void load();
+    void load(current());
   }
 
   const pages = Math.ceil(total / LIMIT);
@@ -90,16 +129,16 @@ export default function LogsPanel({
       <div className="flex flex-wrap items-center gap-3">
         <input
           value={q}
-          onChange={(e) => applyFilter(() => setQ(e.target.value))}
+          onChange={(e) => onSearch(e.target.value)}
           placeholder="Search prompts and answers…"
           className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
         />
         <select
           value={providerId}
           onChange={(e) =>
-            applyFilter(() =>
-              setProviderId(e.target.value === "all" ? "all" : Number(e.target.value)),
-            )
+            applyFilter({
+              providerId: e.target.value === "all" ? "all" : Number(e.target.value),
+            })
           }
           className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
         >
@@ -113,9 +152,9 @@ export default function LogsPanel({
         <select
           value={modelRowId}
           onChange={(e) =>
-            applyFilter(() =>
-              setModelRowId(e.target.value === "all" ? "all" : Number(e.target.value)),
-            )
+            applyFilter({
+              modelRowId: e.target.value === "all" ? "all" : Number(e.target.value),
+            })
           }
           className="max-w-[14rem] rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
         >
@@ -130,7 +169,7 @@ export default function LogsPanel({
           <input
             type="checkbox"
             checked={errorsOnly}
-            onChange={(e) => applyFilter(() => setErrorsOnly(e.target.checked))}
+            onChange={(e) => applyFilter({ errorsOnly: e.target.checked })}
             className="h-4 w-4 accent-[var(--bad)]"
           />
           errors only

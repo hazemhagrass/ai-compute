@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import { api } from "./store";
 import {
@@ -27,57 +27,39 @@ const RANGES = [
 ];
 
 export default function AnalyticsPanel({
+  initial,
   onToast,
 }: {
+  initial: Analytics;
   onToast: (m: string, t?: "info" | "good" | "bad") => void;
 }) {
-  const [days, setDays] = useState(30);
-  const [data, setData] = useState<Analytics | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Seeded from the server render, so there is no fetch-on-mount effect and
+  // no spinner on first paint. Refetching happens only when the user picks a
+  // different range, from an event handler.
+  const [days, setDays] = useState(initial.range.days);
+  const [data, setData] = useState<Analytics>(initial);
+  const [loading, setLoading] = useState(false);
 
-  // Awaits before any setState: a synchronous setState in an effect body
-  // triggers cascading renders (React 19 compiler rule). The spinner is
-  // switched on by the caller instead.
-  const load = useCallback(
-    async (d: number) => {
-      try {
-        const res = await api<{ analytics: Analytics }>(`/api/analytics?days=${d}`);
-        setData(res.analytics);
-      } catch (err) {
-        onToast(err instanceof Error ? err.message : "Analytics failed", "bad");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [onToast],
-  );
-
-  useEffect(() => {
-    void load(days);
-  }, [days, load]);
-
-  function pickRange(d: number) {
+  async function pickRange(d: number) {
+    if (d === days) return;
     setLoading(true);
     setDays(d);
+    try {
+      const res = await api<{ analytics: Analytics }>(`/api/analytics?days=${d}`);
+      setData(res.analytics);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Analytics failed", "bad");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  if (loading && !data) {
-    return (
-      <Card>
-        <div className="amr-pulse py-10 text-center text-sm text-[var(--fg-dim)]">
-          Crunching usage…
-        </div>
-      </Card>
-    );
-  }
-
-  if (!data) return null;
   const t = data.totals;
 
   if (t.calls === 0) {
     return (
       <div className="space-y-5">
-        <RangePicker days={days} setDays={pickRange} />
+        <RangePicker days={days} setDays={pickRange} busy={loading} />
         <Card>
           <Empty>
             No calls logged in this window yet. Run a prompt from the{" "}
@@ -101,7 +83,7 @@ export default function AnalyticsPanel({
 
   return (
     <div className="space-y-5">
-      <RangePicker days={days} setDays={pickRange} />
+      <RangePicker days={days} setDays={pickRange} busy={loading} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
@@ -248,12 +230,14 @@ export default function AnalyticsPanel({
 function RangePicker({
   days,
   setDays,
+  busy,
 }: {
   days: number;
   setDays: (d: number) => void;
+  busy?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center gap-2 ${busy ? "amr-pulse" : ""}`}>
       <span className="text-xs text-[var(--fg-dim)]">Range</span>
       <div className="flex rounded-lg border border-[var(--border)] p-1">
         {RANGES.map((r) => (

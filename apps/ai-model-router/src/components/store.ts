@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import type { Model, Provider, Task } from "@/lib/types";
 
@@ -39,15 +39,21 @@ export interface Catalog {
   tasks: Task[];
 }
 
-/** Loads providers + models + tasks together and exposes a refresh handle. */
-export function useCatalog() {
-  const [data, setData] = useState<Catalog>({ providers: [], models: [], tasks: [] });
-  const [loading, setLoading] = useState(true);
+/**
+ * Catalog state seeded from the server render.
+ *
+ * There is deliberately no fetch-on-mount effect: the initial data arrives as
+ * props from a Server Component that read SQLite directly, so the first paint
+ * is real content rather than a spinner. `refresh` exists for use after a
+ * mutation, and runs from an event handler, where updating state is expected.
+ */
+export function useCatalog(initial: Catalog) {
+  const [data, setData] = useState<Catalog>(initial);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    // Await first: calling setState synchronously inside an effect body
-    // triggers cascading renders (React 19 compiler rule).
+    setRefreshing(true);
     try {
       const [p, m, t] = await Promise.all([
         api<{ providers: Provider[] }>("/api/providers"),
@@ -59,15 +65,11 @@ export function useCatalog() {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  return { ...data, loading, error, refresh };
+  return { ...data, refreshing, error, refresh };
 }
 
 /** Tiny toast queue — no dependency. */
