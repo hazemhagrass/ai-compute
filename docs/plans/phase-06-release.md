@@ -12,21 +12,21 @@ live issue state so a closed issue flips its own box.
 
 <!-- Generated from GitHub issues. Edit the issues, not these numbers. -->
 
-**40% done**
+**80% done**
 
-`🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜`
+`🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜`
 
-🟩 **2 done** · 🟧 **0 in progress** · ⬜ **3 remaining** — 5 tickets
+🟩 **4 done** · 🟧 **0 in progress** · ⬜ **1 remaining** — 5 tickets
 
 <!-- tracker:end -->
 
 ## Tickets
 
-- [ ] **[#29](https://github.com/hazemhagrass/ai-compute/issues/29) · Import a config export back into a fresh instance** `S` — GET /api/export produces a config backup that nothing can consume. Export without import is a false sense of safety.
+- [x] **[#29](https://github.com/hazemhagrass/ai-compute/issues/29) · Import a config export back into a fresh instance** `S` — GET /api/export produces a config backup that nothing can consume. Export without import is a false sense of safety.
 - [x] **[#30](https://github.com/hazemhagrass/ai-compute/issues/30) · Write the deployment and operations guide** `S` — The README covers what the app is and how to run it locally. Nothing covers running it somewhere real.
 - [ ] **[#31](https://github.com/hazemhagrass/ai-compute/issues/31) · Add a repo-level agent quickstart for the router app** `S` — The root CLAUDE.md covers repo conventions. An agent sent to work on the router app itself has to rediscover the architecture every session.
 - [x] **[#27](https://github.com/hazemhagrass/ai-compute/issues/27) · Ship a Dockerfile and compose file** `M` — Deployment today is pnpm build && pnpm start on a machine with the right Node version. That is fine for localhost and nothing else.
-- [ ] **[#28](https://github.com/hazemhagrass/ai-compute/issues/28) · Back up and restore the database and encryption key** `M` — There is no backup story. The SQLite file holds every provider key and the entire prompt archive, and .secret is the only thing that can decrypt the keys.
+- [x] **[#28](https://github.com/hazemhagrass/ai-compute/issues/28) · Back up and restore the database and encryption key** `M` — There is no backup story. The SQLite file holds every provider key and the entire prompt archive, and .secret is the only thing that can decrypt the keys.
 
 ---
 
