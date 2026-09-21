@@ -1,6 +1,18 @@
-# AI Productivity Skill Library
+<div align="center">
 
-A comprehensive collection of 30+ battle-tested agent skills for developers, researchers, content creators, and knowledge workers. Each skill is a portable markdown file that teaches AI agents how to handle real-world tasks — from debugging Docker to writing academic papers to optimizing Excel dashboards.
+![AI Robot](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif)
+
+# 🤖 AI Productivity Skill Library
+
+**A comprehensive collection of 30+ battle-tested agent skills for developers, researchers, content creators, and knowledge workers.**
+
+[![Issues](https://img.shields.io/github/issues/hazemhagrass/ai-compute)](https://github.com/hazemhagrass/ai-compute/issues)
+[![Skills](https://img.shields.io/badge/skills-30+-blue)](https://github.com/hazemhagrass/ai-compute/tree/main/skills)
+[![License](https://img.shields.io/github/license/hazemhagrass/ai-compute)](LICENSE)
+
+</div>
+
+--- Each skill is a portable markdown file that teaches AI agents how to handle real-world tasks — from debugging Docker to writing academic papers to optimizing Excel dashboards.
 
 **80+ more skills in active development** (see [issues](https://github.com/hazemhagrass/ai-compute/issues)).
 
