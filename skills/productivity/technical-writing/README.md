@@ -2,7 +2,7 @@
 
 <!-- robot-banner -->
 <div align="center">
-<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+<img src="assets/robot.svg" alt="robot" width="150" />
 </div>
 
 A skill for writing docs, READMEs, and changelogs that a stranger who is stuck at 2am can act on in five minutes.

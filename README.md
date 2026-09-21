@@ -1,7 +1,7 @@
 # AI Productivity Skill Library
 
 <div align="center">
-<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="220" />
+<img src="assets/hero-robot.svg" alt="AI skill library robots" width="380" />
 
 **A comprehensive collection of battle-tested agent skills for developers, researchers, content creators, and knowledge workers.**
 

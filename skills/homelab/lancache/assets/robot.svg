@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 190" width="160" height="190" role="img" aria-label="Lancache robot">
+  <title>Lancache</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#504b33" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#35301c" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="0" y="0" width="160" height="190" rx="18" fill="url(#bg)"/>
+  <g filter="url(#glow)"><path d="M80 34 V18" stroke="#e1c446" stroke-width="4" stroke-linecap="round"/><circle cx="80" cy="14" r="6" fill="#a1ea47"><animate attributeName="r" values="6;8;6" dur="1.8s" repeatCount="indefinite"/></circle></g>
+  <path d="M46 40 h68 a10 10 0 0 1 10 10 v40 a14 14 0 0 1 -14 14 h-60 a14 14 0 0 1 -14 -14 v-40 a10 10 0 0 1 10 -10 z" fill="#504b33" stroke="#e1c446" stroke-width="3"/>
+  <g filter="url(#glow)"><ellipse cx="62" cy="68" rx="9" ry="9" fill="#a1ea47"><animate attributeName="ry" values="9;9;1;9;9" dur="4.2s" repeatCount="indefinite"/></ellipse><ellipse cx="98" cy="68" rx="9" ry="9" fill="#a1ea47"><animate attributeName="ry" values="9;9;1;9;9" dur="4.2s" repeatCount="indefinite"/></ellipse></g>
+  <path d="M68 92 h24" stroke="#e1c446" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <rect x="74" y="104" width="12" height="8" fill="#e1c446" opacity="0.8"/>
+  <rect x="48" y="112" width="64" height="48" rx="12" fill="#504b33" stroke="#e1c446" stroke-width="3"/>
+  <g filter="url(#glow)"><rect x="62" y="120" width="36" height="9" rx="2" fill="none" stroke="#a1ea47" stroke-width="3"/><rect x="62" y="133" width="36" height="9" rx="2" fill="none" stroke="#a1ea47" stroke-width="3"/><circle cx="90" cy="124.5" r="2" fill="#a1ea47"/><circle cx="90" cy="137.5" r="2" fill="#a1ea47"/></g>
+  <rect x="30" y="118" width="14" height="34" rx="7" fill="#504b33" stroke="#e1c446" stroke-width="3"/>
+  <rect x="116" y="118" width="14" height="34" rx="7" fill="#504b33" stroke="#e1c446" stroke-width="3"/>
+  <rect x="58" y="160" width="14" height="18" rx="5" fill="#504b33" stroke="#e1c446" stroke-width="3"/>
+  <rect x="88" y="160" width="14" height="18" rx="5" fill="#504b33" stroke="#e1c446" stroke-width="3"/>
+  <circle cx="24" cy="46" r="3" fill="#a1ea47" opacity="0.65"><animate attributeName="opacity" values="0.65;0.15;0.65" dur="3.1s" repeatCount="indefinite"/></circle>
+  <circle cx="138" cy="70" r="2.5" fill="#a1ea47" opacity="0.5"><animate attributeName="opacity" values="0.2;0.7;0.2" dur="2.4s" repeatCount="indefinite"/></circle>
+  <circle cx="30" cy="168" r="2" fill="#e1c446" opacity="0.5"><animate attributeName="opacity" values="0.6;0.2;0.6" dur="3.8s" repeatCount="indefinite"/></circle>
+</svg>

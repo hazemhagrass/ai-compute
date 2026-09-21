@@ -2,7 +2,7 @@
 
 <!-- robot-banner -->
 <div align="center">
-<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+<img src="assets/robot.svg" alt="robot" width="150" />
 </div>
 
 A rule set for React and Next.js App Router code that decides component boundaries, data loading, state placement, and failure handling at the moment you write the component.

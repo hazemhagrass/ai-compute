@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 200" width="420" height="200" role="img" aria-label="AI skill library robots">
+  <title>AI Productivity Skill Library</title>
+  <defs>
+    <linearGradient id="hb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2b3550" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#151a26" stop-opacity="0.08"/>
+    </linearGradient>
+    <filter id="hg" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="420" height="200" rx="22" fill="url(#hb)"/>
+
+  <!-- left small bot -->
+  <g opacity="0.85">
+    <path d="M78 64 V52" stroke="#3fb984" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="78" cy="49" r="4" fill="#5fe3a6"><animate attributeName="opacity" values="1;.3;1" dur="2.2s" repeatCount="indefinite"/></circle>
+    <rect x="54" y="64" width="48" height="40" rx="12" fill="#243040" stroke="#3fb984" stroke-width="3"/>
+    <g filter="url(#hg)"><circle cx="68" cy="84" r="5" fill="#5fe3a6"/><circle cx="88" cy="84" r="5" fill="#5fe3a6"/></g>
+    <rect x="58" y="110" width="40" height="34" rx="10" fill="#243040" stroke="#3fb984" stroke-width="3"/>
+    <path d="M68 127 h20" stroke="#5fe3a6" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- center main bot -->
+  <g>
+    <path d="M210 48 V30" stroke="#4d8ef0" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="210" cy="26" r="7" fill="#7bb4ff" filter="url(#hg)"><animate attributeName="r" values="7;9;7" dur="1.9s" repeatCount="indefinite"/></circle>
+    <rect x="170" y="48" width="80" height="62" rx="16" fill="#26314a" stroke="#4d8ef0" stroke-width="3.5"/>
+    <g filter="url(#hg)">
+      <ellipse cx="192" cy="78" rx="9" ry="9" fill="#7bb4ff"><animate attributeName="ry" values="9;9;1;9;9" dur="4.4s" repeatCount="indefinite"/></ellipse>
+      <ellipse cx="228" cy="78" rx="9" ry="9" fill="#7bb4ff"><animate attributeName="ry" values="9;9;1;9;9" dur="4.4s" repeatCount="indefinite"/></ellipse>
+    </g>
+    <path d="M196 96 h28" stroke="#4d8ef0" stroke-width="3" stroke-linecap="round" opacity="0.75"/>
+    <rect x="152" y="118" width="116" height="56" rx="14" fill="#26314a" stroke="#4d8ef0" stroke-width="3.5"/>
+    <g filter="url(#hg)" stroke="#7bb4ff" stroke-width="3" fill="none" stroke-linecap="round">
+      <path d="M186 134 l-10 12 10 12"/><path d="M234 134 l10 12 -10 12"/><path d="M216 130 l-12 32"/>
+    </g>
+    <rect x="132" y="126" width="16" height="40" rx="8" fill="#26314a" stroke="#4d8ef0" stroke-width="3"/>
+    <rect x="272" y="126" width="16" height="40" rx="8" fill="#26314a" stroke="#4d8ef0" stroke-width="3"/>
+  </g>
+
+  <!-- right small bot -->
+  <g opacity="0.85">
+    <path d="M342 64 V52" stroke="#b06ae0" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="342" cy="49" r="4" fill="#d79bff"><animate attributeName="opacity" values=".3;1;.3" dur="2.6s" repeatCount="indefinite"/></circle>
+    <path d="M342 60 L366 74 v26 l-24 14 -24 -14 V74 Z" fill="#2c2740" stroke="#b06ae0" stroke-width="3"/>
+    <g filter="url(#hg)"><rect x="330" y="82" width="10" height="7" rx="3" fill="#d79bff"/><rect x="346" y="82" width="10" height="7" rx="3" fill="#d79bff"/></g>
+    <rect x="322" y="118" width="40" height="34" rx="10" fill="#2c2740" stroke="#b06ae0" stroke-width="3"/>
+    <circle cx="342" cy="135" r="7" fill="none" stroke="#d79bff" stroke-width="3"/>
+  </g>
+
+  <circle cx="34" cy="40" r="3" fill="#7bb4ff" opacity="0.5"><animate attributeName="opacity" values="0.5;0.1;0.5" dur="3.4s" repeatCount="indefinite"/></circle>
+  <circle cx="392" cy="150" r="2.5" fill="#5fe3a6" opacity="0.45"><animate attributeName="opacity" values="0.15;0.6;0.15" dur="2.8s" repeatCount="indefinite"/></circle>
+  <circle cx="400" cy="46" r="2" fill="#d79bff" opacity="0.5"/>
+</svg>

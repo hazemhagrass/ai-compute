@@ -2,7 +2,7 @@
 
 <!-- robot-banner -->
 <div align="center">
-<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+<img src="assets/robot.svg" alt="robot" width="150" />
 </div>
 
 A measurement-first workflow for making slow systems fast: set a target number, benchmark, profile, fix the single biggest contributor, re-measure, stop.

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 190" width="160" height="190" role="img" aria-label="Systematic Debugging robot">
+  <title>Systematic Debugging</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#334250" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1c2935" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="0" y="0" width="160" height="190" rx="18" fill="url(#bg)"/>
+  <g filter="url(#glow)"><path d="M80 32 q-16 -14 -26 -6" stroke="#4696e1" stroke-width="3.5" fill="none" stroke-linecap="round"/><circle cx="52" cy="25" r="5" fill="#5a47ea"><animate attributeName="cy" values="25;21;25" dur="2.6s" repeatCount="indefinite"/></circle></g>
+  <path d="M80 30 L122 52 V92 L80 112 L38 92 V52 Z" fill="#334250" stroke="#4696e1" stroke-width="3"/>
+  <g filter="url(#glow)"><rect x="52" y="62" width="22" height="12" rx="6" fill="#5a47ea"><animate attributeName="height" values="12;12;2;12;12" dur="3.6s" repeatCount="indefinite"/></rect><rect x="86" y="62" width="22" height="12" rx="6" fill="#5a47ea"><animate attributeName="height" values="12;12;2;12;12" dur="3.6s" repeatCount="indefinite"/></rect></g>
+  <path d="M68 92 h24" stroke="#4696e1" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <rect x="74" y="104" width="12" height="8" fill="#4696e1" opacity="0.8"/>
+  <rect x="48" y="112" width="64" height="48" rx="12" fill="#334250" stroke="#4696e1" stroke-width="3"/>
+  <g filter="url(#glow)"><circle cx="80" cy="132" r="9" fill="none" stroke="#5a47ea" stroke-width="3"/><path d="M86 138 l9 9" stroke="#5a47ea" stroke-width="3" stroke-linecap="round"/></g>
+  <rect x="30" y="118" width="14" height="34" rx="7" fill="#334250" stroke="#4696e1" stroke-width="3"/>
+  <rect x="116" y="118" width="14" height="34" rx="7" fill="#334250" stroke="#4696e1" stroke-width="3"/>
+  <rect x="58" y="160" width="14" height="18" rx="5" fill="#334250" stroke="#4696e1" stroke-width="3"/>
+  <rect x="88" y="160" width="14" height="18" rx="5" fill="#334250" stroke="#4696e1" stroke-width="3"/>
+  <circle cx="24" cy="46" r="3" fill="#5a47ea" opacity="0.65"><animate attributeName="opacity" values="0.65;0.15;0.65" dur="3.1s" repeatCount="indefinite"/></circle>
+  <circle cx="138" cy="70" r="2.5" fill="#5a47ea" opacity="0.5"><animate attributeName="opacity" values="0.2;0.7;0.2" dur="2.4s" repeatCount="indefinite"/></circle>
+  <circle cx="30" cy="168" r="2" fill="#4696e1" opacity="0.5"><animate attributeName="opacity" values="0.6;0.2;0.6" dur="3.8s" repeatCount="indefinite"/></circle>
+</svg>
