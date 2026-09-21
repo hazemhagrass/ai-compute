@@ -52,7 +52,10 @@ echo 'npx --no -- commitlint --edit "$1"' > .husky/commit-msg
 ```
 
 ```js
-// commitlint.config.js
+// commitlint.config.mjs
+// Use the .mjs extension, or "export default" throws
+// "SyntaxError: Unexpected token 'export'" unless the nearest
+// package.json already sets "type": "module".
 export default {
   extends: ["@commitlint/config-conventional"],
   rules: {
