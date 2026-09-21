@@ -22,8 +22,8 @@ docs/plans/
 Progress numbers are **derived, never typed**. Run:
 
 ```bash
-./scripts/sync-plans.sh          # dry run, prints what would change
-./scripts/sync-plans.sh --write  # rewrite the tracker blocks
+node scripts/sync-plans.mjs          # dry run, prints what would change
+node scripts/sync-plans.mjs --write  # rewrite the tracker blocks
 ```
 
 It reads live issue state from the GitHub API, so a closed issue flips its
