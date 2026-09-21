@@ -291,7 +291,7 @@ A paragraph per paper leaves the reader to do the synthesis, which was the job.
 
 - [`truth-first`](../truth-first/SKILL.md) - grounding individual claims in verifiable sources; this skill is its applied sibling, covering how the body of evidence was assembled
 - [`technical-writing`](../../writing/technical-writing/SKILL.md) - structure and style for the write-up once the evidence is in
-- [`document-to-action-items`](../../productivity/document-to-action-items/SKILL.md) - pulling cited obligations out of documents, same citation discipline
+- [`python-pandas-analysis`](../../data/python-pandas-analysis/SKILL.md) - analysing the extraction table once the screening columns are filled
 - [`grill-me`](../../workflow/grill-me/SKILL.md) - adversarial interrogation, useful for attacking your own search strategy before a reviewer does
 - [`planning`](../../workflow/planning/SKILL.md) - breaking the review into checkable stages
 - [`skill-authoring`](../../meta/skill-authoring/SKILL.md) - writing skills like this one
