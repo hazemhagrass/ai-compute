@@ -1,27 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 190" width="160" height="190" role="img" aria-label="README Generator robot">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200" width="160" height="200" role="img" aria-label="README Generator robot">
   <title>README Generator</title>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#33504b" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="#1c3530" stop-opacity="0.05"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#27382d" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#19261e" stop-opacity="0.12"/>
     </linearGradient>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feGaussianBlur stdDeviation="2.6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <rect x="0" y="0" width="160" height="190" rx="18" fill="url(#bg)"/>
-  <g filter="url(#glow)"><rect x="66" y="22" width="28" height="8" rx="4" fill="#46e1c2"/><rect x="76" y="28" width="8" height="8" fill="#46e1c2"/></g>
-  <rect x="38" y="34" width="84" height="70" rx="16" fill="#33504b" stroke="#46e1c2" stroke-width="3"/>
-  <g filter="url(#glow)"><rect x="52" y="62" width="22" height="12" rx="6" fill="#47a3ea"><animate attributeName="height" values="12;12;2;12;12" dur="3.6s" repeatCount="indefinite"/></rect><rect x="86" y="62" width="22" height="12" rx="6" fill="#47a3ea"><animate attributeName="height" values="12;12;2;12;12" dur="3.6s" repeatCount="indefinite"/></rect></g>
-  <path d="M68 92 h24" stroke="#46e1c2" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
-  <rect x="74" y="104" width="12" height="8" fill="#46e1c2" opacity="0.8"/>
-  <rect x="48" y="112" width="64" height="48" rx="12" fill="#33504b" stroke="#46e1c2" stroke-width="3"/>
-  <g filter="url(#glow)"><path d="M66 120 h20 l8 8 v20 h-28z" fill="none" stroke="#47a3ea" stroke-width="3"/><path d="M72 134 h14M72 141 h8" stroke="#47a3ea" stroke-width="3" stroke-linecap="round"/></g>
-  <rect x="30" y="118" width="14" height="34" rx="7" fill="#33504b" stroke="#46e1c2" stroke-width="3"/>
-  <rect x="116" y="118" width="14" height="34" rx="7" fill="#33504b" stroke="#46e1c2" stroke-width="3"/>
-  <rect x="58" y="160" width="14" height="18" rx="5" fill="#33504b" stroke="#46e1c2" stroke-width="3"/>
-  <rect x="88" y="160" width="14" height="18" rx="5" fill="#33504b" stroke="#46e1c2" stroke-width="3"/>
-  <circle cx="24" cy="46" r="3" fill="#47a3ea" opacity="0.65"><animate attributeName="opacity" values="0.65;0.15;0.65" dur="3.1s" repeatCount="indefinite"/></circle>
-  <circle cx="138" cy="70" r="2.5" fill="#47a3ea" opacity="0.5"><animate attributeName="opacity" values="0.2;0.7;0.2" dur="2.4s" repeatCount="indefinite"/></circle>
-  <circle cx="30" cy="168" r="2" fill="#46e1c2" opacity="0.5"><animate attributeName="opacity" values="0.6;0.2;0.6" dur="3.8s" repeatCount="indefinite"/></circle>
+
+  <rect width="160" height="200" rx="20" fill="url(#bg)"/>
+
+  <path d="M80 30 V20" stroke="#47e07f" stroke-width="3.5" stroke-linecap="round"/><path d="M68 20 a12 8 0 0 1 24 0" fill="none" stroke="#47e07f" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="18" r="3.5" fill="#5cf2d9"/>
+  <rect x="46" y="30" width="68" height="56" rx="18" fill="#27382d" stroke="#47e07f" stroke-width="3.5"/>
+  <g filter="url(#glow)"><ellipse cx="66" cy="58" rx="7" ry="7" fill="#5cf2d9"><animate attributeName="ry" values="7;7;1;7;7" dur="4.6s" repeatCount="indefinite"/></ellipse><ellipse cx="94" cy="58" rx="7" ry="7" fill="#5cf2d9"><animate attributeName="ry" values="7;7;1;7;7" dur="4.6s" repeatCount="indefinite"/></ellipse></g>
+  <path d="M68 76 h24" stroke="#47e07f" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <path d="M80 86 v14" stroke="#47e07f" stroke-width="3"/>
+  <rect x="44" y="108" width="72" height="56" rx="14" fill="#27382d" stroke="#47e07f" stroke-width="3.5"/>
+  <g filter="url(#glow)"><path d="M62 118 h26 l12 12 v26 H62z" fill="none" stroke="#5cf2d9" stroke-width="3" stroke-linejoin="round"/><path d="M88 118 v12 h12" fill="none" stroke="#5cf2d9" stroke-width="3" stroke-linejoin="round"/><path d="M70 140 h20 M70 148 h12" stroke="#5cf2d9" stroke-width="3" stroke-linecap="round"/></g>
+
+  <rect x="26" y="116" width="14" height="38" rx="7" fill="#27382d" stroke="#47e07f" stroke-width="3"/>
+  <rect x="120" y="116" width="14" height="38" rx="7" fill="#27382d" stroke="#47e07f" stroke-width="3"/>
+  <rect x="58" y="164" width="14" height="20" rx="6" fill="#27382d" stroke="#47e07f" stroke-width="3"/>
+  <rect x="88" y="164" width="14" height="20" rx="6" fill="#27382d" stroke="#47e07f" stroke-width="3"/>
+
+  <circle cx="22" cy="40" r="2.5" fill="#5cf2d9" opacity="0.45">
+    <animate attributeName="opacity" values="0.45;0.1;0.45" dur="3.6s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="140" cy="176" r="2" fill="#5cf2d9" opacity="0.4"/>
 </svg>

@@ -1,27 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 190" width="160" height="190" role="img" aria-label="Database Design robot">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200" width="160" height="200" role="img" aria-label="Database Design robot">
   <title>Database Design</title>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#334850" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="#1c2e35" stop-opacity="0.05"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#273538" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#192326" stop-opacity="0.12"/>
     </linearGradient>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feGaussianBlur stdDeviation="2.6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <rect x="0" y="0" width="160" height="190" rx="18" fill="url(#bg)"/>
-  <g filter="url(#glow)"><rect x="66" y="22" width="28" height="8" rx="4" fill="#46b5e1"/><rect x="76" y="28" width="8" height="8" fill="#46b5e1"/></g>
-  <path d="M80 30 L122 52 V92 L80 112 L38 92 V52 Z" fill="#334850" stroke="#46b5e1" stroke-width="3"/>
-  <g filter="url(#glow)"><rect x="52" y="62" width="22" height="12" rx="6" fill="#4754ea"><animate attributeName="height" values="12;12;2;12;12" dur="3.6s" repeatCount="indefinite"/></rect><rect x="86" y="62" width="22" height="12" rx="6" fill="#4754ea"><animate attributeName="height" values="12;12;2;12;12" dur="3.6s" repeatCount="indefinite"/></rect></g>
-  <path d="M68 92 h24" stroke="#46b5e1" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
-  <rect x="74" y="104" width="12" height="8" fill="#46b5e1" opacity="0.8"/>
-  <rect x="48" y="112" width="64" height="48" rx="12" fill="#334850" stroke="#46b5e1" stroke-width="3"/>
-  <g filter="url(#glow)"><ellipse cx="80" cy="124" rx="14" ry="5" fill="none" stroke="#4754ea" stroke-width="3"/><path d="M66 124 v14 a14 5 0 0 0 28 0 v-14" fill="none" stroke="#4754ea" stroke-width="3"/></g>
-  <rect x="30" y="118" width="14" height="34" rx="7" fill="#334850" stroke="#46b5e1" stroke-width="3"/>
-  <rect x="116" y="118" width="14" height="34" rx="7" fill="#334850" stroke="#46b5e1" stroke-width="3"/>
-  <rect x="58" y="160" width="14" height="18" rx="5" fill="#334850" stroke="#46b5e1" stroke-width="3"/>
-  <rect x="88" y="160" width="14" height="18" rx="5" fill="#334850" stroke="#46b5e1" stroke-width="3"/>
-  <circle cx="24" cy="46" r="3" fill="#4754ea" opacity="0.65"><animate attributeName="opacity" values="0.65;0.15;0.65" dur="3.1s" repeatCount="indefinite"/></circle>
-  <circle cx="138" cy="70" r="2.5" fill="#4754ea" opacity="0.5"><animate attributeName="opacity" values="0.2;0.7;0.2" dur="2.4s" repeatCount="indefinite"/></circle>
-  <circle cx="30" cy="168" r="2" fill="#46b5e1" opacity="0.5"><animate attributeName="opacity" values="0.6;0.2;0.6" dur="3.8s" repeatCount="indefinite"/></circle>
+
+  <rect width="160" height="200" rx="20" fill="url(#bg)"/>
+
+  <path d="M80 30 V20" stroke="#47c4e0" stroke-width="3.5" stroke-linecap="round"/><path d="M68 20 a12 8 0 0 1 24 0" fill="none" stroke="#47c4e0" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="18" r="3.5" fill="#5c90f2"/>
+  <path d="M80 28 L112 46 v30 L80 94 L48 76 V46 Z" fill="#273538" stroke="#47c4e0" stroke-width="3.5" stroke-linejoin="round"/>
+  <g filter="url(#glow)"><ellipse cx="66" cy="58" rx="7" ry="7" fill="#5c90f2"><animate attributeName="ry" values="7;7;1;7;7" dur="4.6s" repeatCount="indefinite"/></ellipse><ellipse cx="94" cy="58" rx="7" ry="7" fill="#5c90f2"><animate attributeName="ry" values="7;7;1;7;7" dur="4.6s" repeatCount="indefinite"/></ellipse></g>
+  <path d="M68 76 h24" stroke="#47c4e0" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <path d="M80 86 v14" stroke="#47c4e0" stroke-width="3"/>
+  <rect x="44" y="108" width="72" height="56" rx="14" fill="#273538" stroke="#47c4e0" stroke-width="3.5"/>
+  <g filter="url(#glow)"><ellipse cx="80" cy="124" rx="18" ry="6" fill="none" stroke="#5c90f2" stroke-width="3"/><path d="M62 124 v20 c0 3 8 6 18 6 s18 -3 18 -6 v-20" fill="none" stroke="#5c90f2" stroke-width="3"/><path d="M62 134 c0 3 8 6 18 6 s18 -3 18 -6" fill="none" stroke="#5c90f2" stroke-width="3"/></g>
+
+  <rect x="26" y="116" width="14" height="38" rx="7" fill="#273538" stroke="#47c4e0" stroke-width="3"/>
+  <rect x="120" y="116" width="14" height="38" rx="7" fill="#273538" stroke="#47c4e0" stroke-width="3"/>
+  <rect x="58" y="164" width="14" height="20" rx="6" fill="#273538" stroke="#47c4e0" stroke-width="3"/>
+  <rect x="88" y="164" width="14" height="20" rx="6" fill="#273538" stroke="#47c4e0" stroke-width="3"/>
+
+  <circle cx="22" cy="40" r="2.5" fill="#5c90f2" opacity="0.45">
+    <animate attributeName="opacity" values="0.45;0.1;0.45" dur="3.6s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="140" cy="176" r="2" fill="#5c90f2" opacity="0.4"/>
 </svg>
