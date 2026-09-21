@@ -1,5 +1,10 @@
 # SQL Optimization
 
+<!-- robot-banner -->
+<div align="center">
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+</div>
+
 A skill for turning a slow SQL query fast by reading its execution plan, fixing the one real bottleneck, and proving the fix with before/after timings.
 
 ## What it does

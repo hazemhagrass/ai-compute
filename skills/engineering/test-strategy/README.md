@@ -1,5 +1,10 @@
 # Test Strategy
 
+<!-- robot-banner -->
+<div align="center">
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+</div>
+
 A decision guide for choosing what to test, at which level, and how to name it so a red test reads like a violated rule instead of a line number.
 
 ## What it does

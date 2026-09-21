@@ -1,5 +1,10 @@
 # Code Review
 
+<!-- robot-banner -->
+<div align="center">
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+</div>
+
 A severity-ordered review procedure that finds defects in a diff before attention runs out, and turns findings into comments an author can act on in one pass.
 
 ## What it does

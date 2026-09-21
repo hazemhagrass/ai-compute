@@ -1,5 +1,10 @@
 # Database Design
 
+<!-- robot-banner -->
+<div align="center">
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+</div>
+
 Rules for designing schemas and writing migrations so that correctness lives in the database rather than in whichever application code path happens to run.
 
 ## What it does

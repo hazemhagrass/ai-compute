@@ -1,5 +1,10 @@
 # Engineering Planning
 
+<!-- robot-banner -->
+<div align="center">
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjNxOGRzYWxnYnN5dGEzNjVldGVvMzF0c2l5bTV1Zm5wNWJ2dGlmbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPnAiaMCws8nOsE/giphy.gif" alt="AI skill robot" width="180" />
+</div>
+
 Turn vague goals into trustworthy, code-verified roadmaps with honest progress tracking.
 
 ## What it does
