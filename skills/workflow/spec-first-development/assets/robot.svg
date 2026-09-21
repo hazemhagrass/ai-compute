@@ -2,8 +2,8 @@
   <title>Spec-First Development</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#272f38" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#191f26" stop-opacity="0.12"/>
+      <stop offset="0%" stop-color="#27382f" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#19261f" stop-opacity="0.12"/>
     </linearGradient>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="2.6" result="b"/>
@@ -13,22 +13,22 @@
 
   <rect width="160" height="200" rx="20" fill="url(#bg)"/>
 
-  <path d="M80 30 V20" stroke="#4791e0" stroke-width="3.5" stroke-linecap="round"/><path d="M68 20 a12 8 0 0 1 24 0" fill="none" stroke="#4791e0" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="18" r="3.5" fill="#5c5ef2"/>
-  <ellipse cx="80" cy="58" rx="35" ry="29" fill="#272f38" stroke="#4791e0" stroke-width="3.5"/>
-  <g filter="url(#glow)"><circle cx="66" cy="58" r="7" fill="#5c5ef2"><animate attributeName="opacity" values="1;0.45;1" dur="3.1s" repeatCount="indefinite"/></circle><circle cx="94" cy="58" r="7" fill="#5c5ef2"><animate attributeName="opacity" values="1;0.45;1" dur="3.1s" repeatCount="indefinite"/></circle></g>
-  <path d="M68 76 h24" stroke="#4791e0" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <path d="M80 30 V20" stroke="#47e096" stroke-width="3.5" stroke-linecap="round"/><path d="M68 20 a12 8 0 0 1 24 0" fill="none" stroke="#47e096" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="18" r="3.5" fill="#5cf2ef"/>
+  <ellipse cx="80" cy="58" rx="35" ry="29" fill="#27382f" stroke="#47e096" stroke-width="3.5"/>
+  <g filter="url(#glow)"><circle cx="66" cy="58" r="7" fill="#5cf2ef"><animate attributeName="opacity" values="1;0.45;1" dur="3.1s" repeatCount="indefinite"/></circle><circle cx="94" cy="58" r="7" fill="#5cf2ef"><animate attributeName="opacity" values="1;0.45;1" dur="3.1s" repeatCount="indefinite"/></circle></g>
+  <path d="M68 76 h24" stroke="#47e096" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
 
-  <path d="M80 86 v14" stroke="#4791e0" stroke-width="3"/>
-  <rect x="44" y="108" width="72" height="56" rx="14" fill="#272f38" stroke="#4791e0" stroke-width="3.5"/>
-  <g filter="url(#glow)"><rect x="60" y="116" width="40" height="42" rx="4" fill="none" stroke="#5c5ef2" stroke-width="3"/><path d="M68 128 h24 M68 137 h24 M68 146 h16" stroke="#5c5ef2" stroke-width="2.5" stroke-linecap="round"/><path d="M92 146 l5 5 9 -11" fill="none" stroke="#5c5ef2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <path d="M80 86 v14" stroke="#47e096" stroke-width="3"/>
+  <rect x="44" y="108" width="72" height="56" rx="14" fill="#27382f" stroke="#47e096" stroke-width="3.5"/>
+  <g filter="url(#glow)"><rect x="60" y="116" width="40" height="42" rx="4" fill="none" stroke="#5cf2ef" stroke-width="3"/><path d="M68 128 h24 M68 137 h24 M68 146 h16" stroke="#5cf2ef" stroke-width="2.5" stroke-linecap="round"/><path d="M92 146 l5 5 9 -11" fill="none" stroke="#5cf2ef" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g>
 
-  <rect x="26" y="116" width="14" height="38" rx="7" fill="#272f38" stroke="#4791e0" stroke-width="3"/>
-  <rect x="120" y="116" width="14" height="38" rx="7" fill="#272f38" stroke="#4791e0" stroke-width="3"/>
-  <rect x="58" y="164" width="14" height="20" rx="6" fill="#272f38" stroke="#4791e0" stroke-width="3"/>
-  <rect x="88" y="164" width="14" height="20" rx="6" fill="#272f38" stroke="#4791e0" stroke-width="3"/>
+  <rect x="26" y="116" width="14" height="38" rx="7" fill="#27382f" stroke="#47e096" stroke-width="3"/>
+  <rect x="120" y="116" width="14" height="38" rx="7" fill="#27382f" stroke="#47e096" stroke-width="3"/>
+  <rect x="58" y="164" width="14" height="20" rx="6" fill="#27382f" stroke="#47e096" stroke-width="3"/>
+  <rect x="88" y="164" width="14" height="20" rx="6" fill="#27382f" stroke="#47e096" stroke-width="3"/>
 
-  <circle cx="22" cy="40" r="2.5" fill="#5c5ef2" opacity="0.45">
+  <circle cx="22" cy="40" r="2.5" fill="#5cf2ef" opacity="0.45">
     <animate attributeName="opacity" values="0.45;0.1;0.45" dur="3.6s" repeatCount="indefinite"/>
   </circle>
-  <circle cx="140" cy="176" r="2" fill="#5c5ef2" opacity="0.4"/>
+  <circle cx="140" cy="176" r="2" fill="#5cf2ef" opacity="0.4"/>
 </svg>
