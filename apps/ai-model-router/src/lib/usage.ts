@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { redactPrompt, truncateForLog } from "./retention";
 
 export interface UsageEventInput {
   providerId?: number | null;
@@ -156,6 +157,10 @@ export function computeCost(
   return { inputCostUsd, outputCostUsd, costUsd: inputCostUsd + outputCostUsd };
 }
 
+function sanitizeForLog(text: string | undefined): string {
+  return truncateForLog(redactPrompt(text ?? ""));
+}
+
 export function recordUsage(input: UsageEventInput): UsageEvent {
   const inputTokens = Math.max(0, Math.round(input.inputTokens ?? 0));
   const outputTokens = Math.max(0, Math.round(input.outputTokens ?? 0));
@@ -186,9 +191,12 @@ export function recordUsage(input: UsageEventInput): UsageEvent {
       input.taskSlug ?? "",
       input.taskLabel ?? "",
       input.source ?? "playground",
-      input.systemPrompt ?? "",
-      input.prompt ?? "",
-      input.response ?? "",
+      // Redacted and truncated at the only write site: a secret pasted into a
+      // prompt would otherwise sit in the database forever, and full
+      // transcripts grow the file without bound.
+      sanitizeForLog(input.systemPrompt),
+      sanitizeForLog(input.prompt),
+      sanitizeForLog(input.response),
       inputTokens,
       outputTokens,
       totalTokens,

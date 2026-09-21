@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { assertSafeProviderUrl } from "./url-guard";
+
 /**
  * Request body schemas.
  *
@@ -39,7 +41,24 @@ export const createProviderSchema = z.object({
   baseUrl: z
     .string({ error: "baseUrl is required" })
     .trim()
-    .min(1, "baseUrl is required"),
+    .min(1, "baseUrl is required")
+    // Enforced here rather than in each route: the server fetches this URL, so
+    // an unchecked value is an SSRF hole into cloud metadata and internal
+    // services. One choke point means a new route cannot forget the check.
+    .refine(
+      (value) => {
+        try {
+          assertSafeProviderUrl(value);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        error:
+          "baseUrl must be a public http(s) address (private and link-local addresses are refused)",
+      },
+    ),
   slug: z.string().trim().optional(),
   kind: providerKind.optional(),
   chatPath: z.string().optional(),
