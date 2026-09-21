@@ -41,6 +41,13 @@ CATEGORY_HUE = {
     "office": 45,
     "research": 280,
     "career": 15,
+    "security": 355,
+    "design": 315,
+    "data": 175,
+    "writing": 95,
+    "devtools": 240,
+    "meta": 60,
+    "workflow": 150,
 }
 DEFAULT_HUE = 210
 
@@ -214,6 +221,17 @@ GLYPHS = {
     "excel-formulas": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48" stroke="{g}" stroke-width="2.5"/><path d="M64 140 l6 8 M70 140 l-6 8" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M80 148 h4 a5 5 0 0 0 5 -5 v-3" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><circle cx="96" cy="138" r="2.5" fill="{g}"/>',
     "excel-data-cleaning": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48 M80 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M62 138 h12 M62 146 h12" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M88 136 l6 6 8 -11" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     "pivot-tables": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48 M74 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M80 138 h18 M80 146 h12" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M62 140 a6 6 0 1 0 6 -6 v6z" fill="{g}" opacity="0.75"/>',
+    # security, engineering, writing, design, data (new wave)
+    "authentication-audit": '<rect x="62" y="132" width="36" height="26" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M70 132 v-8 a10 10 0 0 1 20 0 v8" fill="none" stroke="{g}" stroke-width="3"/><circle cx="80" cy="144" r="3.5" fill="{g}"/><path d="M80 147 v5" stroke="{g}" stroke-width="2.5"/>',
+    "api-security-audit": '<path d="M62 122 h36 v30 h-36z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M62 132 h36" stroke="{g}" stroke-width="2.5"/><circle cx="68" cy="127" r="2" fill="{g}"/><path d="M70 141 l-6 5 6 5 M90 141 l6 5 -6 5" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    "secrets-management-audit": '<path d="M80 118 l18 7 v14 c0 11 -8 18 -18 21 c-10 -3 -18 -10 -18 -21 v-14z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><circle cx="80" cy="139" r="5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M80 144 v7 M77 148 h6" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
+    "cryptography-audit": '<rect x="60" y="126" width="40" height="28" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M67 134 l5 6 -5 6" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M78 146 h14" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M72 126 v-6 a8 8 0 0 1 16 0 v6" fill="none" stroke="{g}" stroke-width="2.5"/>',
+    "code-review-checklist": '<rect x="60" y="118" width="40" height="40" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 128 l4 4 6 -7" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M66 140 l4 4 6 -7" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M82 130 h12 M82 142 h12 M66 152 h28" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
+    "architecture-review": '<rect x="69" y="119" width="22" height="13" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/><rect x="62" y="143" width="18" height="13" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/><rect x="84" y="143" width="16" height="13" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M80 132 v5 M80 137 h-9 v6 M80 137 h12 v6" fill="none" stroke="{g}" stroke-width="2.5"/>',
+    "review-comment-phrasing": '<path d="M58 120 h44 v26 h-26 l-12 10 v-10 h-6z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M68 129 h24 M68 137 h16" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
+    "accessibility-audit": '<circle cx="80" cy="125" r="5.5" fill="none" stroke="{g}" stroke-width="3"/><path d="M67 137 h26" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M80 134 v9" stroke="{g}" stroke-width="3"/><path d="M80 143 l-7 12 M80 143 l7 12" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
+    "data-visualization-principles": '<path d="M60 156 v-34 M60 156 h40" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/><rect x="67" y="138" width="8" height="16" fill="{g}" opacity="0.8"/><rect x="79" y="128" width="8" height="26" fill="{g}" opacity="0.8"/><rect x="91" y="144" width="8" height="10" fill="{g}" opacity="0.8"/>',
+    "sql-for-analysts": '<ellipse cx="80" cy="126" rx="16" ry="6" fill="none" stroke="{g}" stroke-width="3"/><path d="M64 126 v20 c0 3.5 7.5 6 16 6 s16 -2.5 16 -6 v-20" fill="none" stroke="{g}" stroke-width="3"/><path d="M64 136 c0 3.5 7.5 6 16 6 s16 -2.5 16 -6" fill="none" stroke="{g}" stroke-width="2.5"/>',
     # career
     "latex-resume": '<path d="M62 114 h36 v46 H62z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><circle cx="74" cy="128" r="5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M67 140 q7 -6 14 0" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M86 126 h8 M86 133 h8 M70 150 h20" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
     # research
