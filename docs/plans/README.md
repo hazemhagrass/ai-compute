@@ -52,7 +52,7 @@ within a week.
 | Phase | Focus | Progress |
 | --- | --- | --- |
 | [1. Foundation](./phase-01-foundation.md) | Correctness, tests, CI | ✅ complete |
-| [2. Security](./phase-02-security.md) | Auth, tenancy, secret handling | 80% · 4 / 5 |
+| [2. Security](./phase-02-security.md) | Auth, tenancy, secret handling | ✅ complete |
 | [3. Router quality](./phase-03-router.md) | Scoring, evaluation, benchmarks | not started · 0 / 6 |
 | [4. Analytics](./phase-04-analytics.md) | Budgets, reporting, exports | not started · 0 / 5 |
 | [5. Providers](./phase-05-providers.md) | Streaming, fallback, coverage | not started · 0 / 5 |

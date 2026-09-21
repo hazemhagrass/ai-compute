@@ -12,11 +12,11 @@ live issue state so a closed issue flips its own box.
 
 <!-- Generated from GitHub issues. Edit the issues, not these numbers. -->
 
-**80% done**
+**100% done**
 
-`🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜`
+`🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩`
 
-🟩 **4 done** · 🟧 **0 in progress** · ⬜ **1 remaining** — 5 tickets
+🟩 **5 done** · 🟧 **0 in progress** · ⬜ **0 remaining** — 5 tickets
 
 <!-- tracker:end -->
 
@@ -26,7 +26,7 @@ live issue state so a closed issue flips its own box.
 - [x] **[#7](https://github.com/hazemhagrass/ai-compute/issues/7) · Stop logging full prompts and responses without a retention policy** `M` — Every prompt and response is stored in full, forever, in plaintext in SQLite. That is the feature, but it is also an unbounded, unencrypted archive of everything you have ever asked a model,…
 - [x] **[#8](https://github.com/hazemhagrass/ai-compute/issues/8) · Harden provider URLs against SSRF** `M` — A provider base URL is user-supplied and the server fetches it. Once auth exists this is low severity, but before that it is an open proxy: http://169.254.169.254/ reaches cloud instance met…
 - [x] **[#10](https://github.com/hazemhagrass/ai-compute/issues/10) · Rotate the encryption key without losing stored secrets** `M` — The AES master key is generated once into data/.secret and never rotates. There is no path to change it, and if it leaks, every stored provider key must be re-entered by hand.
-- [ ] **[#6](https://github.com/hazemhagrass/ai-compute/issues/6) · Add authentication — the app is currently wide open** `L` — - Single-user password login is enough for v1; this is a personal tool, not a SaaS. Do not build multi-tenancy yet.
+- [x] **[#6](https://github.com/hazemhagrass/ai-compute/issues/6) · Add authentication — the app is currently wide open** `L` — - Single-user password login is enough for v1; this is a personal tool, not a SaaS. Do not build multi-tenancy yet.
 
 ---
 
