@@ -3,7 +3,7 @@
 Reference server from the MCP project. Gives an agent scoped read/write access to the
 local filesystem over stdio, with an allow-list enforced inside the server itself.
 
-Package: `@modelcontextprotocol/server-filesystem` (npm) · Docker image: `mcp/filesystem` · MIT.
+Package: `@modelcontextprotocol/server-filesystem` (npm) | Docker image: `mcp/filesystem` | MIT.
 
 ## When it earns its place
 
@@ -14,7 +14,7 @@ tool cannot reach:
 - agents that must touch several project roots at once (cross-project refactors, doc sync);
 - read-only exposure of a data or asset directory to a tool that otherwise has no file access.
 
-Skip it when the host already sandboxes filesystem access — Cursor, modern Claude Code,
+Skip it when the host already sandboxes filesystem access -- Cursor, modern Claude Code,
 VS Code Copilot agent mode all ship native file tools bounded to the workspace. Running
 this server there duplicates the tool surface, doubles the token cost of the tool list, and
 usually *widens* the blast radius rather than narrowing it.
@@ -58,7 +58,7 @@ whatever client you use):
 ```
 
 Every positional argument after the package name is an allowed root. There is no config
-file and no env var for the allow-list — the roots are the argv.
+file and no env var for the allow-list -- the roots are the argv.
 
 Docker form of the same config:
 
@@ -92,7 +92,7 @@ Rules:
 1. **Scope to project roots, never `$HOME`.** `~` as a root exposes `.ssh`, `.aws`,
    `.config`, browser profiles, password-manager exports and every other repo on the box to
    a single prompt injection in a file the agent reads.
-2. **Also never `/`, `/etc`, `/var`, or a bare `.`** — a relative root resolves against
+2. **Also never `/`, `/etc`, `/var`, or a bare `.`** -- a relative root resolves against
    whatever cwd the client happened to launch with.
 3. **One root per project you actually intend to edit.** Two or three explicit paths beat
    one broad parent.
@@ -124,7 +124,7 @@ Bad:
 Clients that implement the MCP **roots** capability can replace the allow-list at runtime:
 the server asks for `roots/list` on initialize and re-asks on
 `notifications/roots/list_changed`. Client-supplied roots **completely replace** the
-command-line ones — they do not merge, and they do not stack on top.
+command-line ones -- they do not merge, and they do not stack on top.
 
 Consequences worth knowing:
 
@@ -132,7 +132,7 @@ Consequences worth knowing:
   window; the client's workspace folders are what actually apply.
 - If the server starts with **no** argv roots and the client does not support roots (or
   sends an empty list), initialization fails with an error. That failure is the intended
-  behaviour — the server refuses to run unscoped.
+  behaviour -- the server refuses to run unscoped.
 
 ## Tools exposed
 
@@ -140,13 +140,13 @@ Read-only: `read_text_file` (with optional `head`/`tail`), `read_media_file`,
 `read_multiple_files`, `list_directory`, `list_directory_with_sizes`, `directory_tree`,
 `search_files`, `get_file_info`, `list_allowed_directories`.
 
-Write: `create_directory` (idempotent), `write_file` (overwrites — destructive),
+Write: `create_directory` (idempotent), `write_file` (overwrites -- destructive),
 `edit_file` (pattern-based edits, supports `dryRun`; not idempotent), `move_file` (fails if
 the destination exists).
 
 There is no delete tool. Each tool carries MCP tool annotations (`readOnlyHint`,
 `idempotentHint`, `destructiveHint`, and `openWorldHint: false`), so clients can auto-approve
-reads while prompting on writes — configure that in the client if it supports it.
+reads while prompting on writes -- configure that in the client if it supports it.
 
 ## Troubleshooting
 

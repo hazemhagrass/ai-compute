@@ -141,7 +141,7 @@ any of those, drop back to curl deliberately.
 
 ## When it earns a slot
 
-Many agents, Hermes included, already have native page extraction. Adding this
+Many agents already have native page extraction. Adding this
 server duplicates that, so install it when you have a specific reason:
 
 - The client has no built-in fetch at all (plain Claude Desktop, VS Code MCP,

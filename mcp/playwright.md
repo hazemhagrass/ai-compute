@@ -67,8 +67,8 @@ sounds:
 - **Headed** for anything touching a logged-in session, a captcha, or a flow you
   need to watch fail. Also the mode where a human can take over mid-run.
 - **Headless** (`--headless`) for CI, containers, and any machine with no
-  `DISPLAY`. Headless Chromium is detected and blocked by some bot defenses,
-  so a flow that works headed may 403 headless.
+  `DISPLAY`. Headless Chromium is detected and blocked by some bot defenses, so
+  a flow that works headed may 403 headless.
 
 Idle behavior differs too: headless browsers close after an hour of no tool
 calls and relaunch on the next one, headed browsers stay open. Tune with
@@ -76,9 +76,8 @@ calls and relaunch on the next one, headed browsers stay open. Tune with
 
 ## Profiles and `--isolated`
 
-Default is a **persistent profile**, stored per workspace at
-`~/.cache/ms-playwright/mcp-{channel}-{workspace-hash}` on Linux
-(`~/Library/Caches/...` on macOS, `%USERPROFILE%\AppData\Local\...` on Windows).
+Default is a **persistent profile**, stored per workspace under the platform
+cache dir (`~/.cache/ms-playwright/mcp-{channel}-{workspace-hash}` on Linux).
 Logins survive across sessions. Override with `--user-data-dir`.
 
 One persistent profile serves one browser at a time. Two MCP clients in the same
@@ -138,13 +137,12 @@ docker run -d -i --rm --init --pull=always \
 ```
 
 Clients then point at `http://localhost:8931/mcp`. Worth it when several agents
-share one browser host, or when you want the browser sandboxed away from your
-real profile and filesystem. Cost: no headed mode, no Firefox or WebKit, and
-downloads and screenshots land inside the container unless you mount a volume
-for `--output-dir`.
+share one browser host, or to sandbox the browser away from your real profile.
+Cost: no headed mode, no Firefox or WebKit, and downloads and screenshots stay
+inside the container unless you mount a volume for `--output-dir`.
 
-Bare-metal HTTP transport works the same way: `npx @playwright/mcp@latest --port 8931`,
-run from an environment that has `DISPLAY` if you want headed.
+Bare-metal HTTP transport works the same way: `npx @playwright/mcp@latest --port
+8931`, run from an environment that has `DISPLAY` if you want headed.
 
 ## Useful flags
 
@@ -175,24 +173,15 @@ Microsoft ships both `@playwright/mcp` and a CLI + SKILLS route
 (https://github.com/microsoft/playwright-cli), and they recommend the CLI for
 coding agents. The tradeoff is context, not capability.
 
-**CLI plus a skill wins when:**
+**CLI plus a skill wins** for a coding agent already carrying a large repo in
+context (every tool schema and accessibility snapshot competes with it), for
+scripted repeatable work, and when the output should be a committed
+`.spec.ts` rather than a transcript.
 
-- the agent is a coding agent already carrying a large repo in context, and
-  every MCP tool schema plus every accessibility snapshot competes with that,
-- the browser work is scripted and repeatable: run a Playwright spec, scrape a
-  known page, screenshot a route after a deploy,
-- you want the output to be a committed `.spec.ts` rather than a transcript,
-- you are running many short browser tasks and paying per token.
-
-**MCP wins when:**
-
-- the loop is exploratory: the agent does not know what the page looks like and
-  must read structure, act, and re-read,
-- state must persist across many turns (a logged-in session, a multi-step form,
-  a long autonomous run),
-- you want self-healing behavior, where the agent inspects the live tree and
-  repairs its own selector,
-- a non-coding agent needs a browser and has no shell.
+**MCP wins** when the loop is exploratory and the agent must read structure,
+act, and re-read; when state must persist across many turns; when you want
+self-healing selectors; or when a non-coding agent needs a browser and has no
+shell.
 
 Rule of thumb: **known steps go in a script the agent runs through the CLI;
 unknown pages go through MCP.** Mixing them is fine and common, explore with

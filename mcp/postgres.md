@@ -1,7 +1,7 @@
 # Postgres MCP server
 
 Direct Postgres access for an agent: schema inspection, `EXPLAIN` plans, health
-checks, and — only when you have deliberately opted in — query execution.
+checks, and -- only when you have deliberately opted in -- query execution.
 
 ## Which server
 
@@ -24,9 +24,9 @@ The rest of this doc covers `crystaldba/postgres-mcp`.
 Run in `--access-mode=restricted` unless you have a concrete reason not to. An
 agent with write access is one hallucinated `DELETE` away from an outage, and a
 model cannot distinguish "a migration I was asked for" from "a `DROP TABLE` that
-looked like the next token". Restricted mode wraps every statement in a
-read-only transaction and caps execution time, so the worst case is a failed
-tool call instead of a restore from backup.
+looked like the next token". Restricted mode wraps every statement in a read-
+only transaction and caps execution time, so the worst case is a failed tool
+call instead of a restore from backup.
 
 Use `--access-mode=unrestricted` only against a local or throwaway development
 database, never against staging or production. Treat the access mode as part of
@@ -35,10 +35,9 @@ mode, so switching databases cannot silently switch you into write mode.
 
 ## A dedicated read-only role
 
-Do not hand the agent the application's credentials. The app role owns the
-schema, so read-only mode at the MCP layer would be the only thing between the
-model and `DROP`. Defence belongs in the database as well. Create a role whose
-privileges make writes impossible regardless of what the server is told to do:
+Do not hand the agent the app's credentials: that role owns the schema, so the
+MCP read-only flag would be the only thing between the model and `DROP`. Create
+a role whose privileges make writes impossible whatever the server is told:
 
 ```sql
 CREATE ROLE mcp_reader LOGIN PASSWORD 'set-me-from-a-password-manager';
@@ -63,16 +62,14 @@ ALTER ROLE mcp_reader SET idle_in_transaction_session_timeout = '30s';
 
 Extra hardening worth doing:
 
-- Withhold `SELECT` on columns holding secrets or PII, or point the role at
-  redacting views instead of base tables. `GRANT SELECT (id, created_at) ON …`
-  works at column granularity.
+- Withhold `SELECT` on secret or PII columns, or point the role at redacting
+  views. `GRANT SELECT (id, created_at) ON ...` works at column granularity.
 - Enable row-level security on multi-tenant tables and give `mcp_reader` a
-  policy, rather than relying on the agent to add a `WHERE tenant_id = …`.
+  policy, rather than relying on the agent to add a `WHERE tenant_id = ...`.
 - Cap concurrency with `ALTER ROLE mcp_reader CONNECTION LIMIT 3;` so agent
-  traffic cannot starve the application's pool.
-- Row limits are the agent's job too: ask for `LIMIT` on every exploratory
-  query. A `SELECT *` on a 200M-row table will return before the timeout only
-  by luck.
+  traffic cannot starve the app's pool.
+- Ask for `LIMIT` on every exploratory query. A `SELECT *` on a 200M-row table
+  returns before the timeout only by luck.
 
 ## Connection string via environment variable
 
@@ -95,14 +92,9 @@ anything that is not on localhost.
 
 ## Install and configure
 
-Docker is the most reliable path; it bundles the dependencies.
-
-```bash
-docker pull crystaldba/postgres-mcp
-```
-
-Python alternatives: `pipx install postgres-mcp` or `uv pip install postgres-mcp`
-(Python 3.12+).
+Docker is the most reliable path (`docker pull crystaldba/postgres-mcp`); it
+bundles the dependencies. Python alternatives: `pipx install postgres-mcp` or
+`uv pip install postgres-mcp` (Python 3.12+).
 
 MCP client config, Docker, read-only:
 
@@ -139,13 +131,12 @@ With `uvx` instead of Docker:
 }
 ```
 
-The Docker image remaps `localhost` in the URI to the host automatically
-(`host.docker.internal` on macOS/Windows, the bridge address on Linux), so a
+The Docker image remaps `localhost` in the URI to the host automatically, so a
 local database works without editing the host name.
 
-For several clients sharing one server, start it with `--transport=sse` and
-`-p 8000:8000`, then point clients at `http://localhost:8000/sse`. Do not expose
-that port beyond the host: it is an unauthenticated database proxy.
+For several clients sharing one server, use `--transport=sse` with `-p
+8000:8000` and point clients at `http://localhost:8000/sse`. Never expose that
+port beyond the host: it is an unauthenticated database proxy.
 
 ## Optional extensions for performance work
 
@@ -159,12 +150,12 @@ CREATE EXTENSION IF NOT EXISTS hypopg;
 - `pg_stat_statements` supplies the execution statistics behind
   `get_top_queries`. On self-managed Postgres it must also appear in
   `shared_preload_libraries`, which requires a restart.
-- `hypopg` lets `explain_query` simulate an index without creating it — the
+- `hypopg` lets `explain_query` simulate an index without creating it -- the
   whole point being that you learn the plan change without a write.
 
-On RDS, Cloud SQL, and Azure Database these are already available; the
-`CREATE EXTENSION` calls just need a privileged role. Run them yourself, not
-through the agent's read-only connection.
+On RDS, Cloud SQL, and Azure Database these are already available; the `CREATE
+EXTENSION` calls just need a privileged role. Run them yourself, not through the
+agent's read-only connection.
 
 ## Probe with EXPLAIN before recommending anything
 
@@ -176,23 +167,22 @@ Working order:
 
 1. `explain_query` on the real query to get the current plan and cost.
 2. `explain_query` again with hypothetical indexes to see whether the plan
-   actually changes. If the planner ignores the index, the index is worthless.
+  actually changes. If the planner ignores the index, the index is worthless.
 3. `analyze_workload_indexes` (or `analyze_query_indexes` for a specific set) to
-   let the tuner search the index space rather than guessing.
+  let the tuner search the index space rather than guessing.
 4. `analyze_db_health` for cache hit rates, bloat, unused and duplicate indexes,
-   vacuum status, and sequence exhaustion before blaming query shape.
+  vacuum status, and sequence exhaustion before blaming query shape.
 
 Use `EXPLAIN` without `ANALYZE` on production unless you are certain the query
-is cheap and side-effect free — `EXPLAIN ANALYZE` executes the statement.
+is cheap and side-effect free -- `EXPLAIN ANALYZE` executes the statement.
 
 ## Tools exposed
 
 `list_schemas`, `list_objects`, `get_object_details`, `execute_sql`,
 `explain_query`, `get_top_queries`, `analyze_workload_indexes`,
-`analyze_query_indexes`, `analyze_db_health`.
-
-In restricted mode `execute_sql` is limited to read-only transactions with a
-time cap; the others are read-only by nature.
+`analyze_query_indexes`, `analyze_db_health`. In restricted mode `execute_sql`
+is limited to read-only transactions with a time cap; the rest are read-only by
+nature.
 
 ## Verify the setup
 
@@ -205,6 +195,6 @@ psql "$DATABASE_URI" -c 'CREATE TABLE should_fail (id int);'   # must ERROR
 docker run -i --rm -e DATABASE_URI crystaldba/postgres-mcp --access-mode=restricted
 ```
 
-Then, from the client, ask for `list_schemas` and confirm only the intended
-database's schemas come back. If the agent can see a database you did not
-intend to expose, fix the grants before using the server for anything.
+Then ask the client for `list_schemas` and confirm only the intended database's
+schemas come back. If the agent sees a database you did not mean to expose, fix
+the grants before using the server.
