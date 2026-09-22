@@ -35,6 +35,17 @@ jobs:
       - name: Manifest freshness
         run: python3 scripts/gen-manifest.py --check
 
+      # Every skill must have its own generated robot, and no two may share
+      # one: a duplicate means someone copied a sibling's asset.
+      - name: Robot art present and unique
+        run: python3 scripts/gen-robot.py --check
+
+      # This repo is published to skill marketplaces, so SKILL.md is
+      # instruction surface for someone else's agent. Block prompt injection
+      # and unsafe bundled scripts before they can be installed downstream.
+      - name: Security scan
+        run: python3 scripts/scan-skills.py
+
   router:
     name: ai-model-router
     runs-on: ubuntu-latest
