@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { assertSafeProviderUrl, defaultAllowPrivate } from "./url-guard";
+import { assertSafeProviderUrl } from "./url-guard";
 
 /**
  * Request body schemas.

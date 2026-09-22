@@ -110,7 +110,14 @@ else
 fi
 
 section "Tooling"
-for bin in node pnpm git; do
+# CI validates skill content only; the router app's own job installs pnpm.
+# The local machine check still demands all three since install.sh uses them.
+if [ "${DOCTOR_LOCAL:-1}" != "0" ]; then
+  TOOL_BINS="node pnpm git"
+else
+  TOOL_BINS="git"
+fi
+for bin in $TOOL_BINS; do
   if command -v "$bin" >/dev/null 2>&1; then
     ok "$bin ($(command -v "$bin"))"
   else
