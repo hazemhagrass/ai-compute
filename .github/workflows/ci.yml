@@ -46,6 +46,11 @@ jobs:
       - name: Security scan
         run: python3 scripts/scan-skills.py
 
+      # Filler prose and unsourced authority claims are what separate a skill
+      # worth installing from a restated blog post. Blocked at the gate.
+      - name: Prose quality scan
+        run: python3 scripts/scan-filler.py
+
       # The marketplace manifest is generated from the tree, so a new skill
       # that never reached it would be invisible to anyone installing.
       - name: Marketplace manifest freshness

@@ -125,6 +125,17 @@ for bin in $TOOL_BINS; do
   fi
 done
 
+section "Prose quality"
+# The failure mode for a skill library is not a broken file, it is a file that
+# reads like every SEO post on the topic. Filler phrasing and authority claims
+# with no named source are the two tells, so they fail the build rather than
+# waiting for a human to notice.
+if filler_out="$(python3 "$REPO/scripts/scan-filler.py" 2>&1)"; then
+  ok "${filler_out}"
+else
+  bad "$(printf '%s' "$filler_out" | command head -n4)"
+fi
+
 section "Secrets hygiene"
 if git -C "$REPO" ls-files --error-unmatch '**/.env' >/dev/null 2>&1; then
   bad "a .env file is tracked by git"
