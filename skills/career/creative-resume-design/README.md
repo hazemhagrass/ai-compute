@@ -190,5 +190,5 @@ mechanically.
   the contrast computation rules and the never-colour-alone discipline.
 - [skills/career/portfolio-website-builder](../portfolio-website-builder)
   owns the portfolio site that a resume links to.
-- [skills/infographic-resume](../../infographic-resume) (in parallel
+- [skills/infographic-resume](../infographic-resume) (in parallel
   development) owns data-viz devices and when they belong on a page.

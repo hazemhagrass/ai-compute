@@ -17,7 +17,7 @@ Boundaries:
 - Deck structure, assertion titles, slide count against runtime, demo
   fallbacks: `skills/presentation/slide-deck-designer`. If the course is
   delivered live from slides, that skill owns the deck.
-- Scripting a video lesson for the ear: `skills/writing/video-script-writer`.
+- Scripting a video lesson for the ear: `skills/content/video-script-writer`.
 - Measuring what learners report afterwards: `skills/research/survey-design`.
 
 ## Design backwards from what the learner will DO

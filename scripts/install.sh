@@ -36,12 +36,22 @@ link() {
 
 info "Installing from $REPO"
 
-# Skills: one symlink per category, so tool-specific extras can coexist.
+# Skills: one symlink per SKILL, not per category.
+#
+# Linking the category directory looks tidier but is destructive: if the user
+# already has ~/.hermes/skills/<category>/ as a real directory holding their
+# own skills, a category-level symlink replaces the whole directory and every
+# unrelated skill inside it disappears from the agent's view. Per-skill links
+# let this repo's skills sit beside skills from any other source.
 for category in "$REPO"/skills/*/; do
   [ -d "$category" ] || continue
-  name="$(basename "$category")"
-  link "$category" "$HOME/.hermes/skills/$name"
-  link "$category" "$HOME/.claude/skills/$name"
+  cat_name="$(basename "$category")"
+  for skill in "$category"*/; do
+    [ -f "$skill/SKILL.md" ] || continue
+    skill_name="$(basename "$skill")"
+    link "$skill" "$HOME/.hermes/skills/$cat_name/$skill_name"
+    link "$skill" "$HOME/.claude/skills/$cat_name/$skill_name"
+  done
 done
 
 # Hermes config

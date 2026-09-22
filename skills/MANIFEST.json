@@ -45,6 +45,18 @@
     "career/word-resume-optimizer": {
       "sha": "82376bde6178"
     },
+    "content/podcast-production": {
+      "sha": "e5d5c140acf9"
+    },
+    "content/social-media-scheduler": {
+      "sha": "ac0bf5f44ab6"
+    },
+    "content/video-script-writer": {
+      "sha": "9bcafcc0a0f8"
+    },
+    "content/youtube-seo-optimizer": {
+      "sha": "ecd8ec3ecb88"
+    },
     "data/data-visualization-principles": {
       "sha": "5f0bd6ec7da5"
     },
@@ -172,7 +184,7 @@
       "sha": "505a8ee1a7c8"
     },
     "learning/course-creation": {
-      "sha": "c738f1a8819d"
+      "sha": "73e9c14abc14"
     },
     "learning/spaced-repetition": {
       "sha": "3f1fa0050cfa"
@@ -276,23 +288,11 @@
     "writing/newsletter-writer": {
       "sha": "3e8537ced97d"
     },
-    "writing/podcast-production": {
-      "sha": "e5d5c140acf9"
-    },
     "writing/review-comment-phrasing": {
       "sha": "a6ef91be21dd"
     },
-    "writing/social-media-scheduler": {
-      "sha": "ac0bf5f44ab6"
-    },
     "writing/technical-writing": {
       "sha": "c4ecfab405b8"
-    },
-    "writing/video-script-writer": {
-      "sha": "04cfa569c3f3"
-    },
-    "writing/youtube-seo-optimizer": {
-      "sha": "ecd8ec3ecb88"
     }
   },
   "version": 1

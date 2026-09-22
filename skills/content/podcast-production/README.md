@@ -218,13 +218,13 @@ Good:
 
 Sibling skills in `skills/writing/`:
 
-- [technical-writing](../technical-writing/SKILL.md) for the same task-first,
+- [technical-writing](../../writing/technical-writing/SKILL.md) for the same task-first,
   failure-aware discipline applied to docs, which includes your episode page
   and your publish runbook.
 - [video-script-writer](../video-script-writer/SKILL.md) for writing for the
   ear, which is the same physics as speaking to a podcast listener: short
   sentences, stress positions, substance in the hook.
-- [review-comment-phrasing](../review-comment-phrasing/SKILL.md) if
+- [review-comment-phrasing](../../writing/review-comment-phrasing/SKILL.md) if
   coordinating production feedback across hosts and editors, for wording that
   produces changes instead of defences.
 

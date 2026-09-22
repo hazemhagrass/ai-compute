@@ -49,7 +49,7 @@ Skip it for:
   explanation, runnable samples, and failure tables.
 - Deck structure for a live session: `presentation/slide-deck-designer` owns
   slide count, assertion titles, and demo fallbacks.
-- Writing a video lesson script for the ear: `writing/video-script-writer`.
+- Writing a video lesson script for the ear: `content/video-script-writer`.
 - Measuring learner satisfaction afterwards: `research/survey-design`.
 
 ## Quick start
@@ -199,7 +199,7 @@ paragraph, which is the only thing you can fix.
   runnable samples, and failure tables inside each written lesson.
 - [`slide-deck-designer`](../../presentation/slide-deck-designer/README.md):
   structure for a course delivered live from slides.
-- [`video-script-writer`](../../writing/video-script-writer/README.md):
+- [`video-script-writer`](../../content/video-script-writer/README.md):
   scripting a video lesson for the ear.
 - [`accessibility-audit`](../../design/accessibility-audit/README.md): the
   method behind the captions, contrast, and keyboard checks named here.

@@ -172,4 +172,4 @@ Good:
 - [YouTube tags help article](https://support.google.com/youtube/answer/146402), where the platform itself states that tags play a minimal role, as of reading, verify again before quoting.
 - [Search and discovery documentation on the parts of the video mattering most](https://support.google.com/youtube/answer/141805), covering how titles, descriptions, and content match against viewer searches.
 - [Shorts discovery guidance](https://support.google.com/youtube/answer/11914225), which names the feed signals commonly used to explain Short behaviour.
-- [technical-writing](../technical-writing/SKILL.md) for writing description structures a hurried reader can act on, since the description's first paragraph follows those rules.
+- [technical-writing](../../writing/technical-writing/SKILL.md) for writing description structures a hurried reader can act on, since the description's first paragraph follows those rules.

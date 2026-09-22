@@ -177,9 +177,9 @@ underlying facts are identical throughout; only the shape changes.
 - [`research/truth-first`](../../research/truth-first/) for the standard this
   skill applies to timing claims: no number without a source, and method claims
   proved by your own logs.
-- [`writing/technical-writing`](../technical-writing/) for writing the
+- [`writing/technical-writing`](../../writing/technical-writing/) for writing the
   long-form piece that fragments come from, in task-first, failure-aware form.
-- [`writing/review-comment-phrasing`](../review-comment-phrasing/) shares the
+- [`writing/review-comment-phrasing`](../../writing/review-comment-phrasing/) shares the
   pattern: prescriptive, bad/good pairs, and real comment text, because the
   wording is the entire substance.
 - [`engineering/code-review`](../../engineering/code-review/) for applying a

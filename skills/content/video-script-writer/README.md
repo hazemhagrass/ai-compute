@@ -196,7 +196,7 @@ reconstruct the sentence instead of reading it.
 
 Sibling skills in `skills/writing/` and related topics:
 
-- [technical-writing](../technical-writing/SKILL.md): the written counterpart,
+- [technical-writing](../../writing/technical-writing/SKILL.md): the written counterpart,
   where the reader can re-read and the viewer cannot rewind.
 - [readme-generator](../../meta/readme-generator/SKILL.md): scaffolding the
   written doc a tutorial video usually links to.

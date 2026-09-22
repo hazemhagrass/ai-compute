@@ -145,7 +145,7 @@ unit and its axis: see the SKILL.md sections on impact axes and career arcs.
 
 ## See also
 
-- [data-visualization-principles](../data/data-visualization-principles) for the
+- [data-visualization-principles](../../data/data-visualization-principles) for the
   normative encoding rules: chart selection from the question, zero baselines
   for length encodings, axis honesty, colour as encoding.
 - [latex-resume](../latex-resume) for the LaTeX house style, ATS extraction
