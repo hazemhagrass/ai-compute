@@ -183,11 +183,20 @@
     "office/word-documents": {
       "sha": "6a8f2fc9f7a4"
     },
+    "presentation/slide-deck-designer": {
+      "sha": "36323b6dd7a0"
+    },
+    "productivity/email-efficiency": {
+      "sha": "921f69067865"
+    },
     "research/academic-paper-writing": {
       "sha": "2e76edef1c97"
     },
     "research/citation-manager": {
       "sha": "cbacfd8b866e"
+    },
+    "research/grant-proposal-writing": {
+      "sha": "b46731af52ac"
     },
     "research/literature-review": {
       "sha": "53df2015e3c6"
@@ -197,6 +206,9 @@
     },
     "research/survey-design": {
       "sha": "c4e2c9cb2da0"
+    },
+    "research/systematic-web-research": {
+      "sha": "9e610dca48fa"
     },
     "research/truth-first": {
       "sha": "4c0c60ce718b"
@@ -228,11 +240,29 @@
     "workflow/spec-first-development": {
       "sha": "4a7e101d16a7"
     },
+    "writing/blog-post-writer": {
+      "sha": "79fa4f15b520"
+    },
+    "writing/newsletter-writer": {
+      "sha": "3e8537ced97d"
+    },
+    "writing/podcast-production": {
+      "sha": "e5d5c140acf9"
+    },
     "writing/review-comment-phrasing": {
       "sha": "a6ef91be21dd"
     },
+    "writing/social-media-scheduler": {
+      "sha": "ac0bf5f44ab6"
+    },
     "writing/technical-writing": {
       "sha": "c4ecfab405b8"
+    },
+    "writing/video-script-writer": {
+      "sha": "04cfa569c3f3"
+    },
+    "writing/youtube-seo-optimizer": {
+      "sha": "ecd8ec3ecb88"
     }
   },
   "version": 1

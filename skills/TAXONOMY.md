@@ -16,12 +16,14 @@ A skill lives at `skills/<category>/<name>/SKILL.md`. Never nest deeper.
 | `devtools` | The developer's own machine and loop: shell, multiplexer, dotfiles, environment repair, regex, code navigation. | Personal tooling. If it runs in CI it is `devops`. |
 | `data` | Analysis and presentation of data: dataframes, analyst SQL, BI dashboards, visualisation. | Consuming data to answer a question. Designing the store is `engineering/database-design`. |
 | `office` | Producing documents in office formats: Word, Excel, PowerPoint, Sheets. | The file format and its API. What to *say* in the document is `writing` or `design`. |
+| `presentation` | Slides and live delivery: decks, talks, on-stage materials. | Static and spoken presentation craft; deck-building tools are in `office`. |
 | `writing` | Prose for a reader: technical docs, blogs, newsletters, copy, summaries. | Words. Visual arrangement is `design`. |
 | `content` | Produced media and its distribution: video, podcast, social, SEO. | Non-prose channels with an audience and a platform. |
 | `research` | Finding and verifying what is true: literature, citations, papers, surveys, grants, web research. | Sourcing and evidence. |
 | `career` | Representing yourself: resumes, profiles, cover letters, portfolios, interviews, negotiation. | |
 | `design` | How a thing looks and feels to use: usability, accessibility, design systems, slides. | Visual and interaction craft. Implementation is `engineering/frontend-architecture`. |
 | `workflow` | How work itself is organised: planning, specs, autonomous execution, meetings, email, learning. | Process, not artefact. |
+| `productivity` | Email, meetings, personal organisation: inbox triage, replies, follow-up systems. | Personal workflows; developer workflow is the workflow category. |
 | `finance` | Personal money: budgets, portfolios, retirement. | |
 | `ai` | Working with models: prompting, model selection, agent SDKs. | |
 | `homelab` | Self-hosted infrastructure at home. | |

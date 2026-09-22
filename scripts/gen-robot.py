@@ -48,6 +48,7 @@ CATEGORY_HUE = {
     "devtools": 240,
     "meta": 60,
     "workflow": 150,
+    "presentation": 20,
 }
 DEFAULT_HUE = 210
 
@@ -263,6 +264,16 @@ GLYPHS = {
     "citation-manager": '<path d="M58 114 h30 a6 6 0 0 1 6 6 v34 a6 6 0 0 0 -6 -6 h-30z" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/><path d="M112 114 h-18 v40 a6 6 0 0 1 6 -6 h12z" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/><path d="M100 114 v22 l5 -5 l5 5 v-22" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/>',
     "research-data-analysis": '<path d="M70 156 v-20 M84 156 v-34 M98 156 v-44" stroke="{g}" stroke-width="4" stroke-linecap="round"/><path d="M64 128 l14 -12 l14 -6 l10 -4" fill="none" stroke="{g}" stroke-width="2" stroke-dasharray="3 3"/>',
     "survey-design": '<rect x="62" y="116" width="40" height="44" rx="3" fill="none" stroke="{g}" stroke-width="3"/><rect x="68" y="126" width="7" height="7" fill="none" stroke="{g}" stroke-width="2"/><path d="M80 129 h16" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><rect x="68" y="140" width="7" height="7" fill="none" stroke="{g}" stroke-width="2"/><path d="M80 143 h16" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
+    "systematic-web-research": '<circle cx="76" cy="132" r="14" fill="none" stroke="{g}" stroke-width="3"/><path d="M62 132 h28 M76 118 q7 14 0 28 q-7 -14 0 -28" fill="none" stroke="{g}" stroke-width="2"/><path d="M87 143 l10 10" stroke="{g}" stroke-width="3.5" stroke-linecap="round"/>',
+    "grant-proposal-writing": '<path d="M58 116 h30 v34 H58z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M64 124 h18 M64 131 h18 M64 138 h11" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><circle cx="98" cy="142" r="9" fill="none" stroke="{g}" stroke-width="3"/><path d="M94 142 l3 3 l6 -6" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    "blog-post-writer": '<path d="M60 114 h40 v38 H60z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M66 122 h20" stroke="{g}" stroke-width="4" stroke-linecap="round"/><path d="M66 132 h28 M66 139 h28 M66 146 h16" stroke="{g}" stroke-width="2.2" stroke-linecap="round"/>',
+    "video-script-writer": '<path d="M58 126 h44 v26 H58z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M58 126 l6 -10 h44 l-6 10" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M72 116 l-6 10 M86 116 l-6 10" stroke="{g}" stroke-width="2.5"/>',
+    "slide-deck-designer": '<path d="M58 116 h44 v26 H58z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M65 134 l9 -9 l7 5 l11 -12" fill="none" stroke="{g}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M80 142 v7 M71 151 h18" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
+    "youtube-seo-optimizer": '<rect x="57" y="119" width="36" height="26" rx="6" fill="none" stroke="{g}" stroke-width="3"/><path d="M71 127 l9 5 l-9 5z" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="95" cy="143" r="7" fill="none" stroke="{g}" stroke-width="2.6"/><path d="M100 148 l4 4" stroke="{g}" stroke-width="2.8" stroke-linecap="round"/>',
+    "podcast-production": '<rect x="70" y="112" width="20" height="26" rx="10" fill="none" stroke="{g}" stroke-width="3"/><path d="M60 132 a20 20 0 0 0 40 0" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M80 146 v8 M68 156 h24" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
+    "newsletter-writer": '<path d="M56 126 h48 v26 H56z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M56 126 l24 16 l24 -16" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/><path d="M68 120 h24 v-8 H68z" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/>',
+    "social-media-scheduler": '<rect x="57" y="120" width="31" height="29" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M57 129 h31 M64 114 v10 M81 114 v10" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><circle cx="96" cy="142" r="8" fill="none" stroke="{g}" stroke-width="2.6"/><path d="M96 137 v5 l3 2" fill="none" stroke="{g}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+    "email-efficiency": '<path d="M59 134 h11 l4 8 h14 l4 -8 h11 v16 H59z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M80 114 v15 m-6 -6 l6 6 l6 -6" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
 }
 
 FALLBACK_GLYPH = (
