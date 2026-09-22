@@ -48,11 +48,17 @@
     "data/data-visualization-principles": {
       "sha": "5f0bd6ec7da5"
     },
+    "data/powerbi-reports": {
+      "sha": "1eccecf9779f"
+    },
     "data/python-pandas-analysis": {
       "sha": "81e0849dc42d"
     },
     "data/sql-for-analysts": {
       "sha": "49c45ab70059"
+    },
+    "data/tableau-dashboard-builder": {
+      "sha": "a77fd7eee9a8"
     },
     "design/accessibility-audit": {
       "sha": "9d24123fe1ed"
@@ -138,6 +144,15 @@
     "engineering/test-strategy": {
       "sha": "7c69aa7b6faa"
     },
+    "finance/budget-tracker": {
+      "sha": "c2dcd3211eaa"
+    },
+    "finance/investment-portfolio-analyzer": {
+      "sha": "31cae5359857"
+    },
+    "finance/retirement-calculator": {
+      "sha": "0925cbe675f0"
+    },
     "homelab/adguard-home": {
       "sha": "12292ce6fee8"
     },
@@ -146,6 +161,21 @@
     },
     "homelab/unraid": {
       "sha": "bdce94cab3fc"
+    },
+    "knowledge/airtable-database-builder": {
+      "sha": "0d183fae5e30"
+    },
+    "knowledge/obsidian-zettelkasten": {
+      "sha": "53c85779ee13"
+    },
+    "knowledge/onenote-knowledge-base": {
+      "sha": "505a8ee1a7c8"
+    },
+    "learning/course-creation": {
+      "sha": "c738f1a8819d"
+    },
+    "learning/spaced-repetition": {
+      "sha": "3f1fa0050cfa"
     },
     "meta/readme-generator": {
       "sha": "cecebb518165"

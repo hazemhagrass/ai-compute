@@ -49,6 +49,9 @@ CATEGORY_HUE = {
     "meta": 60,
     "workflow": 150,
     "presentation": 20,
+    "knowledge": 165,
+    "learning": 75,
+    "finance": 135,
 }
 DEFAULT_HUE = 210
 
@@ -173,6 +176,12 @@ ANTENNAE = [ant_ball, ant_twin, ant_coil, ant_dish]
 # Torso glyphs, one per skill. `{g}` is substituted with the glow colour.
 # Keep every path inside x 48..112, y 112..160 so it stays on the body panel.
 GLYPHS = {
+    "obsidian-zettelkasten": '<rect x="60" y="118" width="17" height="14" rx="2" fill="none" stroke="{g}" stroke-width="3"/><rect x="85" y="118" width="17" height="14" rx="2" fill="none" stroke="{g}" stroke-width="3"/><rect x="72" y="142" width="18" height="13" rx="2" fill="none" stroke="{g}" stroke-width="3"/><path d="M77 125 H85" stroke="{g}" stroke-width="3"/><path d="M68 132 L78 142" stroke="{g}" stroke-width="3"/><path d="M94 132 L85 142" stroke="{g}" stroke-width="3"/>',
+    "onenote-knowledge-base": '<rect x="58" y="118" width="40" height="38" rx="3" fill="none" stroke="{g}" stroke-width="3"/><path d="M70 118 V156" stroke="{g}" stroke-width="3"/><path d="M98 126 H106" stroke="{g}" stroke-width="3"/><path d="M98 136 H106" stroke="{g}" stroke-width="3"/><path d="M98 146 H106" stroke="{g}" stroke-width="3"/><path d="M76 130 H92" stroke="{g}" stroke-width="3"/><path d="M76 140 H92" stroke="{g}" stroke-width="3"/>',
+    "airtable-database-builder": '<rect x="56" y="120" width="48" height="34" rx="3" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 132 H104" stroke="{g}" stroke-width="3"/><path d="M72 120 V154" stroke="{g}" stroke-width="3"/><path d="M88 120 V154" stroke="{g}" stroke-width="3"/><rect x="89" y="133" width="14" height="10" fill="{g}" opacity="0.55"/>',
+    "budget-tracker": '<rect x="56" y="122" width="48" height="32" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 132 H104" stroke="{g}" stroke-width="3"/><circle cx="92" cy="143" r="5" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 143 H78" stroke="{g}" stroke-width="3"/>',
+    "spaced-repetition": '<rect x="58" y="126" width="34" height="26" rx="3" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 120 H98 a3 3 0 0 1 3 3 V146" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 139 H84" stroke="{g}" stroke-width="3"/><path d="M66 133 H84" stroke="{g}" stroke-width="3"/>',
+    "course-creation": '<path d="M80 119 L102 128 L80 137 L58 128 Z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M68 132 V143 a12 7 0 0 0 24 0 V132" fill="none" stroke="{g}" stroke-width="3"/>',
     # engineering
     "debugging": '<circle cx="80" cy="132" r="9" fill="none" stroke="{g}" stroke-width="3"/><path d="M86 138 l9 9" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
     "refactoring": '<path d="M62 126 h22 a8 8 0 0 1 0 16 h-22" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M92 134 l8 8 -8 8" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',

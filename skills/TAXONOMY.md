@@ -19,6 +19,8 @@ A skill lives at `skills/<category>/<name>/SKILL.md`. Never nest deeper.
 | `presentation` | Slides and live delivery: decks, talks, on-stage materials. | Static and spoken presentation craft; deck-building tools are in `office`. |
 | `writing` | Prose for a reader: technical docs, blogs, newsletters, copy, summaries. | Words. Visual arrangement is `design`. |
 | `content` | Produced media and its distribution: video, podcast, social, SEO. | Non-prose channels with an audience and a platform. |
+| `knowledge` | Personal and team knowledge bases: note systems, wikis, structured bases. | Storing and retrieving what you know. Finding out what is true is `research`. |
+| `learning` | Acquiring and teaching skills: retention systems, course and curriculum design. | Deliberate learning. Writing the material is `writing`. |
 | `research` | Finding and verifying what is true: literature, citations, papers, surveys, grants, web research. | Sourcing and evidence. |
 | `career` | Representing yourself: resumes, profiles, cover letters, portfolios, interviews, negotiation. | |
 | `design` | How a thing looks and feels to use: usability, accessibility, design systems, slides. | Visual and interaction craft. Implementation is `engineering/frontend-architecture`. |
