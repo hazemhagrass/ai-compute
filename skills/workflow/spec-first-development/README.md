@@ -209,8 +209,8 @@ Sibling skills in `skills/productivity/`:
 
 - [`planning/`](../planning) - breaking larger efforts into ordered, trackable work; pairs with stage 3 of this loop.
 - [`technical-writing/`](../../writing/technical-writing/SKILL.md) - sharpening the prose of the Requirements and spec documents.
-- [`readme-generator/`](../../meta/readme-generator/SKILL.md) - producing the user-facing docs that stage 6 asks you to update.
-- [`git-commit-writer/`](../../devtools/git-commit-writer/SKILL.md) - writing the spec-referencing commit message in stage 6.
+- [`technical-writing/`](../../writing/technical-writing) - producing the user-facing docs that stage 6 asks you to update.
+- [`git-workflow/`](../../devtools/git-workflow) - writing the spec-referencing commit message in stage 6.
 - [`truth-first/`](../../research/truth-first/SKILL.md) - keeping claims about what was built honest, which is the same discipline as not letting the spec drift.
 - [`grill-me/`](../grill-me) - pressure-testing a spec by having its assumptions challenged before you build.
 - [`autonomous-task/`](../autonomous-task) - running the plan's tasks with less supervision once the spec is settled.

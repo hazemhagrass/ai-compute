@@ -245,7 +245,7 @@ Sibling skills in `skills/productivity/`, verified present on disk:
 
 - [`technical-writing`](../../writing/technical-writing/SKILL.md): use when writing docs, a
   README, or a changelog for human readers rather than agents.
-- [`readme-generator`](../readme-generator/SKILL.md): use when a repo has no
+- [`technical-writing`](../../writing/technical-writing): use when a repo has no
   README or needs a refresh.
 - [`truth-first`](../../research/truth-first/SKILL.md): use when making factual claims or
   citing sources, including claims inside a skill body.

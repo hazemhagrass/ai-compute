@@ -238,7 +238,7 @@ An honest gap report is more useful than a confident guess, because it tells the
 Sibling skills in `skills/productivity/`:
 
 - [`technical-writing`](../../writing/technical-writing/SKILL.md) - structure and style for docs; pairs with this skill, which covers whether the content is true
-- [`readme-generator`](../../meta/readme-generator/SKILL.md) - generating README files, a prime place to apply the verification workflow
+- [`technical-writing`](../../writing/technical-writing) - generating README files, a prime place to apply the verification workflow
 - [`spec-first-development`](../../workflow/spec-first-development/SKILL.md) - write the spec before the code, so docs cite a real contract
 - [`grill-me`](../../workflow/grill-me/SKILL.md) - adversarial interrogation of a plan, which surfaces the unverified assumptions inside it
 - [`planning`](../../workflow/planning/SKILL.md) - breaking work into steps you can actually check off

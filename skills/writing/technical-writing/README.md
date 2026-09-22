@@ -243,9 +243,9 @@ Good:
 
 Sibling skills in `skills/productivity/`:
 
-- [readme-generator](../../meta/readme-generator/SKILL.md) for scaffolding a README from
+- [technical-writing](../technical-writing) for scaffolding a README from
   an existing repo before applying these rules to it.
-- [git-commit-writer](../../devtools/git-commit-writer/SKILL.md) for commit messages, which
+- [git-workflow](../../devtools/git-workflow) for commit messages, which
   follow the same impact-first rule as changelog entries.
 - [skill-authoring](../../meta/skill-authoring/SKILL.md) for writing SKILL.md files,
   where the audience is a model rather than a person.

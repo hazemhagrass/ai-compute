@@ -43,7 +43,7 @@
       "sha": "337a7602115d"
     },
     "career/word-resume-optimizer": {
-      "sha": "82376bde6178"
+      "sha": "e9751d12e7cd"
     },
     "content/podcast-production": {
       "sha": "e5d5c140acf9"
@@ -52,7 +52,7 @@
       "sha": "ac0bf5f44ab6"
     },
     "content/video-script-writer": {
-      "sha": "9bcafcc0a0f8"
+      "sha": "51f43d45f3cf"
     },
     "content/youtube-seo-optimizer": {
       "sha": "ecd8ec3ecb88"
@@ -96,11 +96,8 @@
     "devtools/env-doctor": {
       "sha": "dd560e2f6c21"
     },
-    "devtools/git-commit-writer": {
-      "sha": "21507bbddc6b"
-    },
     "devtools/git-workflow": {
-      "sha": "7fff6605cd3f"
+      "sha": "6a538c90b933"
     },
     "devtools/regex-builder": {
       "sha": "7555cfac4c37"
@@ -189,9 +186,6 @@
     "learning/spaced-repetition": {
       "sha": "3f1fa0050cfa"
     },
-    "meta/readme-generator": {
-      "sha": "cecebb518165"
-    },
     "meta/skill-authoring": {
       "sha": "6243dedc0017"
     },
@@ -218,12 +212,6 @@
     },
     "office/power-query-etl": {
       "sha": "f288ea3be31d"
-    },
-    "office/powerpoint-automation": {
-      "sha": "2b855b631e1e"
-    },
-    "office/word-documents": {
-      "sha": "6a8f2fc9f7a4"
     },
     "presentation/slide-deck-designer": {
       "sha": "36323b6dd7a0"

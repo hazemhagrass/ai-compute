@@ -285,4 +285,4 @@ Reason: a scan cannot detect row loss, duplication, or a control total that move
 - Microsoft docs: `TRIM`, `CLEAN`, `SUBSTITUTE`, `VALUE`, `TEXT`, `DATE`, `COUNTIFS`, and `SUMPRODUCT`.
 - Microsoft docs: Power Query M, specifically `Table.TransformColumnTypes` (the culture argument), `Table.TransformColumns`, `Table.Distinct`, and `Text.PadStart`.
 - `skills/data/python-pandas-analysis`: when the file outgrows a spreadsheet, or the cleaning needs tests and version control.
-- `skills/office/powerpoint-automation` and `skills/office/word-documents`: generating Office files programmatically once the cleaning rules are settled.
+- `skills/office/slide-deck-designer` and `skills/office/excel-data-cleaning`: generating Office files programmatically once the cleaning rules are settled.

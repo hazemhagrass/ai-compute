@@ -229,6 +229,6 @@ Reason: the smallest possible snippet is not the most useful one; the reader has
 ## See also
 
 - [technical-writing](../../writing/technical-writing/README.md) - what the prose around the snippet should say
-- [readme-generator](../../meta/readme-generator/README.md) - generating the doc that these snippets land in
+- [technical-writing](../../writing/technical-writing) - generating the doc that these snippets land in
 - [test-strategy](../../engineering/test-strategy/README.md) - making the extracted source actually covered
 - [ci-cd-debugging](../../devops/ci-cd-debugging/README.md) - wiring the check job and diagnosing its failures

@@ -287,6 +287,6 @@ The viewer renders the page. The parser reads the stream. Only one of them is lo
 - [`technical-writing`](../../writing/technical-writing/SKILL.md) - structure and style for the prose, once the layout is parseable
 - [`literature-review`](../../research/literature-review/SKILL.md) - the same evidence discipline applied to sources, useful for keeping claims traceable
 - [`truth-first`](../../research/truth-first/SKILL.md) - grounding individual claims, the rule behind "cite a metric only if you could name the dashboard"
-- [`readme-generator`](../../meta/readme-generator/SKILL.md) - the same audience-first framing applied to a repo front page
+- [`technical-writing`](../../writing/technical-writing) - the same audience-first framing applied to a repo front page
 - [`planning`](../../workflow/planning/SKILL.md) - breaking a rebuild into checkable stages
 - [`skill-authoring`](../../meta/skill-authoring/SKILL.md) - writing skills like this one

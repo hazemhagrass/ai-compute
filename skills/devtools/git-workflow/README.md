@@ -260,7 +260,7 @@ git config core.fileMode false
 
 ## See also
 
-- `skills/productivity/git-commit-writer/SKILL.md` for drafting the message text itself.
+- `skills/productivity/git-workflow/SKILL.md` for drafting the message text itself.
 - `skills/engineering/code-review/SKILL.md` for what reviewers look for in the commits this skill produces.
 - `skills/engineering/security-audit/SKILL.md` for the wider secret-handling and credential-exposure process.
 - `skills/devops/ci-cd-debugging/SKILL.md` when the pre-commit checks pass locally but the pipeline fails.

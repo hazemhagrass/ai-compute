@@ -277,5 +277,5 @@ Then run the verification snippet above against the output before you send it.
 
 - `skills/career/latex-resume/SKILL.md` for resume content, bullet structure,
   and quantified impact, plus the LaTeX route when you control the toolchain.
-- `skills/office/word-documents/SKILL.md` for general Word document authoring.
+- `skills/office/excel-data-cleaning/SKILL.md` for general Word document authoring.
 - `skills/writing/technical-writing/SKILL.md` for tightening bullet prose.

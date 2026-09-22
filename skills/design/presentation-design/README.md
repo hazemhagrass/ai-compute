@@ -257,7 +257,7 @@ Sibling skills in `skills/productivity/`:
   slide asks approval for.
 - [truth-first](../../research/truth-first/SKILL.md) for not overstating a number, which is
   the failure behind most truncated axes and rounded-up claims.
-- [readme-generator](../../meta/readme-generator/SKILL.md) for a project summary that
+- [technical-writing](../../writing/technical-writing) for a project summary that
   does not need a presenter in the room.
 - [grill-me](../../workflow/grill-me/SKILL.md) for stress-testing an argument before you
   present it, which is how you find the questions your notes should answer.

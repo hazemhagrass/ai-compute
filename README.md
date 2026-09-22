@@ -349,6 +349,17 @@ Pick an issue, implement the skill with real examples and scripts, open a PR. Ev
 
 **Secrets never enter the repo.** API keys live in encrypted SQLite (`apps/ai-model-router/data/`, gitignored) or shell env. Config files reference keys by name (`${VAR_NAME}`), never by value.
 
+## Why these skills exist
+
+The skill ecosystem is saturated, so every skill here has to justify
+itself against the well-known alternative. `docs/PRIOR-ART.md` names the
+prior art per skill and states the edge, and it lists the skills removed
+for having no edge to defend.
+
+The short version: claims in this library are executed before they are
+written down. SQL failures are re-run, contrast ratios are computed,
+ffmpeg commands are measured, and parser behaviour is tested.
+
 ## Security and audit posture
 
 A skill is not passive documentation. When an agent loads `SKILL.md`, that text

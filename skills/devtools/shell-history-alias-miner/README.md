@@ -218,7 +218,7 @@ Sibling skills in `skills/devtools/`:
 - [`dotfiles-sync`](../dotfiles-sync/SKILL.md) - once `~/.aliases` exists, this is how it reaches every other machine.
 - [`env-doctor`](../env-doctor/SKILL.md) - when a newly sourced alias fails because the underlying tool is not installed.
 - [`git-workflow`](../git-workflow/SKILL.md) - the source of most mined candidates; check for an existing git alias before adding a shell one.
-- [`git-commit-writer`](../git-commit-writer/SKILL.md) - for committing the dotfile change with a message that names what was added and why.
+- [`git-workflow`](../git-workflow) - for committing the dotfile change with a message that names what was added and why.
 - [`regex-builder`](../regex-builder/SKILL.md) - for the `sed` and `awk` patterns that parse an unfamiliar history format.
 - [`tmux-workspace`](../tmux-workspace/SKILL.md) - long-running sessions fragment history across panes; read it before trusting the counts.
 - [`technical-writing`](../../writing/technical-writing/SKILL.md) - for annotating the alias file so the next reader knows what each entry replaced.

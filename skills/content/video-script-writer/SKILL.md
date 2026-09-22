@@ -247,7 +247,7 @@ working cache." Then start.
 
 - [technical-writing](../../writing/technical-writing/SKILL.md): the written counterpart,
   where the reader can re-read instead of the viewer who cannot rewind.
-- [readme-generator](../../meta/readme-generator/SKILL.md): scaffolding the
+- [technical-writing](../../writing/technical-writing): scaffolding the
   written doc that a tutorial video usually links to.
 - [review-comment-phrasing](../../writing/review-comment-phrasing/SKILL.md): phrasing
   feedback, useful when reviewing someone's script draft.

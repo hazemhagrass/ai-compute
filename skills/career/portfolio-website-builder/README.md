@@ -151,5 +151,5 @@ trip, and a form is a barrier at the exact moment interest is highest.
   accessibility pass the portfolio must survive.
 - [`performance-profiling`](../../engineering/performance-profiling/README.md)
   for producing the performance numbers a case study cites.
-- [`readme-generator`](../../meta/readme-generator/README.md) if the portfolio
+- [`technical-writing`](../../writing/technical-writing) if the portfolio
   site documents code repositories.

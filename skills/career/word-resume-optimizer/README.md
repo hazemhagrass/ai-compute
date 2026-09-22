@@ -208,5 +208,5 @@ what it will do; the preview is the answer.
 ## See also
 
 - [latex-resume](../latex-resume/SKILL.md) for what the resume should say: bullet structure, quantified impact, and the LaTeX route when you own the toolchain.
-- [word-documents](../../office/word-documents/SKILL.md) for general `.docx` authoring and `python-docx` usage.
+- [excel-data-cleaning](../../office/excel-data-cleaning) for general `.docx` authoring and `python-docx` usage.
 - [technical-writing](../../writing/technical-writing/SKILL.md) for tightening bullet prose.

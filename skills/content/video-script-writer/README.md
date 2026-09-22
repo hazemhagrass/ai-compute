@@ -198,7 +198,7 @@ Sibling skills in `skills/writing/` and related topics:
 
 - [technical-writing](../../writing/technical-writing/SKILL.md): the written counterpart,
   where the reader can re-read and the viewer cannot rewind.
-- [readme-generator](../../meta/readme-generator/SKILL.md): scaffolding the
+- [technical-writing](../../writing/technical-writing): scaffolding the
   written doc a tutorial video usually links to.
 - [presentation-design](../../design/presentation-design/SKILL.md): designing
   the slides and overlays the on-screen column references.

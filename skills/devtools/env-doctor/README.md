@@ -231,11 +231,11 @@ File:    src/invoice.ts:42
 
 Sibling skills in `skills/productivity/`:
 
-- [`readme-generator`](../../meta/readme-generator/SKILL.md) - once the environment is diagnosed, the prerequisites list you produced belongs in the project README.
+- [`technical-writing`](../../writing/technical-writing) - once the environment is diagnosed, the prerequisites list you produced belongs in the project README.
 - [`technical-writing`](../../writing/technical-writing/SKILL.md) - for writing the setup section so the next person does not need this skill at all.
 - [`truth-first`](../../research/truth-first/SKILL.md) - the evidence-over-inference principle above, applied generally.
 - [`spec-first-development`](../../workflow/spec-first-development/SKILL.md) - pinning runtime versions and documenting required env vars up front prevents most of what this skill diagnoses.
-- [`git-commit-writer`](../git-commit-writer/SKILL.md) - for committing the `.nvmrc`, `.env.example` or lockfile change that fixes the problem for everyone else.
+- [`git-workflow`](../git-workflow) - for committing the `.nvmrc`, `.env.example` or lockfile change that fixes the problem for everyone else.
 - [`planning`](../../workflow/planning/SKILL.md) - when the diagnosis turns up more work than a checklist can hold.
 - [`autonomous-task`](../../workflow/autonomous-task/SKILL.md) - for running the full sequence unattended across several repositories.
 - [`grill-me`](../../workflow/grill-me/SKILL.md) - to pressure-test a diagnosis you are not confident in.

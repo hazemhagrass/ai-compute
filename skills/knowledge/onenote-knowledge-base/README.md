@@ -275,7 +275,7 @@ Sibling skills in this repository:
 - [technical-writing](../../writing/technical-writing/SKILL.md) for the page-body
   rules this skill assumes: task-first ordering, runnable snippets, and failure
   modes written in the exact words the system emits.
-- [readme-generator](../../meta/readme-generator/SKILL.md) for the index-page
+- [technical-writing](../../writing/technical-writing) for the index-page
   habit applied to a repo, which is the same problem as a section index.
 - [database-design](../../engineering/database-design/SKILL.md) for where the
   structured data should go once you accept a OneNote table is not a table.
