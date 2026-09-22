@@ -292,11 +292,10 @@ a single page holding your identity line, contact details, and resume link.
 
 - Does the fold say what you do and what role you want?
 - Are there three to five pieces, each with problem, constraints, decisions,
-  outcome, and a reflection, and does at least one name a rejected alternative?
-- Could you source every number on the site from a real dashboard or log?
+  outcome, and a reflection, and does one name a rejected alternative, with
+  every number sourced from a real dashboard or log?
 - Is a real email address visible on every page, and does the resume PDF
   download from a stable link and match the site?
-- Does the deployed URL load fast on a throttled connection, unfurl with a
-  correct title, description, and image, and serve HTTPS with no warning?
+- Does the deployed URL unfurl with a correct title, description, and image?
 - Does every flow work with the mouse unplugged, and is everything on the site
   still true and still live?

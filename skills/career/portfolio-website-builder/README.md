@@ -113,6 +113,37 @@ portfolio from a gallery.
   view counts at most. Reason: trackers on a page whose readers are strangers
   doing you a favour, and they slow the page doing it.
 
+## Common pitfalls
+
+Bad: a gallery of nine project cards with screenshots and a live demo each.
+
+Good: three case studies, each opening with the outcome a hiring manager
+cares about, then the decisions that produced it.
+
+Reason: more projects means each gets less explanation; the reader learns
+nothing they could not have guessed.
+
+---
+
+Bad: writing the case study around the technology stack.
+
+Good: writing it around the operational problem, with the stack mentioned
+where a decision involved it.
+
+Reason: the hiring decision is about judgement, not familiarity with a
+framework; the stack is evidence, not the story.
+
+---
+
+Bad: hiding the resume behind a contact form.
+
+Good: a stable, direct PDF link visible on every page.
+
+Reason: a recruiter or agent may want the resume without an email round
+trip, and a form is a barrier at the exact moment interest is highest.
+
+---
+
 ## See also
 
 - [`latex-resume`](../latex-resume/README.md) for the downloadable resume PDF.
