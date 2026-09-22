@@ -12,6 +12,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  skills:
+    name: skill library
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # DOCTOR_LOCAL=0 skips the symlink/install checks: CI checks out the
+      # repo fresh and has no ~/.hermes to verify. Those run on the machine
+      # that runs scripts/install.sh, not here.
+      - name: Skill structure (scripts/doctor.sh)
+        run: bash scripts/doctor.sh
+        env:
+          DOCTOR_LOCAL: '0'
+
   router:
     name: ai-model-router
     runs-on: ubuntu-latest

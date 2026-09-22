@@ -9,6 +9,10 @@ ok()   { printf '\033[32m  ok\033[0m   %s\n' "$*"; }
 bad()  { printf '\033[31m  FAIL\033[0m %s\n' "$*"; FAIL=1; }
 section() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
+# CI has no $HOME dotfiles to check, and the installed copies must not
+# gate the repo itself; set DOCTOR_LOCAL=0 (or run on a machine with the
+# install done) to skip this section.
+if [ "${DOCTOR_LOCAL:-1}" = "1" ]; then
 section "Symlinks"
 check_link() {
   local dst="$1"
@@ -33,17 +37,45 @@ done
 for f in "$HOME/.hermes/config.yaml" "$HOME/.claude/CLAUDE.md"; do
   [ -e "$f" ] && check_link "$f"
 done
+fi  # DOCTOR_LOCAL
 
 section "Skill frontmatter"
 shopt -s nullglob
 for skill in "$REPO"/skills/*/*/SKILL.md; do
   rel="${skill#"$REPO"/}"
+  # The description contract: frontmatter description starts with "Use when "
+  # and its first sentence (the trigger) fits in 57 chars, so the router
+  # surfaces the right skill on the trigger alone. Goes through metadata.py
+  # (stdlib yaml) rather than regex so quoted multi-word forms parse.
+  desc_check="$(python3 - "$skill" <<'PYEOF'
+import re, sys
+t = open(sys.argv[1]).read()
+m = re.match(r'---\n(.*?)\n---\n', t, re.S)
+if not m:
+    print("no frontmatter"); sys.exit()
+fm = m.group(1)
+dm = re.search(r'^description:\s*(.+)$', fm, re.M)
+if not dm:
+    print("no description"); sys.exit()
+d = dm.group(1).strip()
+if d.startswith('"') and d.endswith('"'):
+    d = d[1:-1]
+if not d.startswith("Use when "):
+    print("description does not lead with 'Use when '")
+    sys.exit()
+trigger = re.split(r'(?<=[.!?])\s', d)[0]
+if len(trigger) > 57:
+    print(f"trigger sentence is {len(trigger)} chars; must close within 57")
+PYEOF
+)" 2>&1
   if ! command head -n1 "$skill" | grep -q '^---$'; then
     bad "$rel: missing YAML frontmatter"
   elif ! grep -qm1 '^name:' "$skill"; then
     bad "$rel: frontmatter has no name:"
   elif ! grep -qm1 '^description:' "$skill"; then
     bad "$rel: frontmatter has no description:"
+  elif [ -n "$desc_check" ]; then
+    bad "$rel: $desc_check"
   else
     ok "$rel"
   fi
