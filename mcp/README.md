@@ -1,61 +1,49 @@
 # MCP server setups
 
-Model Context Protocol servers connect an agent to external tools. This
-directory is one setup document per server that earns its slot, with the
-config, the least-privilege setup, and the risks stated plainly.
+Model Context Protocol servers connect an agent to external tools. Most of them
+need no documentation from this repo: the vendor README is the source of truth,
+it is maintained, and a copy here only goes stale the moment a flag changes.
 
-These servers are built and maintained by their vendors. Nothing here
-reimplements them: each file is the setup and safety guidance for using the
-upstream server, pointing at the maintained source.
+So this directory is deliberately small. A server gets a file here **only** when
+there is setup work the vendor README does not do for you, and that work is
+non-obvious enough to get wrong.
 
-| Server | File | What it gives the agent |
+| Server | File | Why this file exists |
 | --- | --- | --- |
-| Context7 | [context7.md](context7.md) | Version-pinned library documentation, fetched live |
-| GitHub | [github.md](github.md) | Repos, issues, pull requests, code search |
-| Filesystem | [filesystem.md](filesystem.md) | Scoped read and write inside an allow-list of roots |
-| Playwright | [playwright.md](playwright.md) | Browser automation over the accessibility tree |
-| Postgres | [postgres.md](postgres.md) | Schema inspection, EXPLAIN, read-only queries |
-| Memory | [memory.md](memory.md) | A persistent knowledge graph across sessions |
-| Sequential Thinking | [sequential-thinking.md](sequential-thinking.md) | An explicit, revisable chain of thoughts |
-| Fetch | [fetch.md](fetch.md) | Web pages converted to markdown |
+| Postgres | [postgres.md](postgres.md) | The vendor README tells you to set a connection string. It does not hand you the SQL for a genuinely read-only role: privileges, forced read-only transactions, statement and idle timeouts, connection caps. |
+| Memory | [memory.md](memory.md) | Retrieval is substring matching, with no ranking and no embeddings. That one fact dictates how observations must be written, and the consequences are not spelled out upstream. |
 
-## Install order
+## For every other server, read the vendor docs
 
-Start with Context7 and GitHub: they pay for themselves on the first task.
-Add Filesystem and Playwright when the agent needs to touch files outside the
-host's sandbox or drive a real browser. The rest are situational.
+Well documented upstream, and nothing here would improve on them:
 
-Every server you add costs context on every request, because its tool
-definitions load whether or not they are used. Two servers that do the same
-job teach the model to pick wrong. Install the one you need and remove what
-you stopped using.
+- GitHub: <https://github.com/github/github-mcp-server>
+- Playwright: <https://github.com/microsoft/playwright-mcp>
+- Filesystem: <https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem>
+- Context7: <https://github.com/upstash/context7>
+- Sequential Thinking: <https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking>
+- Fetch: <https://github.com/modelcontextprotocol/servers/tree/main/src/fetch>
 
-## A note on the archived reference servers
+## One thing worth knowing before you follow any tutorial
 
-Anthropic archived most of the original reference servers, including
-`@modelcontextprotocol/server-github` and `@modelcontextprotocol/server-postgres`.
-Tutorials still point at them. Each file here names the archived package it
-replaces so a reader arriving from an old post finds the maintained server
-instead of a dead repo.
+Anthropic archived thirteen of its original reference servers, including the
+GitHub, Slack, Postgres, Puppeteer and Sentry ones, and the replacements are
+maintained by the vendors themselves. Older posts and videos still point at the
+archived packages. If a tutorial tells you to install
+`@modelcontextprotocol/server-github` or `@modelcontextprotocol/server-postgres`,
+it is out of date; use the vendor server listed above.
 
-Still maintained as reference servers: Filesystem, Memory, Sequential
-Thinking, and Fetch.
+Still maintained as reference servers: Filesystem, Memory, Sequential Thinking,
+and Fetch.
 
-## Secrets
+## Rules that apply to any server you add
 
-No file here contains a literal token. Every credential is referenced as an
-environment variable (`${GITHUB_MCP_PAT}`, `${DATABASE_URI}`,
-`${CONTEXT7_API_KEY}`) so a config can be committed without leaking. A
-`.mcp.json` checked into a repo is readable by everyone who can clone it.
-
-## Risk, stated once
-
-An MCP server is a capability you hand to a model that reads untrusted text.
-Issue bodies, web pages, and database rows can all carry instructions. Three
-rules follow:
-
-- Prefer read-only modes and turn off the toolsets you do not use.
-- Scope credentials to the smallest surface that works: one repo, one
-  database, one directory.
-- Content fetched by an agent is data, never instructions. Any server that
-  fetches remote content widens that surface.
+- Credentials come from environment variables, never literals in a config file
+  that gets committed. A token in `.mcp.json` is a token in git history.
+- Start read-only. Add write tools only when a task needs them, and remember a
+  write tool acts with your identity and your permissions.
+- Anything a server fetches is untrusted input. Issue text, page content and
+  database rows can all carry instructions aimed at your agent.
+- Every server costs context on every request, because its tool definitions
+  load whether or not they are used. Two servers with overlapping tools teach
+  the model to pick the wrong one.
