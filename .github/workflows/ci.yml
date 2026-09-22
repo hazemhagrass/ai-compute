@@ -46,6 +46,11 @@ jobs:
       - name: Security scan
         run: python3 scripts/scan-skills.py
 
+      # The marketplace manifest is generated from the tree, so a new skill
+      # that never reached it would be invisible to anyone installing.
+      - name: Marketplace manifest freshness
+        run: python3 scripts/gen-marketplace.py --check
+
   router:
     name: ai-model-router
     runs-on: ubuntu-latest

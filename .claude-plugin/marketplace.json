@@ -1,0 +1,454 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "ai-computer",
+  "owner": {
+    "name": "Hazem Hagrass",
+    "url": "https://github.com/hazemhagrass"
+  },
+  "metadata": {
+    "description": "Agent skills for engineering, security, data, writing and personal workflows. Every skill is validated and security-scanned in CI.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "ai-computer-ai",
+      "source": "./",
+      "description": "Working with models: prompting, model selection, agent SDKs. 3 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/ai",
+      "license": "MIT",
+      "keywords": [
+        "ai",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/ai/model-selection",
+        "./skills/ai/prompt-engineering",
+        "./skills/ai/smythos-sdk"
+      ]
+    },
+    {
+      "name": "ai-computer-career",
+      "source": "./",
+      "description": "Resumes, portfolios, interviews, and negotiation. 12 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/career",
+      "license": "MIT",
+      "keywords": [
+        "career",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/career/cover-letter-generator",
+        "./skills/career/creative-resume-design",
+        "./skills/career/infographic-resume",
+        "./skills/career/interactive-web-resume",
+        "./skills/career/interview-prep",
+        "./skills/career/latex-resume",
+        "./skills/career/linkedin-profile-optimizer",
+        "./skills/career/portfolio-website-builder",
+        "./skills/career/resume-storytelling",
+        "./skills/career/salary-negotiation",
+        "./skills/career/video-resume",
+        "./skills/career/word-resume-optimizer"
+      ]
+    },
+    {
+      "name": "ai-computer-data",
+      "source": "./",
+      "description": "Analysis and presentation of data: dataframes, SQL, BI, visualisation. 5 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/data",
+      "license": "MIT",
+      "keywords": [
+        "data",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/data/data-visualization-principles",
+        "./skills/data/powerbi-reports",
+        "./skills/data/python-pandas-analysis",
+        "./skills/data/sql-for-analysts",
+        "./skills/data/tableau-dashboard-builder"
+      ]
+    },
+    {
+      "name": "ai-computer-design",
+      "source": "./",
+      "description": "Usability, accessibility, and design systems. 2 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/design",
+      "license": "MIT",
+      "keywords": [
+        "design",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/design/accessibility-audit",
+        "./skills/design/presentation-design"
+      ]
+    },
+    {
+      "name": "ai-computer-devops",
+      "source": "./",
+      "description": "Build, deploy, run, observe: containers, orchestration, pipelines. 3 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/devops",
+      "license": "MIT",
+      "keywords": [
+        "devops",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/devops/ci-cd-debugging",
+        "./skills/devops/docker-troubleshooting",
+        "./skills/devops/kubernetes-debugging"
+      ]
+    },
+    {
+      "name": "ai-computer-devtools",
+      "source": "./",
+      "description": "The developer's own machine and loop: shell, dotfiles, regex, navigation. 9 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/devtools",
+      "license": "MIT",
+      "keywords": [
+        "devtools",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/devtools/code-graph",
+        "./skills/devtools/dotfiles-sync",
+        "./skills/devtools/env-doctor",
+        "./skills/devtools/git-commit-writer",
+        "./skills/devtools/git-workflow",
+        "./skills/devtools/regex-builder",
+        "./skills/devtools/repo-snippet-extractor",
+        "./skills/devtools/shell-history-alias-miner",
+        "./skills/devtools/tmux-workspace"
+      ]
+    },
+    {
+      "name": "ai-computer-engineering",
+      "source": "./",
+      "description": "Writing and changing production code: refactoring, debugging, testing, APIs. 14 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/engineering",
+      "license": "MIT",
+      "keywords": [
+        "engineering",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/engineering/api-design",
+        "./skills/engineering/api-integration",
+        "./skills/engineering/architecture-review",
+        "./skills/engineering/code-review",
+        "./skills/engineering/code-review-automation",
+        "./skills/engineering/code-review-checklist",
+        "./skills/engineering/database-design",
+        "./skills/engineering/debugging",
+        "./skills/engineering/frontend-architecture",
+        "./skills/engineering/performance-profiling",
+        "./skills/engineering/refactoring",
+        "./skills/engineering/refactoring-safety-checks",
+        "./skills/engineering/sql-optimization",
+        "./skills/engineering/test-strategy"
+      ]
+    },
+    {
+      "name": "ai-computer-finance",
+      "source": "./",
+      "description": "Personal money: budgets, portfolios, retirement. 3 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/finance",
+      "license": "MIT",
+      "keywords": [
+        "finance",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/finance/budget-tracker",
+        "./skills/finance/investment-portfolio-analyzer",
+        "./skills/finance/retirement-calculator"
+      ]
+    },
+    {
+      "name": "ai-computer-homelab",
+      "source": "./",
+      "description": "Self-hosted infrastructure at home. 3 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/homelab",
+      "license": "MIT",
+      "keywords": [
+        "homelab",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/homelab/adguard-home",
+        "./skills/homelab/lancache",
+        "./skills/homelab/unraid"
+      ]
+    },
+    {
+      "name": "ai-computer-knowledge",
+      "source": "./",
+      "description": "Personal and team knowledge bases: notes, wikis, structured bases. 3 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/knowledge",
+      "license": "MIT",
+      "keywords": [
+        "knowledge",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/knowledge/airtable-database-builder",
+        "./skills/knowledge/obsidian-zettelkasten",
+        "./skills/knowledge/onenote-knowledge-base"
+      ]
+    },
+    {
+      "name": "ai-computer-learning",
+      "source": "./",
+      "description": "Learning and teaching: retention, course and curriculum design. 2 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/learning",
+      "license": "MIT",
+      "keywords": [
+        "learning",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/learning/course-creation",
+        "./skills/learning/spaced-repetition"
+      ]
+    },
+    {
+      "name": "ai-computer-meta",
+      "source": "./",
+      "description": "Skills about this repository's own artefacts. 2 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/meta",
+      "license": "MIT",
+      "keywords": [
+        "meta",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/meta/readme-generator",
+        "./skills/meta/skill-authoring"
+      ]
+    },
+    {
+      "name": "ai-computer-office",
+      "source": "./",
+      "description": "Producing documents in office formats: Word, Excel, PowerPoint, Sheets. 10 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/office",
+      "license": "MIT",
+      "keywords": [
+        "office",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/office/excel-dashboards",
+        "./skills/office/excel-data-cleaning",
+        "./skills/office/excel-financial-modeling",
+        "./skills/office/excel-formulas",
+        "./skills/office/excel-macros-vba",
+        "./skills/office/google-sheets-advanced",
+        "./skills/office/pivot-tables",
+        "./skills/office/power-query-etl",
+        "./skills/office/powerpoint-automation",
+        "./skills/office/word-documents"
+      ]
+    },
+    {
+      "name": "ai-computer-presentation",
+      "source": "./",
+      "description": "Slides and live delivery. 1 skill.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/presentation",
+      "license": "MIT",
+      "keywords": [
+        "presentation",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/presentation/slide-deck-designer"
+      ]
+    },
+    {
+      "name": "ai-computer-productivity",
+      "source": "./",
+      "description": "Email, meetings, and personal organisation. 1 skill.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/productivity",
+      "license": "MIT",
+      "keywords": [
+        "productivity",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/productivity/email-efficiency"
+      ]
+    },
+    {
+      "name": "ai-computer-research",
+      "source": "./",
+      "description": "Finding and verifying what is true: literature, citations, papers, surveys. 8 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/research",
+      "license": "MIT",
+      "keywords": [
+        "research",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/research/academic-paper-writing",
+        "./skills/research/citation-manager",
+        "./skills/research/grant-proposal-writing",
+        "./skills/research/literature-review",
+        "./skills/research/research-data-analysis",
+        "./skills/research/survey-design",
+        "./skills/research/systematic-web-research",
+        "./skills/research/truth-first"
+      ]
+    },
+    {
+      "name": "ai-computer-security",
+      "source": "./",
+      "description": "Finding and fixing vulnerabilities before someone else does. 5 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/security",
+      "license": "MIT",
+      "keywords": [
+        "security",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/security/api-security-audit",
+        "./skills/security/authentication-audit",
+        "./skills/security/cryptography-audit",
+        "./skills/security/secrets-management-audit",
+        "./skills/security/security-audit"
+      ]
+    },
+    {
+      "name": "ai-computer-workflow",
+      "source": "./",
+      "description": "How work itself is organised: planning, specs, autonomous execution. 4 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/workflow",
+      "license": "MIT",
+      "keywords": [
+        "workflow",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/workflow/autonomous-task",
+        "./skills/workflow/grill-me",
+        "./skills/workflow/planning",
+        "./skills/workflow/spec-first-development"
+      ]
+    },
+    {
+      "name": "ai-computer-writing",
+      "source": "./",
+      "description": "Prose for a reader: docs, blogs, newsletters, copy. 8 skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Hazem Hagrass"
+      },
+      "homepage": "https://github.com/hazemhagrass/ai-compute/tree/main/skills/writing",
+      "license": "MIT",
+      "keywords": [
+        "writing",
+        "skills",
+        "agent"
+      ],
+      "skills": [
+        "./skills/writing/blog-post-writer",
+        "./skills/writing/newsletter-writer",
+        "./skills/writing/podcast-production",
+        "./skills/writing/review-comment-phrasing",
+        "./skills/writing/social-media-scheduler",
+        "./skills/writing/technical-writing",
+        "./skills/writing/video-script-writer",
+        "./skills/writing/youtube-seo-optimizer"
+      ]
+    }
+  ]
+}
