@@ -1,6 +1,6 @@
 ---
 name: excel-macros-vba
-description: Use when writing, fixing, or reviewing an Excel macro or VBA module. Kill Select/Activate, turn off screen updating, handle errors with a restoring handler, and keep .xlsm files trusted and signed.
+description: Use when writing or fixing an Excel macro. Kill Select/Activate, batch I/O arrays, restore app state, keep .xlsm trusted.
 ---
 
 Write macros that a second person can run on a different machine without the workbook opening to the wrong sheet, without a half-finished run leaving calculation set to Manual, and without a silent `On Error Resume Next` hiding the reason the numbers are wrong. The dominant VBA failure is not a crash: it is a procedure that completed, reported nothing, and left the workbook in a state nobody can reproduce.

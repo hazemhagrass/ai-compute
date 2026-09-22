@@ -1,6 +1,6 @@
 ---
 name: ci-cd-debugging
-description: Use when a CI pipeline fails, tests are flaky, or deployments break. Systematic pipeline debugging.
+description: "Use when a pipeline fails or tests flake. Debug CI systematically: isolate flake vs red, repro, bisect the stage."
 ---
 
 Debug CI/CD failures by reading the full log output, isolating what changed, reproducing locally when possible, and fixing the root cause instead of restarting blindly.

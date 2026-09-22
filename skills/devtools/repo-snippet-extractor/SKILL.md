@@ -1,6 +1,6 @@
 ---
 name: repo-snippet-extractor
-description: Use when a doc, README, or tutorial embeds code from a repo. Extract snippets by anchor and verify them in CI so they never drift.
+description: Use when a doc embeds code from a repo. Extract snippets by anchor, verify them in CI so they never drift.
 ---
 
 Pull code examples out of real, compiled, tested source files instead of typing

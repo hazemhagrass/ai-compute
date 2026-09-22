@@ -1,6 +1,6 @@
 ---
 name: shell-history-alias-miner
-description: Use when typing the same long command repeatedly or tuning a shell config. Mines history into aliases.
+description: Use when typing one long command repeatedly. Mine shell history into aliases with collision checks.
 ---
 
 Turn a shell history file into a small set of aliases and functions that are worth

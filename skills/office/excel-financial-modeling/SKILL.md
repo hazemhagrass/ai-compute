@@ -1,6 +1,6 @@
 ---
 name: excel-financial-modeling
-description: Use when building a three-statement model, DCF, budget, or forecast in Excel. Separate inputs from calculations, keep one formula per row, and prove the balance sheet balances before anyone reads the valuation.
+description: Use when building a three-statement model or DCF. Separate inputs from calculations, prove the balance sheet balances.
 ---
 
 Build a forecast whose every number can be traced to a labelled assumption and whose errors announce themselves. A modelling mistake does not throw `#REF!`: it produces a valuation that is confidently wrong, survives review because the layout is unreadable, and gets discovered by the counterparty. Structure is the control, not carefulness.

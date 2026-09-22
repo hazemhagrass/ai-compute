@@ -1,6 +1,6 @@
 ---
 name: google-sheets-advanced
-description: Use when a Google Sheet is slow, an ARRAYFORMULA or QUERY returns the wrong rows, IMPORTRANGE breaks, or a shared sheet needs Apps Script, protection, or validation. Covers the Sheets-only behaviour Excel habits get wrong.
+description: Use when a Sheet is slow or QUERY misfires. Covers Sheets-only behaviour Excel habits get wrong.
 ---
 
 Google Sheets looks like Excel and fails differently. The traps are its own: a

@@ -1,6 +1,6 @@
 ---
 name: code-review-automation
-description: "Use when a CI check, review bot, or AI reviewer comments on pull requests. Decide what to automate, gate on, and silence."
+description: Use when CI bots or AI reviewers comment on PRs. Decide what to automate, gate on, and silence.
 ---
 
 # Code Review Automation

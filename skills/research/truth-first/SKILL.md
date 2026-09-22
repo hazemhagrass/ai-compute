@@ -1,6 +1,6 @@
 ---
 name: truth-first
-description: Use when making factual claims, writing docs, or citing sources. Ground in verifiable evidence.
+description: Use when making factual claims or citing sources. Ground every statement in verifiable evidence.
 ---
 
 Before making any factual claim, verify it against primary sources or provide a path to verification. Prevent the "hallucination cascade" where one unverified claim becomes the basis for others.

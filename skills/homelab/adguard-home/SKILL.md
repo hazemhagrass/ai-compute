@@ -1,6 +1,6 @@
 ---
 name: adguard-home
-description: Use when setting up network-wide DNS filtering or ad blocking. Deploy AdGuard Home, point clients at it, stop bypass.
+description: Use when deploying network-wide DNS filtering. Set up AdGuard Home, point clients at it, stop bypass.
 ---
 
 Deploy and operate AdGuard Home as the DNS resolver for an entire network: Docker deployment, freeing port 53 from the host resolver, pointing clients at it via DHCP, encrypted upstreams, blocklist tuning, per-client rules, local rewrites, and the two ways it silently fails.

@@ -1,6 +1,6 @@
 ---
 name: docker-troubleshooting
-description: Use when a container won't start, build fails, or network/volume breaks. Systematic Docker debugging.
+description: "Use when a container won't start or a build breaks. Debug Docker systematically: image, layers, network, volume."
 ---
 
 Diagnose Docker issues methodically: check the symptoms (container status, exit codes), read the evidence (logs, events, inspect), isolate the cause (image, network, volume, host), then fix and verify.

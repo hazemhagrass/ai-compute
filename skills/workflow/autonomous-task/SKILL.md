@@ -1,6 +1,6 @@
 ---
 name: autonomous-task
-description: Use for long-running tasks requiring sustained work without interruption. Work until done or blocked.
+description: Use when a long task must proceed uninterrupted. Work until done or blocked.
 ---
 
 Work autonomously on complex, multi-step tasks until completion, minimizing interruptions and permission requests. Make reasonable judgement calls, continue through minor obstacles, and report only genuine blockers.

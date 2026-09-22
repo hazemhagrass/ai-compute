@@ -1,6 +1,6 @@
 ---
 name: excel-dashboards
-description: Use when building an Excel dashboard, KPI sheet, or recurring report. Separate data from presentation, pick chart types that answer the question, wire slicers correctly, and reconcile every headline number before it ships.
+description: Use when building an Excel dashboard or KPI sheet. Separate data from presentation, encode honestly, reconcile every headline number.
 ---
 
 Build one screen that answers a stated question and keeps answering it after the next data drop. A dashboard fails in three ways, and none of them look like an error: the chart encodes a comparison nobody asked for, the ranges stopped growing when rows were appended, or the reader sees a cached number with no hint of how old it is. Every rule below prevents one of those.

@@ -1,6 +1,6 @@
 ---
 name: power-query-etl
-description: Use when a refresh is slow, breaks on a renamed column, or a Get Data pipeline must survive next month's file. Folding, staging, error rows, parameters.
+description: Use when a Power Query refresh is slow or breaks. Folding, staging, error rows, parameters that survive renames.
 ---
 
 Build a Power Query pipeline that still works next month, on someone else's machine, against a file whose columns moved. Power Query fails in three ways that no error message announces: it stops folding and pulls a whole table over the wire, it hardcodes a column name into a step that then breaks on rename, and it converts types under the author's locale so the same query yields different dates elsewhere. Every rule below prevents one of those.

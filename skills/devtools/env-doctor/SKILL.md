@@ -1,6 +1,6 @@
 ---
 name: env-doctor
-description: Use when "it works on my machine" or a fresh clone breaks. Diagnoses missing deps and env vars.
+description: Use when a fresh clone breaks. Diagnose missing deps and env vars.
 ---
 
 When a project won't run after cloning or switching branches, diagnose the environment and produce a fix-it checklist.
