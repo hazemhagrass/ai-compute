@@ -1,0 +1,239 @@
+{
+  "skills": {
+    "ai/model-selection": {
+      "sha": "80eefd575f06"
+    },
+    "ai/prompt-engineering": {
+      "sha": "4f2d7744a645"
+    },
+    "ai/smythos-sdk": {
+      "sha": "42176022d65a"
+    },
+    "career/cover-letter-generator": {
+      "sha": "4d9e20a16a07"
+    },
+    "career/creative-resume-design": {
+      "sha": "1b68a7e0d359"
+    },
+    "career/infographic-resume": {
+      "sha": "5ec0465e0a6a"
+    },
+    "career/interactive-web-resume": {
+      "sha": "78b9fc241725"
+    },
+    "career/interview-prep": {
+      "sha": "5ff7ed240ef5"
+    },
+    "career/latex-resume": {
+      "sha": "a1ef16b5deb9"
+    },
+    "career/linkedin-profile-optimizer": {
+      "sha": "64f57276cfa7"
+    },
+    "career/portfolio-website-builder": {
+      "sha": "8dc29d7ec281"
+    },
+    "career/resume-storytelling": {
+      "sha": "9734e0247427"
+    },
+    "career/salary-negotiation": {
+      "sha": "25020fcfae3a"
+    },
+    "career/video-resume": {
+      "sha": "337a7602115d"
+    },
+    "career/word-resume-optimizer": {
+      "sha": "82376bde6178"
+    },
+    "data/data-visualization-principles": {
+      "sha": "5f0bd6ec7da5"
+    },
+    "data/python-pandas-analysis": {
+      "sha": "81e0849dc42d"
+    },
+    "data/sql-for-analysts": {
+      "sha": "49c45ab70059"
+    },
+    "design/accessibility-audit": {
+      "sha": "9d24123fe1ed"
+    },
+    "design/presentation-design": {
+      "sha": "79ad963416ba"
+    },
+    "devops/ci-cd-debugging": {
+      "sha": "b0147b33c5d1"
+    },
+    "devops/docker-troubleshooting": {
+      "sha": "3f4c52c25641"
+    },
+    "devops/kubernetes-debugging": {
+      "sha": "fad7a2399251"
+    },
+    "devtools/code-graph": {
+      "sha": "f8b396e61ea6"
+    },
+    "devtools/dotfiles-sync": {
+      "sha": "f0abfdbffd7b"
+    },
+    "devtools/env-doctor": {
+      "sha": "dd560e2f6c21"
+    },
+    "devtools/git-commit-writer": {
+      "sha": "21507bbddc6b"
+    },
+    "devtools/git-workflow": {
+      "sha": "7fff6605cd3f"
+    },
+    "devtools/regex-builder": {
+      "sha": "7555cfac4c37"
+    },
+    "devtools/repo-snippet-extractor": {
+      "sha": "20ee845a0a63"
+    },
+    "devtools/shell-history-alias-miner": {
+      "sha": "ba37d4fbc49a"
+    },
+    "devtools/tmux-workspace": {
+      "sha": "3395593f1be2"
+    },
+    "engineering/api-design": {
+      "sha": "ae724e8b9d34"
+    },
+    "engineering/api-integration": {
+      "sha": "e172d1ffbe4d"
+    },
+    "engineering/architecture-review": {
+      "sha": "df1aa719849b"
+    },
+    "engineering/code-review": {
+      "sha": "da4ae81efa9c"
+    },
+    "engineering/code-review-automation": {
+      "sha": "5c57246d345f"
+    },
+    "engineering/code-review-checklist": {
+      "sha": "dbddb544cbb1"
+    },
+    "engineering/database-design": {
+      "sha": "9bdb3d0d9e41"
+    },
+    "engineering/debugging": {
+      "sha": "7b764fb64b88"
+    },
+    "engineering/frontend-architecture": {
+      "sha": "e0cfc849b239"
+    },
+    "engineering/performance-profiling": {
+      "sha": "cb4be07e8e66"
+    },
+    "engineering/refactoring": {
+      "sha": "022ff215c96f"
+    },
+    "engineering/refactoring-safety-checks": {
+      "sha": "873134de79ec"
+    },
+    "engineering/sql-optimization": {
+      "sha": "2e34c7ca1310"
+    },
+    "engineering/test-strategy": {
+      "sha": "7c69aa7b6faa"
+    },
+    "homelab/adguard-home": {
+      "sha": "12292ce6fee8"
+    },
+    "homelab/lancache": {
+      "sha": "eb056f12bd3c"
+    },
+    "homelab/unraid": {
+      "sha": "bdce94cab3fc"
+    },
+    "meta/readme-generator": {
+      "sha": "cecebb518165"
+    },
+    "meta/skill-authoring": {
+      "sha": "6243dedc0017"
+    },
+    "office/excel-dashboards": {
+      "sha": "11b6a548c2a1"
+    },
+    "office/excel-data-cleaning": {
+      "sha": "b89459a488ec"
+    },
+    "office/excel-financial-modeling": {
+      "sha": "ba3ea9562cb2"
+    },
+    "office/excel-formulas": {
+      "sha": "5a925f9eacd4"
+    },
+    "office/excel-macros-vba": {
+      "sha": "e2d36cb74ec0"
+    },
+    "office/google-sheets-advanced": {
+      "sha": "5f5b9f00ecac"
+    },
+    "office/pivot-tables": {
+      "sha": "4c81db7c88b6"
+    },
+    "office/power-query-etl": {
+      "sha": "f288ea3be31d"
+    },
+    "office/powerpoint-automation": {
+      "sha": "2b855b631e1e"
+    },
+    "office/word-documents": {
+      "sha": "6a8f2fc9f7a4"
+    },
+    "research/academic-paper-writing": {
+      "sha": "2e76edef1c97"
+    },
+    "research/citation-manager": {
+      "sha": "cbacfd8b866e"
+    },
+    "research/literature-review": {
+      "sha": "53df2015e3c6"
+    },
+    "research/research-data-analysis": {
+      "sha": "3196554028d4"
+    },
+    "research/survey-design": {
+      "sha": "c4e2c9cb2da0"
+    },
+    "research/truth-first": {
+      "sha": "4c0c60ce718b"
+    },
+    "security/api-security-audit": {
+      "sha": "4eeddf68b65e"
+    },
+    "security/authentication-audit": {
+      "sha": "91d0e0456648"
+    },
+    "security/cryptography-audit": {
+      "sha": "5a6752ece30b"
+    },
+    "security/secrets-management-audit": {
+      "sha": "ae4011ea642f"
+    },
+    "security/security-audit": {
+      "sha": "4aa0b1a9ae26"
+    },
+    "workflow/autonomous-task": {
+      "sha": "3a809d4f55f6"
+    },
+    "workflow/grill-me": {
+      "sha": "7ce1634d4e76"
+    },
+    "workflow/planning": {
+      "sha": "a187d7ad6efe"
+    },
+    "workflow/spec-first-development": {
+      "sha": "4a7e101d16a7"
+    },
+    "writing/review-comment-phrasing": {
+      "sha": "a6ef91be21dd"
+    },
+    "writing/technical-writing": {
+      "sha": "c4ecfab405b8"
+    }
+  },
+  "version": 1
+}

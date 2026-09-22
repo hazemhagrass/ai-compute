@@ -30,6 +30,11 @@ jobs:
         env:
           DOCTOR_LOCAL: '0'
 
+      # A skill changed without regenerating the manifest = the version
+      # consumers pin no longer matches the content. Treated as a build break.
+      - name: Manifest freshness
+        run: python3 scripts/gen-manifest.py --check
+
   router:
     name: ai-model-router
     runs-on: ubuntu-latest
