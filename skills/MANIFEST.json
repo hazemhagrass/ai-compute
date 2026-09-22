@@ -49,7 +49,7 @@
       "sha": "5f0bd6ec7da5"
     },
     "data/powerbi-reports": {
-      "sha": "1eccecf9779f"
+      "sha": "3c93bcfe1498"
     },
     "data/python-pandas-analysis": {
       "sha": "81e0849dc42d"
@@ -58,7 +58,7 @@
       "sha": "49c45ab70059"
     },
     "data/tableau-dashboard-builder": {
-      "sha": "a77fd7eee9a8"
+      "sha": "f0a73ed97878"
     },
     "design/accessibility-audit": {
       "sha": "9d24123fe1ed"
@@ -148,7 +148,7 @@
       "sha": "c2dcd3211eaa"
     },
     "finance/investment-portfolio-analyzer": {
-      "sha": "31cae5359857"
+      "sha": "02375fe77b10"
     },
     "finance/retirement-calculator": {
       "sha": "0925cbe675f0"
