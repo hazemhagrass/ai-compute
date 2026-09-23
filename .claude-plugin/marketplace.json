@@ -291,7 +291,7 @@
     {
       "name": "ai-computer-meta",
       "source": "./",
-      "description": "Skills about this repository's own artefacts. 1 skill.",
+      "description": "Skills about this repository's own artefacts. 2 skills.",
       "version": "1.0.0",
       "author": {
         "name": "Hazem Hagrass"
@@ -304,6 +304,7 @@
         "agent"
       ],
       "skills": [
+        "./skills/meta/context-file-audit",
         "./skills/meta/skill-authoring"
       ]
     },

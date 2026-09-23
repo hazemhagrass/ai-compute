@@ -186,6 +186,9 @@
     "learning/spaced-repetition": {
       "sha": "3f1fa0050cfa"
     },
+    "meta/context-file-audit": {
+      "sha": "381d719d69c8"
+    },
     "meta/skill-authoring": {
       "sha": "6243dedc0017"
     },
