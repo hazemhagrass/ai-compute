@@ -10,6 +10,7 @@ import ModelsPanel from "@/components/ModelsPanel";
 import PlaygroundPanel from "@/components/PlaygroundPanel";
 import ProvidersPanel from "@/components/ProvidersPanel";
 import RouterPanel from "@/components/RouterPanel";
+import SettingsPanel from "@/components/SettingsPanel";
 import { useCatalog, useToasts } from "@/components/store";
 import type { InitialData } from "@/lib/server-data";
 
@@ -20,6 +21,7 @@ const TABS = [
   { id: "analytics", label: "Analytics", hint: "spend & usage" },
   { id: "logs", label: "Logs", hint: "every prompt" },
   { id: "providers", label: "Providers", hint: "keys & endpoints" },
+  { id: "settings", label: "Settings", hint: "subs, policy, keys" },
   { id: "health", label: "Health", hint: "connection status" },
   { id: "models", label: "Models", hint: "scores & prices" },
 ] as const;
@@ -124,6 +126,7 @@ export default function AppShell({ initial }: { initial: InitialData }) {
         {tab === "providers" && (
           <ProvidersPanel providers={providers} onToast={push} onRefresh={refresh} />
         )}
+        {tab === "settings" && <SettingsPanel providers={providers} />}
         {tab === "health" && <HealthPanel onToast={push} />}
         {tab === "models" && (
           <ModelsPanel

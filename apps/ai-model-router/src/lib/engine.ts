@@ -54,6 +54,39 @@ export interface RankOptions {
   /** Require at least this context window. */
   minContext?: number;
   limit?: number;
+  /**
+   * Provider lookup so the ranker can honour entitlement filtering (#154)
+   * and localness (#157) without touching the DB. Pass an id -> summary
+   * map. When omitted, entitlement filtering is bypassed: this preserves
+   * old call sites, but new callers should always supply it.
+   */
+  providers?: ReadonlyMap<number, RankProvider>;
+  /**
+   * Function to check entitlement for a given model. Injected so the engine
+   * has no direct dependency on the subscriptions module (which would drag
+   * a DB import into a pure ranker).
+   */
+  checkEntitlement?: (
+    providerId: number,
+    providerEnabled: boolean,
+    modelId: string,
+  ) => { allowed: boolean; reason?: string; explanation?: string };
+  /**
+   * When true, ranking is a two-pass: first with the caller's criteria, and
+   * if the result is empty, again with providers filtered to local only.
+   * This implements #157 ("prefer local when nothing else is reachable").
+   */
+  fallbackToLocal?: boolean;
+}
+
+/**
+ * Minimal provider view the ranker needs. Passing this in instead of a full
+ * Provider keeps the ranker independent of storage.
+ */
+export interface RankProvider {
+  id: number;
+  kind: "cloud" | "local" | "gateway" | "custom";
+  enabled: boolean;
 }
 
 export function rankModels(
@@ -73,6 +106,24 @@ export function rankModels(
     if (opts.maxOutputCost !== undefined && model.outputCost > opts.maxOutputCost) continue;
     if (opts.minContext && model.contextWindow > 0 && model.contextWindow < opts.minContext)
       continue;
+
+    // Localness filter (#157). Requires providers map; if the caller did not
+    // pass one, we cannot know a model's kind, so the filter is a no-op
+    // rather than a lie.
+    if (opts.localOnly && opts.providers) {
+      const prov = opts.providers.get(model.providerId);
+      if (!prov || prov.kind !== "local") continue;
+    }
+
+    // Entitlement filter (#154). Providers map + checker required. A denied
+    // model contributes to the exclusion report kept on Scored's optional
+    // `excludedReason` so the UI can explain the empty state.
+    if (opts.checkEntitlement && opts.providers) {
+      const prov = opts.providers.get(model.providerId);
+      const providerEnabled = prov?.enabled ?? false;
+      const check = opts.checkEntitlement(model.providerId, providerEnabled, model.modelId);
+      if (!check.allowed) continue;
+    }
 
     const req = meetsRequirements(model, task);
     if (!req.ok) continue;
@@ -109,6 +160,19 @@ export function rankModels(
     } else if (idx === 0) {
       scored[0].pinned = true;
     }
+  }
+
+  // Empty result + fallbackToLocal (#157): re-run with localOnly. This is the
+  // safety net that keeps a fresh install useful even when no cloud
+  // provider is configured, and rescues an otherwise-empty ranking when
+  // every cloud provider is unreachable at once (outage, keys revoked).
+  if (
+    scored.length === 0 &&
+    opts.fallbackToLocal &&
+    !opts.localOnly &&
+    opts.providers
+  ) {
+    return rankModels(task, models, { ...opts, localOnly: true, fallbackToLocal: false });
   }
 
   return typeof opts.limit === "number" ? scored.slice(0, opts.limit) : scored;

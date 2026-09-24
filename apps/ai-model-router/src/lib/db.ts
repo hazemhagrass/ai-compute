@@ -158,6 +158,30 @@ function migrate(d: Database.Database) {
       notes             TEXT NOT NULL DEFAULT '',
       updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    /*
+     * Provider keys (#156): multiple keys per provider so the user can
+     * rotate without downtime and label each one (personal, work, billing).
+     * The existing providers.api_key_enc field stays as the *active* key
+     * (the one the router uses now), but multi-key adds the pool it can
+     * be rotated from and the audit trail.
+     */
+    CREATE TABLE IF NOT EXISTS provider_keys (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider_id  INTEGER NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+      label        TEXT NOT NULL DEFAULT '',
+      key_enc      TEXT NOT NULL,
+      key_preview  TEXT NOT NULL DEFAULT '',
+      active       INTEGER NOT NULL DEFAULT 0,
+      last_verified_at TEXT NOT NULL DEFAULT '',
+      last_verify_ok   INTEGER NOT NULL DEFAULT 0,
+      last_verify_error TEXT NOT NULL DEFAULT '',
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_provider_keys_provider ON provider_keys(provider_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_keys_active
+      ON provider_keys(provider_id) WHERE active = 1;
   `);
 }
 
