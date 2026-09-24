@@ -270,6 +270,7 @@ for (const path of queue) {
     url,
     finalUrl,
     httpStatus: status,
+    http_status: status,
     title: data.title,
     description: data.description,
     canonical: data.canonical,

@@ -52,8 +52,11 @@ const findings = [];
 
 const excluded = new Set(config.excluded_routes ?? []);
 const routesInCrawl = new Set(crawl.pages.map((p) => p.path));
+const scenarioList = scenarios.results ?? scenarios.scenarios ?? [];
 const routesTouched = new Set(
-  scenarios.results.flatMap((r) => r.routesTouched ?? [r.route].filter(Boolean)),
+  scenarioList.flatMap((r) =>
+    r.routesTouched ?? [r.route ?? r.path].filter(Boolean),
+  ),
 );
 for (const path of routesInCrawl) {
   if (excluded.has(path)) continue;
@@ -82,7 +85,7 @@ for (const role of authEvents.roles ?? []) {
 
 // -- 3. False greens ---------------------------------------------------------
 
-for (const result of scenarios.results ?? []) {
+for (const result of scenarioList) {
   if (result.status !== "pass") continue;
   for (const assertion of result.assertions ?? []) {
     if (
@@ -103,7 +106,7 @@ for (const result of scenarios.results ?? []) {
 // -- 4. Uncovered click paths -----------------------------------------------
 
 const clickedSelectors = new Set(
-  scenarios.results.flatMap((r) => r.assertions?.map((a) => a.selector) ?? []),
+  scenarioList.flatMap((r) => r.assertions?.map((a) => a.selector) ?? []),
 );
 for (const click of clickTrace.clicks ?? []) {
   if (!clickedSelectors.has(click.selector)) {
@@ -124,7 +127,7 @@ if (last) {
       .filter((r) => r.status === "pass")
       .map((r) => [r.name, r]),
   );
-  for (const now of scenarios.results ?? []) {
+  for (const now of scenarioList) {
     if (now.status !== "pass" && lastPass.has(now.name)) {
       findings.push({
         kind: "regression",

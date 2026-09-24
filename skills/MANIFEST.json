@@ -1,8 +1,7 @@
 {
   "skills": {
     "ai/model-selection": {
-      "sha": "a9fa4ef088c6",
-      "version": "0.1.0"
+      "sha": "80eefd575f06"
     },
     "ai/prompt-engineering": {
       "sha": "4f2d7744a645"
