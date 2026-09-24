@@ -1,134 +1,118 @@
 ---
 name: autonomous-task
-description: Use when a long task must proceed uninterrupted. Work until done or blocked.
+category: workflow
+description: "Use when a long task must proceed uninterrupted. Running for hours with the user away: plan files, checkpoints, parallel subagents, incremental commits, no questions."
 ---
 
-Work autonomously on complex, multi-step tasks until completion, minimizing interruptions and permission requests. Make reasonable judgement calls, continue through minor obstacles, and report only genuine blockers.
+# Autonomous Task
 
-## Core principles
+Run for hours while the user is away. No one is present to answer questions,
+approve steps, or unstick errors. Every rule below assumes that absence.
 
-**Sustained focus over permission-seeking.** If the next step is obvious and low-risk (read a file, run a test, write a helper function), do it. Don't stop to ask.
+## Before starting
 
-**Verify as you go.** After each significant change (new module, refactor, API integration), run the relevant verification (tests, typecheck, build, manual smoke test) before moving to the next piece.
+- Agent config already has `max_turns: 0` (unlimited turns). Do not re-check
+  it or ask the user — it is set.
+- Write a plan file first, before any other action:
+  `<workspace>/plan.md` with numbered, independently-committable items, each
+  with: what "done" means, the files it touches, and its verification command.
+  Everything later (subagent spawn, checkpoints, status %) keys off this file.
+- Load `todo_list` and create one item per plan item. Tick items off as they
+  complete — the todo list is the live plan; the file is the durable one.
+- Split the plan into independent vs. sequential items. Independent items go
+  to parallel subagents via `delegate_task`; sequential items you run yourself.
+- Fix the commit cadence up front: push every N completed items (default N=3).
+  Work that is not pushed does not survive a crash.
 
-**Report blockers, not progress.** When genuinely stuck (missing credentials, ambiguous requirement, architectural decision beyond your scope), state the blocker clearly and what you need to proceed. Otherwise, keep working.
+## Parallel subagents
 
-**Commit in logical units.** Don't wait until the entire task is done. Commit each coherent piece (one ticket, one module, one feature) as it passes verification, with `Refs #N`.
+- Spawn one `delegate_task` per independent item. Give each: the exact task
+  text, the files it owns, its verification command, and where to write
+  progress (`<workspace>/status/<item-id>.md`). If two subagents touch the
+  same files you get merge conflicts, so partition files before spawning.
+- Spawn per item, not per batch. A subagent that fails mid-batch loses the
+  whole batch; a single-item failure is cheap to retry.
+- When a subagent reports completion, verify before counting it: read the
+  files it claims to have written and run its verification command yourself.
+  A subagent's "done" is a claim, not a fact.
+- Include an item in a commit only after you verified it yourself.
 
-## When to stop and ask
+## Checkpointing and commits
 
-- **Missing information you cannot discover**: credentials, API keys, production URLs, user preferences
-- **Architectural decisions with multiple valid approaches**: microservice boundaries, database schema, framework choice
-- **Conflicts with existing patterns**: the codebase has an established way, but the task seems to require breaking it
-- **Test/build/deploy failures you cannot fix** after one genuine attempt (not just re-running the same thing)
-- **Ambiguous requirements**: "add analytics" could mean ten different things
+- After each item, append one line to `<workspace>/progress.md`:
+  timestamp, item id, done/blocked/failed, one-line result. This file is what
+  you resume from after any restart.
+- Commit and push every N items (default 3), with messages naming the items:
+  `feat: items 2-4 — auth flow, session cache, e2e tests`. Push, don't just
+  commit — the local disk is one of the failure modes you survive.
+- Never commit code that fails its own verification "to fix later". A crash
+  mid-run must leave a branch that builds and passes as of the last push.
 
-## When NOT to stop
+## Errors and rate limits
 
-- ✅ Next file to edit is obvious
-- ✅ Variable/function name needs choosing (pick a clear one)
-- ✅ Test is failing due to typo/import (fix it)
-- ✅ Linter complains (fix it, don't ask permission)
-- ✅ Need to read docs/code to understand an API (read it)
-- ✅ Have 3 tickets in the same area (do all 3, commit each)
+- Rate limit (429/5xx): wait at least 60s, then retry with exponential
+  backoff (60s → 120s → 240s → cap at 15m). Do not retry in a tight loop —
+  it resets or worsens the limit — and do not abandon the item on the first
+  refusal.
+- Subagent spawn failure: retry once with the same prompt, then run the item
+  yourself. A stuck subagent never blocks the whole run.
+- A tool or test failure on one item: mark it failed in `progress.md`, move
+  on to the next independent item, retry the failed one after the batch.
+  Blocked ≠ stopped.
+- Only an error that corrupts already-committed work stops the run.
 
-## Workflow
+## Never do these
 
-1. **Understand the full scope.** Read the ticket(s), related code, docs, and tests before starting.
-2. **Plan the work.** Identify logical chunks (e.g., "backend route → client function → UI component → tests").
-3. **Execute chunk by chunk.** Implement, verify (tests/typecheck/build), commit with `Refs #N`.
-4. **Self-verify the whole thing.** After all chunks land, run the full test suite, build, and a manual smoke test if applicable.
-5. **Report completion** with what was done, what was verified, and the commit SHAs.
+- Do not ask clarifying questions. A question is a total stop while the user
+  is away. Pick the interpretation a reasonable engineer would pick, and
+  record the assumption in `progress.md` and the final report.
+- Do not wait for approval on work the original task already authorizes. The
+  task IS the authorization. Work genuinely outside its scope is skipped and
+  logged, not attempted and not asked about.
+- Do not stop on non-critical errors: lint warnings, one flaky test, an
+  unreachable docs page, a failed optional step. Log it, continue, fix or
+  report it later. Critical means committed work may be wrong.
+- Do not trust reported completions. For every "done": read the actual files,
+  run the actual commands, confirm the actual output. "Tests pass" means you
+  saw the pass line, not that someone said so.
 
-## Verification ladder
+## Status reporting
 
-After each chunk, run the **minimum verification** that proves it works:
+- Update the session title after every item, not just at milestones:
+  `Task: auth migration 63% (5/8 items)`. The user checking in from a phone
+  sees the title first; a stale title reads as a stalled run.
+- In subagent activity descriptions, state the item being worked and the
+  verification that will prove it done.
+- The user can see commits for the rest — do not narrate small progress in
+  messages.
 
-| Change type | Minimum verification |
-|-------------|---------------------|
-| New function/module | Unit tests pass |
-| API route | Integration test or manual `curl` |
-| UI component | Build succeeds, visual check in browser |
-| Refactor | Existing tests still pass |
-| Bug fix | Test that reproduces the bug now passes |
-| Whole feature | Full test suite + build + smoke test |
+## Finishing
 
-Don't commit broken code to "fix it later." Each commit should be deployable.
+- Run the full verification once at the end even if you verified each item
+  piecewise — integration is where pieces conflict.
+- Write `<workspace>/final-report.md`: completed items with their commits,
+  failed items with reasons, skipped items, assumptions made without the user.
+  This is the first thing the user reads on return.
+- Set the session title to `Task: <name> — DONE 100%` or
+  `Task: <name> — partial X% (2 items blocked)`.
+- Push everything. An unpushed final commit is work the user cannot see.
 
-## Progress reporting
+## Resume protocol
 
-**During work**: only report genuine blockers. Don't send updates like "finished the API route, starting the client function." The user can see commits.
+Starting work and `progress.md` already exists? Read it before touching
+anything. Skip items marked done and verified; redo items marked done without
+a verification record; pick up at the first incomplete item. Never restart a
+long run from scratch when the checkpoint says it is half done — plan items
+are the unit of resumption.
 
-**At completion**: summarize what was done, what was verified, and link to commits/issues.
+## Counter-examples
 
-Example final report:
-```
-Completed #47, #48, #49.
-
-- Added grill-me skill (SKILL.md + README, 0 em-dashes)
-- Added autonomous-task skill (SKILL.md + README)
-- Added Lancache skill (setup, troubleshooting, Pi-hole integration)
-
-Verified: 0 tsc errors, 0 em-dashes across all files, trigger-first descriptions.
-
-Commits: 4e3930d, a1b2c3d, d4e5f6g
-All issues closed.
-```
-
-## Anti-patterns
-
-| Anti-pattern | Fix |
-|--------------|-----|
-| Stopping to ask "should I create a helper function?" | Just create it with a clear name |
-| Running `npm test` fails, immediately asking for help | Read the error, try one fix, then ask if stuck |
-| Committing 10 files at once with "feat: add feature" | Commit each logical unit separately |
-| Asking "which variable name?" | Pick the clearest one (prefer `userId` over `id`, `fetchUserById` over `get`) |
-| Reporting progress every 10 minutes | Work silently, report completion or blockers only |
-| Skipping verification because "it looks right" | Run tests/build before committing |
-
-## Handling ambiguity
-
-When a requirement is vague:
-
-1. **Check existing patterns** in the codebase (how do similar features work?)
-2. **Pick the simplest reasonable interpretation** that solves the stated problem
-3. **Document the choice** in the commit message or code comment
-4. **Only ask** if the choice has significant architectural impact (e.g., adding a new database vs using existing tables)
-
-## Multi-hour work
-
-For tasks expected to take 2+ hours:
-
-- Commit every 20-30 minutes (one logical unit)
-- Push every hour so progress is visible
-- If a blocker appears, report it immediately (don't wait until the end)
-- If the task scope expands mid-work, note it in the next commit message
-
-## When the task is genuinely done
-
-- All tickets linked in the scope are resolved
-- Tests pass (unit + integration if applicable)
-- Typecheck clean
-- Build succeeds
-- Manual smoke test confirms the feature works end-to-end
-- Commits pushed
-- Issues closed with `Refs #N` in commit messages
-
-Then report completion with evidence (commit SHAs, test output, verification steps taken).
-
-## Example: good autonomous flow
-
-**Task**: Implement #50 (add budget alerts)
-
-1. Read issue, check related code (`src/lib/budget.ts`, existing alert patterns)
-2. Plan: backend check function → API route → client hook → UI notification → tests
-3. Write `checkBudgetThreshold()` in `budget.ts`, add unit test, verify passes, commit `Refs #50`
-4. Write `POST /api/budgets/check` route, test with `curl`, commit `Refs #50`
-5. Write `useBudgetAlert` hook, build succeeds, commit `Refs #50`
-6. Add notification UI, visually verify in browser, commit `Refs #50`
-7. Run full test suite (479 tests pass), `tsc --noEmit` (0 errors), `pnpm build` (succeeds)
-8. Manual smoke: create budget, trigger threshold, see notification
-9. Push all 4 commits, close #50
-10. Report: "Completed #50. Budget alerts working end-to-end. Commits: abc123, def456, ghi789, jkl012. Verified: tests pass, typecheck clean, build ok, notification triggers correctly."
-
-**Time to completion**: 90 minutes. User interruptions: 0.
+- Vague: "checkpoint progress regularly."
+  Actionable: append a timestamped line to `progress.md` after every item,
+  and push commits every 3 items.
+- Vague: "handle errors gracefully."
+  Actionable: on 429 wait 60s then back off exponentially; on any other
+  single-item failure, log it and move to the next independent item.
+- Vague: "report status."
+  Actionable: session title `Task: auth migration 63% (5/8 items)` after
+  every item.

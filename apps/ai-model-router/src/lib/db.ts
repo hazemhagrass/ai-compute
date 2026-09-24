@@ -137,6 +137,27 @@ function migrate(d: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_usage_model ON usage_events(model_row_id);
     CREATE INDEX IF NOT EXISTS idx_usage_provider ON usage_events(provider_id);
     CREATE INDEX IF NOT EXISTS idx_usage_task ON usage_events(task_slug);
+
+    /*
+     * Subscriptions describe what the user is allowed to call at each
+     * provider: a tier ("free", "pro", "enterprise" or arbitrary),
+     * an optional allow-list of model ids, and monthly quotas.
+     *
+     * A row per provider is authoritative. If no row exists, the provider
+     * is treated as unconfigured: entitlement filtering treats every model
+     * on that provider as unreachable, and the router explains it.
+     */
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      provider_id       INTEGER PRIMARY KEY REFERENCES providers(id) ON DELETE CASCADE,
+      tier              TEXT NOT NULL DEFAULT 'free',
+      allow_models_json TEXT NOT NULL DEFAULT '[]',
+      deny_models_json  TEXT NOT NULL DEFAULT '[]',
+      monthly_input     INTEGER NOT NULL DEFAULT 0,
+      monthly_output    INTEGER NOT NULL DEFAULT 0,
+      monthly_budget    REAL NOT NULL DEFAULT 0,
+      notes             TEXT NOT NULL DEFAULT '',
+      updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 
