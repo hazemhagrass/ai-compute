@@ -64,7 +64,7 @@
     {
       "name": "ai-computer-content",
       "source": "./",
-      "description": "content skills. 4 skills.",
+      "description": "content skills. 5 skills.",
       "version": "1.0.0",
       "author": {
         "name": "Hazem Hagrass"
@@ -79,6 +79,7 @@
       "skills": [
         "./skills/content/podcast-production",
         "./skills/content/social-media-scheduler",
+        "./skills/content/subtitle-finder",
         "./skills/content/video-script-writer",
         "./skills/content/youtube-seo-optimizer"
       ]
@@ -425,7 +426,7 @@
     {
       "name": "ai-computer-workflow",
       "source": "./",
-      "description": "How work itself is organised: planning, specs, autonomous execution. 4 skills.",
+      "description": "How work itself is organised: planning, specs, autonomous execution. 5 skills.",
       "version": "1.0.0",
       "author": {
         "name": "Hazem Hagrass"
@@ -440,6 +441,7 @@
       "skills": [
         "./skills/workflow/autonomous-task",
         "./skills/workflow/grill-me",
+        "./skills/workflow/meeting-facilitation",
         "./skills/workflow/planning",
         "./skills/workflow/spec-first-development"
       ]
@@ -447,7 +449,7 @@
     {
       "name": "ai-computer-writing",
       "source": "./",
-      "description": "Prose for a reader: docs, blogs, newsletters, copy. 4 skills.",
+      "description": "Prose for a reader: docs, blogs, newsletters, copy. 5 skills.",
       "version": "1.0.0",
       "author": {
         "name": "Hazem Hagrass"
@@ -461,6 +463,7 @@
       ],
       "skills": [
         "./skills/writing/blog-post-writer",
+        "./skills/writing/copywriting-formulas",
         "./skills/writing/newsletter-writer",
         "./skills/writing/review-comment-phrasing",
         "./skills/writing/technical-writing"
