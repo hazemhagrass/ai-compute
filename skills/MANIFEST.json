@@ -1,7 +1,8 @@
 {
   "skills": {
     "ai/model-selection": {
-      "sha": "80eefd575f06"
+      "sha": "a9fa4ef088c6",
+      "version": "0.1.0"
     },
     "ai/prompt-engineering": {
       "sha": "4f2d7744a645"
@@ -146,6 +147,9 @@
     },
     "engineering/refactoring-safety-checks": {
       "sha": "873134de79ec"
+    },
+    "engineering/site-test": {
+      "sha": "061ec0cda8b4"
     },
     "engineering/sql-optimization": {
       "sha": "2e34c7ca1310"

@@ -176,7 +176,7 @@
     {
       "name": "ai-computer-engineering",
       "source": "./",
-      "description": "Writing and changing production code: refactoring, debugging, testing, APIs. 14 skills.",
+      "description": "Writing and changing production code: refactoring, debugging, testing, APIs. 15 skills.",
       "version": "1.0.0",
       "author": {
         "name": "Hazem Hagrass"
@@ -201,6 +201,7 @@
         "./skills/engineering/performance-profiling",
         "./skills/engineering/refactoring",
         "./skills/engineering/refactoring-safety-checks",
+        "./skills/engineering/site-test",
         "./skills/engineering/sql-optimization",
         "./skills/engineering/test-strategy"
       ]
