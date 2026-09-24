@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import ComparePanel from "@/components/ComparePanel";
+import DashboardPanel from "@/components/DashboardPanel";
 import HealthPanel from "@/components/HealthPanel";
 import LogsPanel from "@/components/LogsPanel";
 import ModelsPanel from "@/components/ModelsPanel";
@@ -19,6 +20,7 @@ const TABS = [
   { id: "playground", label: "Playground", hint: "run a prompt" },
   { id: "compare", label: "Compare", hint: "two models, one prompt" },
   { id: "analytics", label: "Analytics", hint: "spend & usage" },
+  { id: "dashboard", label: "Dashboard", hint: "drill-down tables" },
   { id: "logs", label: "Logs", hint: "every prompt" },
   { id: "providers", label: "Providers", hint: "keys & endpoints" },
   { id: "settings", label: "Settings", hint: "subs, policy, keys" },
@@ -115,6 +117,7 @@ export default function AppShell({ initial }: { initial: InitialData }) {
         {tab === "analytics" && (
           <AnalyticsPanel initial={initial.analytics} onToast={push} />
         )}
+        {tab === "dashboard" && <DashboardPanel initial={initial.analytics} />}
         {tab === "logs" && (
           <LogsPanel
             providers={providers}
