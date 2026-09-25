@@ -1,125 +1,69 @@
-# SmythOS SDK Guidelines for LLM Contributors
+# SmythOS SDK: Full API Reference
 
-> **Purpose**: This document provides precise, verified guidelines for LLMs building AI agents with the SmythOS SDK. All patterns are derived from official SmythOS documentation and examples.
+> Verified from official docs. Do NOT hallucinate SDK APIs. Check
+> https://smythos.github.io/sre/sdk/ or the examples repo before inventing anything.
 
 ## Quick Reference
 
 ```typescript
-// Minimal agent setup
 import { Agent, TLLMEvent } from "@smythos/sdk";
 
 const agent = new Agent({
-  name: "My Agent",
-  model: "gpt-4o",
-  behavior: "You are a helpful assistant.",
+    name: "My Agent",
+    model: "gpt-4o",
+    behavior: "You are a helpful assistant.",
 });
 
 const response = await agent.prompt("Hello");
 ```
 
-## Official Resources (Verify When In Doubt)
-
-| Resource          | URL                                                             |
-| ----------------- | --------------------------------------------------------------- |
-| GitHub Repository | https://github.com/SmythOS/sre                                  |
-| SDK Documentation | https://smythos.github.io/sre/sdk/                              |
-| Code Examples     | https://github.com/SmythOS/sre/tree/main/examples               |
-| Cheat Sheet       | https://smythos.github.io/sre/sdk/documents/99-cheat-sheet.html |
-
-**If a user reports your implementation doesn't work**, check these URLs before assuming the user is wrong—the SDK evolves.
-
-**IMPORTANT** if you fail to implement something, check the examples available in the repo, they cover multiple scenarios and capabilities.
-
-you can clone the repo locally under ~/opencalw/ultro/sre if you want to have a local access to the documentation 
-
 ---
 
 ## 1. Import Paths
 
-SmythOS provides two import paths for different use cases:
-
-### Main SDK (Default)
+### Main SDK (default, 95% of cases)
 
 ```typescript
 import { Agent, TLLMEvent } from "@smythos/sdk";
 ```
 
-Use this for:
-
-- Creating and configuring agents
-- Adding skills
-- Prompting and streaming
-- Chat sessions
-
-### Core SRE (Advanced)
+### Core SRE (advanced only)
 
 ```typescript
 import { SRE, SecureConnector, ACL, TAccessLevel } from "@smythos/sdk/core";
 ```
 
-Use this **only** for:
-
-- Custom connector implementations
-- Enterprise security configurations (ACL/Candidate management)
-- Direct SRE runtime initialization
-
-**Rule**: Use `@smythos/sdk` for 95% of use cases.
+Use ONLY for: custom connectors, enterprise ACL, direct SRE runtime init.
 
 ---
 
 ## 2. Agent Configuration
 
-### Required Properties
-
 ```typescript
 const agent = new Agent({
-  name: "Customer Support Agent", // How the agent identifies itself
-  model: "gpt-4o", // LLM model identifier
-  behavior:
-    "You are a customer support specialist for TechCorp. " +
-    "Help users troubleshoot technical issues with empathy.",
+    name: "Customer Support Agent",
+    model: "gpt-4o",
+    behavior: "You are a customer support specialist. Help users with empathy.",
 });
 ```
 
-| Property   | Required | Description                                                                                 |
-| ---------- | -------- | ------------------------------------------------------------------------------------------- |
-| `name`     | Yes      | Agent's identity name                                                                       |
-| `model`    | Yes      | Model identifier string (e.g., `'gpt-4o'`, `'gpt-4o-mini'`, `'claude-3-5-sonnet-20241022'`) |
-| `behavior` | Yes      | System prompt describing the agent's personality and role                                   |
+| Property   | Required | Description                                        |
+| ---------- | -------- | -------------------------------------------------- |
+| `name`     | Yes      | Agent identity                                     |
+| `model`    | Yes      | Model string or `Model.*()` call                   |
+| `behavior` | Yes      | System prompt (be specific, never vague)           |
 
-### Behavior Guidelines
+### Model selection
 
-**DO**: Write specific, contextual behaviors
-
-```typescript
-behavior: "You are a financial analyst for hedge fund clients. " +
-  "Provide data-driven insights with citations to sources. " +
-  "Always express uncertainty when data is incomplete.";
-```
-
-**DON'T**: Use vague behaviors
+#### Simple string (auto-resolved via vault)
 
 ```typescript
-behavior: "helpful assistant"; // Too vague - agent lacks direction
+model: 'gpt-4o'            // OpenAI
+model: 'claude-sonnet-4-5' // Anthropic
+model: 'gemini-3-pro'      // Google
 ```
 
-### Model Selection
-
-SmythOS supports three ways to specify models, from simple to advanced:
-
-#### Simple String (Auto-Resolved)
-
-The SDK resolves the model string against known providers via the vault system:
-
-```typescript
-model: 'gpt-4o'           // Resolved to OpenAI
-model: 'claude-sonnet-4-5' // Resolved to Anthropic
-model: 'gemini-3-pro'     // Resolved to Google
-```
-
-#### Provider-Specific via `Model.*`
-
-Use `Model.<Provider>(modelId)` for explicit provider selection:
+#### Provider-explicit via `Model.*`
 
 ```typescript
 import { Model } from '@smythos/sdk';
@@ -137,93 +81,57 @@ model: Model.Bedrock('anthropic.claude-3-sonnet')
 model: Model.VertexAI('gemini-1.5-pro')
 ```
 
-**Available providers:** `OpenAI`, `Anthropic`, `GoogleAI`, `Groq`, `DeepSeek`, `TogetherAI`, `xAI`, `Perplexity`, `Ollama`, `Bedrock`, `VertexAI`, `Echo`
+All providers: `OpenAI`, `Anthropic`, `GoogleAI`, `Groq`, `DeepSeek`, `TogetherAI`, `xAI`,
+`Perplexity`, `Ollama`, `Bedrock`, `VertexAI`, `Echo`
 
-#### Provider-Specific with Parameters
-
-Pass a second argument to `Model.*` for fine-grained control:
+#### Provider with parameters
 
 ```typescript
 model: Model.OpenAI('gpt-4o', {
-    temperature: 0.7,        // 0.0 - 2.0 (randomness)
-    maxTokens: 2000,         // Max response length
-    topP: 0.9,               // 0.0 - 1.0 (nucleus sampling)
-    frequencyPenalty: 0.0,   // 0.0 - 2.0
-    presencePenalty: 0.0,    // 0.0 - 2.0
-    baseURL: 'https://api.openai.com/v1', // Custom endpoint (optional)
+    temperature: 0.7,
+    maxTokens: 2000,
+    topP: 0.9,
+    baseURL: 'https://api.openai.com/v1',  // custom endpoint
 })
 ```
 
-**Common parameters across providers:**
+| Parameter           | Type     | Description                              |
+| ------------------- | -------- | ---------------------------------------- |
+| `temperature`       | number   | 0.0-2.0, randomness                      |
+| `maxTokens`         | number   | Max response tokens                      |
+| `maxThinkingTokens` | number   | For reasoning models                     |
+| `topP`              | number   | 0.0-1.0, nucleus sampling                |
+| `topK`              | number   | Limits to K most likely tokens           |
+| `frequencyPenalty`  | number   | 0.0-2.0, penalises repeated tokens      |
+| `presencePenalty`   | number   | 0.0-2.0, penalises already-used tokens  |
+| `stopSequences`     | string[] | Sequences that halt generation           |
+| `baseURL`           | string   | Custom API endpoint URL                  |
+| `numCtx`            | number   | Context window size (Ollama-specific)    |
 
-| Parameter           | Type     | Description                                  |
-| ------------------- | -------- | -------------------------------------------- |
-| `temperature`       | number   | 0.0 - 2.0, controls randomness              |
-| `maxTokens`         | number   | Maximum response tokens                      |
-| `maxThinkingTokens` | number   | For reasoning models (extended thinking)     |
-| `topP`              | number   | 0.0 - 1.0, nucleus sampling                 |
-| `topK`              | number   | Limits to K most likely tokens               |
-| `frequencyPenalty`  | number   | 0.0 - 2.0, penalizes repeated tokens        |
-| `presencePenalty`   | number   | 0.0 - 2.0, penalizes already-used tokens    |
-| `stopSequences`     | string[] | Sequences that halt generation               |
-| `baseURL`           | string   | Custom API endpoint URL                      |
-| `numCtx`            | number   | Context window size (Ollama-specific)        |
-
-### Custom Local Models (Ollama & LM Studio)
-
-#### Ollama
-
-Ollama runs open-source models locally. No API key needed.
-
-**Setup:**
-```bash
-# 1. Install Ollama from https://ollama.ai
-# 2. Pull a model
-ollama pull llama3.2
-# 3. Ollama server runs at http://localhost:11434 by default
-```
-
-**Usage in SmythOS:**
-```typescript
-import { Agent, Model } from '@smythos/sdk';
-
-const agent = new Agent({
-    name: 'Local Agent',
-    model: Model.Ollama('llama3.2', {
-        temperature: 0.7,
-        maxTokens: 2000,
-        numCtx: 4096,                          // Context window size
-        baseURL: 'http://localhost:11434',      // Default, can be omitted
-    }),
-    behavior: 'You are a helpful assistant.',
-});
-```
-
-#### LM Studio (and other OpenAI-compatible servers)
-
-LM Studio and similar tools expose an OpenAI-compatible API. Use `Model.OpenAI` with a custom `baseURL`:
+### Ollama (no API key needed)
 
 ```typescript
-import { Agent, Model } from '@smythos/sdk';
-
-const agent = new Agent({
-    name: 'LM Studio Agent',
-    model: Model.OpenAI('my-local-model', {
-        baseURL: 'http://localhost:1234/v1',    // LM Studio default endpoint
-        temperature: 0.7,
-        maxTokens: 2000,
-    }),
-    behavior: 'You are a helpful assistant.',
-});
+model: Model.Ollama('llama3.2', {
+    temperature: 0.7,
+    maxTokens: 2000,
+    numCtx: 4096,
+    baseURL: 'https://llmstudio2.hazemhagrass.com',  // primary remote server
+    // fallback: 'https://llmstudio1.hazemhagrass.com'
+})
 ```
 
-**Note:** Any OpenAI-compatible endpoint works with `Model.OpenAI` + a custom `baseURL` (e.g., vLLM, text-generation-inference, LocalAI).
+### LM Studio / any OpenAI-compatible server
 
-#### Custom Model Configuration Files
+```typescript
+model: Model.OpenAI('my-local-model', {
+    baseURL: 'http://localhost:1234/v1',
+})
+```
 
-You can also define custom models as JSON files in the `.smyth/models/` directory. SmythOS scans this directory at runtime and loads them automatically.
+### Custom model config files
 
-**Example custom model file** (e.g., `~/.smyth/models/my-local-models.json`):
+Drop JSON in `~/.smyth/models/` (loaded at runtime):
+
 ```json
 {
     "my-ollama-llama": {
@@ -234,285 +142,146 @@ You can also define custom models as JSON files in the `.smyth/models/` director
         "tokens": 4096,
         "completionTokens": 512,
         "enabled": true,
-        "baseURL": "http://localhost:11434",
-        "credentials": ["none"]
-    },
-    "my-lmstudio-model": {
-        "provider": "OpenAI",
-        "label": "LM Studio Model",
-        "modelId": "my-model-name",
-        "features": ["text"],
-        "tokens": 8000,
-        "completionTokens": 2048,
-        "enabled": true,
-        "baseURL": "http://localhost:1234/v1",
+        "baseURL": "https://llmstudio2.hazemhagrass.com",
         "credentials": ["none"]
     }
 }
 ```
 
-Once defined, these models can be used by their key name as a simple string:
-```typescript
-model: 'my-ollama-llama'
-```
+Then: `model: 'my-ollama-llama'`
 
-### Extended Models Directory
-
-To access a comprehensive list of supported models maintained by the SmythOS team, clone the official models repository:
-
-```bash
-# Clone into user home for global access
-git clone https://github.com/SmythOS/sre-models-pub ~/.smyth/models/sre-models-pub
-```
-
-This repository includes configurations for models from **OpenAI**, **Anthropic**, **GoogleAI**, **Groq**, **TogetherAI**, **xAI**, and more. You can also add your own custom model configuration files to the `~/.smyth/models/` directory—SmythOS will detect and load them automatically.
+Official model repo: `git clone https://github.com/SmythOS/sre-models-pub ~/.smyth/models/sre-models-pub`
 
 ---
 
 ## 3. Skills
 
-Skills extend agent capabilities. The LLM uses the `description` field to decide when to invoke a skill.
-
-### Skill Structure
-
 ```typescript
 agent.addSkill({
-  name: "get_book_info", // snake_case identifier
-  description: "Get information about a book by its name", // LLM reads this
-  process: async ({ book_name }) => {
-    // Destructure parameters
-    const url = `https://openlibrary.org/search.json?q=${book_name}`;
-    const response = await fetch(url);
-    const data = await response.json();
-    return data.docs[0]; // Return JSON-serializable value
-  },
+    name: "get_book_info",       // snake_case
+    description: "Get information about a book by its name",  // one clear sentence
+    process: async ({ book_name }) => {
+        const res = await fetch(`https://openlibrary.org/search.json?q=${book_name}`);
+        return (await res.json()).docs[0];
+    },
 });
 ```
 
-### Skill Best Practices
+| Aspect         | Rule                                                                           |
+| -------------- | ------------------------------------------------------------------------------ |
+| `name`         | `snake_case`                                                                   |
+| `description`  | One clear sentence. The LLM routes based on this.                              |
+| `process`      | Async. Destructure params. Return string or JSON-serialisable value.           |
+| Error handling | RETURN error strings, do NOT throw. Exceptions kill the agent loop.            |
 
-| Aspect         | Guideline                                                                                       |
-| -------------- | ----------------------------------------------------------------------------------------------- |
-| `name`         | Use `snake_case` (e.g., `fetch_crypto_price`, `search_knowledge_base`)                          |
-| `description`  | One clear sentence explaining what the skill does. The LLM uses this to decide when to call it. |
-| `process`      | Async function. Destructure expected parameters. Return strings or JSON-serializable objects.   |
-| Error handling | Return error messages as strings instead of throwing (the LLM will see and handle them)         |
-
-### Direct Skill Calls
-
-You can call skills directly without LLM intervention:
-
-```typescript
-const result = await agent.call("get_book_info", {
-  book_name: "The Great Gatsby",
-});
-console.log(result);
-```
+Direct skill call (bypass LLM): `await agent.call("get_book_info", { book_name: "..." })`
 
 ---
 
-## 4. Agent Interaction Modes
+## 4. Interaction Modes
 
-### Mode 1: Simple Prompt (Await Response)
+### Simple prompt
 
 ```typescript
-const response = await agent.prompt(
-  'What is the author of "The Great Gatsby"?'
-);
-console.log(response);
+const response = await agent.prompt('Hello');
 ```
 
-### Mode 2: Streaming Response
+### Streaming
 
 ```typescript
-import { TLLMEvent } from "@smythos/sdk";
-
 const stream = await agent.prompt("Tell me a story.").stream();
 
-stream.on(TLLMEvent.Content, (chunk) => {
-  process.stdout.write(chunk);
-});
-
-stream.on(TLLMEvent.End, () => {
-  console.log("\nDone");
-});
-
-// CRITICAL: Wait for stream to complete before exiting
-await new Promise((resolve) => {
-  stream.on(TLLMEvent.End, resolve);
-});
-```
-
-### Available Stream Events (TLLMEvent)
-
-| Event                   | Description                                        |
-| ----------------------- | -------------------------------------------------- |
-| `TLLMEvent.Content`     | Generated response chunks                          |
-| `TLLMEvent.Thinking`    | Reasoning/thinking blocks (models that support it) |
-| `TLLMEvent.End`         | Stream completed                                   |
-| `TLLMEvent.Error`       | Error occurred                                     |
-| `TLLMEvent.ToolInfo`    | LLM determined next tool to call                   |
-| `TLLMEvent.ToolCall`    | Before tool execution                              |
-| `TLLMEvent.ToolResult`  | After tool execution                               |
-| `TLLMEvent.Usage`       | Token usage statistics                             |
-| `TLLMEvent.Interrupted` | Response interrupted before completion             |
-
-### Mode 3: Chat Sessions (Conversation Memory)
-
-```typescript
-const chat = agent.chat({
-  id: "session-001", // Unique session identifier
-  persist: false, // false = in-memory only, true = saved to storage
-});
-
-const response1 = await chat.prompt("Hello, I'm Alice");
-const response2 = await chat.prompt("What's my name?"); // Agent remembers "Alice"
-```
-
-**Chat with Streaming**:
-
-```typescript
-const chat = agent.chat({ id: "stream-session", persist: false });
-
-const stream = await chat.prompt("Tell me about quantum computing.").stream();
 stream.on(TLLMEvent.Content, (chunk) => process.stdout.write(chunk));
+stream.on(TLLMEvent.End, () => console.log("\nDone"));
 
+// CRITICAL: always await stream end or output truncates silently
 await new Promise((resolve) => stream.on(TLLMEvent.End, resolve));
-
-// Continue conversation - context preserved
-const stream2 = await chat.prompt("Explain that more simply.").stream();
 ```
 
-### Mode 4: Import .smyth Files
+### Stream events (TLLMEvent)
 
-Import agents created in SmythOS Visual Studio:
+| Event                   | Description                                  |
+| ----------------------- | -------------------------------------------- |
+| `TLLMEvent.Content`     | Response chunks                              |
+| `TLLMEvent.Thinking`    | Reasoning blocks                             |
+| `TLLMEvent.End`         | Stream completed                             |
+| `TLLMEvent.Error`       | Error occurred                               |
+| `TLLMEvent.ToolInfo`    | LLM selected next tool                       |
+| `TLLMEvent.ToolCall`    | Before tool execution                        |
+| `TLLMEvent.ToolResult`  | After tool execution                         |
+| `TLLMEvent.Usage`       | Token usage statistics                       |
+| `TLLMEvent.Interrupted` | Response interrupted before completion       |
+
+### Chat (conversation memory)
 
 ```typescript
-import { Agent } from "@smythos/sdk";
-import agentData from "./my-agent.smyth";
-
-const agent = new Agent(agentData);
-const result = await agent.prompt("Hello!");
+const chat = agent.chat({ id: "session-001", persist: false });
+const r1 = await chat.prompt("Hello, I'm Alice");
+const r2 = await chat.prompt("What's my name?");  // remembers
 ```
 
-**Note**: The `.smyth` file must include a `default_model` field.
+### Import .smyth files
+
+```typescript
+import agentData from "./my-agent.smyth";
+const agent = new Agent(agentData);  // file must include default_model
+```
 
 ---
 
-## 5. Services (LLM, VectorDB, Storage, Cache)
+## 5. Built-in Services
 
-Access integrated services through the agent instance within skills.
-
-### LLM Service
-
-Use a different model within a skill via `agent.llm.<Provider>(modelId)`:
+### LLM service
 
 ```typescript
-agent.addSkill({
-  name: "summarize_text",
-  description: "Summarizes a given text",
-  process: async ({ text }) => {
-    const llm = agent.llm.OpenAI("gpt-4o-mini");
-    // Also available: agent.llm.Anthropic("claude-sonnet-4-5"),
-    //   agent.llm.Ollama("llama3.2"), agent.llm.GoogleAI("gemini-1.5-pro"), etc.
-    return await llm.prompt(`Summarize: ${text}`);
-  },
-});
+process: async ({ text }) => {
+    const llm = agent.llm.OpenAI("gpt-4o-mini");  // or .Ollama(), .Anthropic(), etc.
+    return await llm.prompt(`Summarise: ${text}`);
+}
 ```
 
-### VectorDB Service
+### VectorDB: prefer Milvus (install if absent)
 
 ```typescript
-agent.addSkill({
-  name: "search_knowledge",
-  description: "Searches the knowledge base",
-  process: async ({ query }) => {
-    const vec = agent.vectordb.Pinecone({
-      namespace: "knowledge-base",
-      indexName: "main-index",
-    });
-
-    const results = await vec.search(query, { topK: 5 });
-    return results.map((r) => r.metadata.text).join("\n\n");
-  },
-});
+const vec = agent.vectordb.Milvus({ namespace: "kb", indexName: "main" });
+const results = await vec.search(query, { topK: 5 });
 ```
 
-**Supported VectorDB Connectors**: `Pinecone`, `Milvus`, `RAMVec`
+Supported: `Pinecone`, `Milvus`, `RAMVec`
 
-### Storage Service
+### Storage: Local by default, S3 if user prefers
 
 ```typescript
-agent.addSkill({
-  name: "save_document",
-  description: "Saves a document to storage",
-  process: async ({ filename, content }) => {
-    const storage = agent.storage.S3({
-      bucket: "my-bucket",
-      region: "us-east-1",
-    });
-
-    const uri = await storage.write(filename, content);
-    return `Saved: ${uri}`;
-  },
-});
+const storage = agent.storage.Local();
+await storage.write(filename, content);
 ```
 
-**Supported Storage Connectors**: `Local`, `S3`, `Azure`, `Google Cloud`
+Supported: `Local`, `S3`, `Azure`, `Google Cloud`
 
-### Cache Service
+### Cache: prefer Redis (install if absent; fall back to RAM)
 
 ```typescript
-agent.addSkill({
-  name: "cached_fetch",
-  description: "Fetches data with caching",
-  process: async ({ key }) => {
-    const cache = agent.cache.RAM(); // or Redis()
-
-    const cached = await cache.get(key);
-    if (cached) return cached;
-
-    const data = await fetchData(key);
-    await cache.set(key, data, { ttl: 3600 });
-    return data;
-  },
-});
+const cache = agent.cache.Redis();
+await cache.set(key, data, { ttl: 3600 });
+const val = await cache.get(key);
 ```
 
-**Supported Cache Connectors**: `RAM`, `Redis`
+### Observability: OpenTelemetry (OTel) only
 
 ---
 
 ## 6. Workflow Skills (Component-Based)
 
-For complex logic, define skills using components instead of process functions:
-
 ```typescript
-import { Agent, Component } from "@smythos/sdk";
+import { Component } from "@smythos/sdk";
 
-const agent = new Agent({
-  name: "MarketAgent",
-  model: "gpt-4o",
-  behavior: "...",
-});
+const skill = agent.addSkill({ name: "MarketData", description: "Get crypto data" });
+skill.in({ coin_id: { description: "Cryptocurrency ID e.g. bitcoin" } });
 
-// Define skill without process function
-const skill = agent.addSkill({
-  name: "MarketData",
-  description: "Get cryptocurrency market data",
-});
-
-// Define inputs
-skill.in({
-  coin_id: { description: "The cryptocurrency ID (e.g., bitcoin)" },
-});
-
-// Create workflow with components
 const apiCall = Component.APICall({
-  url: "https://api.coingecko.com/api/v3/coins/{{coin_id}}",
-  method: "GET",
+    url: "https://api.coingecko.com/api/v3/coins/{{coin_id}}",
+    method: "GET",
 });
-
 apiCall.in({ coin_id: skill.out.coin_id });
 
 const output = Component.SkillOutput();
@@ -521,46 +290,21 @@ output.in({ result: apiCall.out.Response.market_data });
 
 ---
 
-## 7. Credentials & Vault System
+## 7. Vault & Credentials
 
-SmythOS uses a vault system for secure credential management.
+NEVER hardcode keys. NEVER commit vault files.
 
-### Vault Locations (Priority Order)
-
-1. `./.smyth/vault.json` (project-local)
-2. `./.smyth/.sre/vault.json` (project-local)
-3. `~/.smyth/vault.json` (user home)
-4. `~/.smyth/.sre/vault.json` (user home)
-
-### Vault Structure
+Locations (priority order):
+1. `./.smyth/vault.json`
+2. `./.smyth/.sre/vault.json`
+3. `~/.smyth/vault.json`
+4. `~/.smyth/.sre/vault.json`
 
 ```json
-{
-  "default": {
-    "openai": "sk-...",
-    "anthropic": "sk-ant-...",
-    "googleai": "...",
-    "pinecone": "..."
-  }
-}
+{ "default": { "openai": "sk-...", "anthropic": "sk-ant-..." } }
 ```
 
-### Rules
-
-- **NEVER** hardcode API keys in source code
-- **NEVER** commit vault files (add to `.gitignore`)
-- The SDK automatically retrieves credentials from the vault
-- Environment variables can override vault values
-
-### Automatic Credential Resolution
-
-```typescript
-// SDK automatically gets OpenAI key from vault
-const agent = new Agent({ name: "Agent", model: "gpt-4o", behavior: "..." });
-
-// No apiKey needed - vault handles it
-const llm = agent.llm.OpenAI("gpt-4o");
-```
+SDK auto-resolves, no `apiKey` field in code.
 
 ---
 
@@ -568,333 +312,56 @@ const llm = agent.llm.OpenAI("gpt-4o");
 
 ```
 project/
-├── src/
-│   └── index.ts              # Main entry point
-├── dist/                     # Build output (gitignored)
-├── .smyth/.sre/
-│   └── vault.json            # Local credentials (gitignored)
-├── package.json
+├── src/index.ts
+├── dist/                    # gitignored
+├── .smyth/.sre/vault.json   # gitignored
+├── mermaid/                 # architecture diagrams
+├── package.json             # must have "type": "module"
 ├── tsconfig.json
-├── rollup.config.js
-└── .prettierrc
+└── rollup.config.js
 ```
 
-### package.json Requirements
+Code style: 4-space indent, single quotes, printWidth 150.
 
+package.json minimum:
 ```json
 {
-  "type": "module",
-  "scripts": {
-    "build": "rollup -c ./rollup.config.js",
-    "start": "node dist/index.js",
-    "dbgstart": "node --enable-source-maps dist/index.js"
-  },
-  "dependencies": {
-    "@smythos/sdk": "^1.3.1"
-  }
-}
-```
-
-### tsconfig.json Requirements
-
-```json
-{
-  "compilerOptions": {
-    "module": "ESNext",
-    "target": "ESNext",
-    "moduleResolution": "node",
-    "sourceMap": true,
-    "esModuleInterop": true
-  }
+    "type": "module",
+    "scripts": {
+        "build": "rollup -c ./rollup.config.js",
+        "start": "node dist/index.js",
+        "dbgstart": "node --enable-source-maps dist/index.js"
+    },
+    "dependencies": { "@smythos/sdk": "^1.3.1" }
 }
 ```
 
 ---
 
-## 9. Code Style
+## 9. Multi-Agent & RAG
 
-Based on the project's `.prettierrc`:
+```typescript
+// Sequential
+const research = await researchAgent.prompt("Research topic");
+const article  = await writerAgent.prompt(`Write from: ${research}`);
 
-```json
-{
-  "tabWidth": 4,
-  "useTabs": false,
-  "singleQuote": true,
-  "printWidth": 150
+// RAG
+process: async ({ question }) => {
+    const vec = agent.vectordb.Milvus({ namespace: "docs", indexName: "kb" });
+    const ctx = (await vec.search(question, { topK: 5 })).map(r => r.metadata.text).join("\n\n");
+    return await agent.llm.OpenAI("gpt-4o").prompt(`Context:\n${ctx}\n\nQ: ${question}`);
 }
 ```
 
-**Examples**:
-
-```typescript
-// CORRECT
-const agent = new Agent({
-  name: "My Agent",
-  model: "gpt-4o",
-  behavior: "You are helpful.",
-});
-
-// INCORRECT
-const agent = new Agent({
-  name: "My Agent", // Wrong: 2-space indent, double quotes
-  model: "gpt-4o",
-});
-```
-
 ---
 
-## 10. Async Patterns
-
-### Always Await Promises
-
-```typescript
-// CORRECT
-const response = await agent.prompt("Hello");
-
-// WRONG - returns Promise object, not response
-const response = agent.prompt("Hello");
-```
-
-### Always Wait for Streams
-
-```typescript
-// CORRECT
-const stream = await agent.prompt("Tell a story").stream();
-stream.on(TLLMEvent.Content, (chunk) => console.log(chunk));
-await new Promise((resolve) => stream.on(TLLMEvent.End, resolve));
-
-// WRONG - process may exit before stream completes
-const stream = await agent.prompt("Tell a story").stream();
-stream.on(TLLMEvent.Content, (chunk) => console.log(chunk));
-// No await - exits immediately!
-```
-
-### Main Function Pattern
-
-```typescript
-async function main() {
-  const agent = new Agent({ name: "Agent", model: "gpt-4o", behavior: "..." });
-
-  try {
-    const response = await agent.prompt("Hello");
-    console.log(response);
-  } catch (error) {
-    console.error("Error:", error.message);
-  }
-}
-
-main();
-```
-
----
-
-## 11. Error Handling in Skills
-
-Return error messages as strings rather than throwing exceptions:
-
-```typescript
-agent.addSkill({
-  name: "fetch_data",
-  description: "Fetches data from an API",
-  process: async ({ url }) => {
-    try {
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        return `Error: API returned ${response.status} ${response.statusText}`;
-      }
-
-      return await response.json();
-    } catch (error) {
-      return `Error fetching data: ${error.message}`;
-    }
-  },
-});
-```
-
----
-
-## 12. Debugging
-
-### Enable Debug Logs
-
-Set environment variable before running:
-
-```bash
-LOG_LEVEL="debug" npm start
-```
-
-### Use Source Maps
-
-```bash
-npm run dbgstart
-```
-
-### Colored Console Output
-
-```typescript
-import chalk from "chalk";
-
-console.log(chalk.blue("Starting agent..."));
-console.log(chalk.green("✓ Success"));
-console.log(chalk.red("✗ Error"));
-console.log(chalk.yellow("⚠ Warning"));
-```
-
----
-
-## 13. Common Mistakes to Avoid
-
-### ❌ Don't Mix Direct Provider SDKs
-
-```typescript
-// WRONG
-import AWS from 'aws-sdk';
-const s3 = new AWS.S3();
-await s3.putObject(...);
-
-// CORRECT - Use SmythOS abstraction
-const storage = agent.storage.S3({ bucket: 'my-bucket' });
-await storage.write('file.txt', content);
-```
-
-### ❌ Don't Hardcode API Keys
-
-```typescript
-// WRONG
-const apiKey = "sk-1234567890";
-
-// CORRECT - Use vault system
-// Keys are in .smyth/.sre/vault.json
-```
-
-### ❌ Don't Forget Skill Descriptions
-
-```typescript
-// WRONG - LLM can't decide when to use this skill
-agent.addSkill({
-  name: "do_thing",
-  process: async ({ x }) => doThing(x),
-});
-
-// CORRECT
-agent.addSkill({
-  name: "calculate_tax",
-  description: "Calculates tax amount based on income and tax rate",
-  process: async ({ income, rate }) => income * rate,
-});
-```
-
-### ❌ Don't Create Vague Agent Behaviors
-
-```typescript
-// WRONG
-behavior: "helpful";
-
-// CORRECT
-behavior: "You are a tax specialist for small businesses. " +
-  "Help users understand tax obligations and deductions. " +
-  "Always cite relevant tax codes when applicable.";
-```
-
----
-
-## 14. Advanced Patterns
-
-### Multi-Agent Collaboration
-
-```typescript
-const researchAgent = new Agent({
-  name: "Researcher",
-  model: "gpt-4o",
-  behavior: "You research and analyze information thoroughly.",
-});
-
-const writerAgent = new Agent({
-  name: "Writer",
-  model: "gpt-4o-mini",
-  behavior: "You write clear, engaging content from research.",
-});
-
-const research = await researchAgent.prompt(
-  "Research quantum computing advances"
-);
-const article = await writerAgent.prompt(
-  `Write an article based on: ${research}`
-);
-```
-
-### RAG Pattern (Retrieval-Augmented Generation)
-
-```typescript
-agent.addSkill({
-  name: "answer_with_context",
-  description: "Answers questions using knowledge base context",
-  process: async ({ question }) => {
-    // 1. Search vector database
-    const vec = agent.vectordb.Pinecone({
-      namespace: "docs",
-      indexName: "knowledge-base",
-    });
-
-    const results = await vec.search(question, { topK: 5 });
-    const context = results.map((r) => r.metadata.text).join("\n\n");
-
-    // 2. Generate answer with context
-    const llm = agent.llm.OpenAI("gpt-4o");
-    return await llm.prompt(
-      `Answer using only this context:\n\n${context}\n\nQuestion: ${question}`
-    );
-  },
-});
-```
-
----
-
-## 15. CLI Commands
-
-### Create New Project
-
-```bash
-# Install CLI globally
-npm i -g @smythos/cli
-
-# Create project (follow prompts)
-sre create "My Agent"
-```
-
-### Build & Run
-
-```bash
-npm run build     # Compile TypeScript
-npm start         # Run agent
-npm run dbgstart  # Run with source maps
-```
-
----
-## Prefered technology choices
-These are the default choices if the user does not specify 
- - For vectorDB use Milvus, install it if it's not present 
- - For storage use the default local storage, unless the user prefers S3 
- - For Cache, prefer Redis install it if it's not present, if the system resources does not allow it, you can use the default RAM cache 
- - For observability only use OpenTelemetry (OTel)
-
-
-## Summary Checklist
-
-Before submitting SmythOS SDK code, verify:
-
-- [ ] Using `@smythos/sdk` imports (not core unless needed)
-- [ ] Agent has specific `name` and detailed `behavior`
-- [ ] Skills have descriptive `name` (snake_case) and clear `description`
-- [ ] All `agent.prompt()` and `agent.call()` are awaited
-- [ ] Stream events properly handled with `TLLMEvent.End` await
-- [ ] No hardcoded API keys (using vault system)
-- [ ] Error handling returns strings, not thrown exceptions
-- [ ] Code uses 4-space indentation and single quotes
-- [ ] `package.json` has `"type": "module"`
-- [ ] Vault files are gitignored
-
----
-
-**SmythOS SDK Version**: (verify latest at https://www.npmjs.com/package/@smythos/sdk)
+## Pre-submission Checklist
+
+- [ ] `@smythos/sdk` imports (not core unless explicitly needed)
+- [ ] Agent: specific `name`, detailed `behavior`
+- [ ] Skills: `snake_case` name, one-sentence `description`, errors returned as strings
+- [ ] All `agent.prompt()` / `agent.call()` / `chat.prompt()` awaited
+- [ ] Stream `TLLMEvent.End` awaited before process exits
+- [ ] No hardcoded API keys, vault only
+- [ ] 4-space indent, single quotes, `"type": "module"` in package.json
+- [ ] Vault files in .gitignore
