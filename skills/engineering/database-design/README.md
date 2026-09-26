@@ -311,5 +311,5 @@ for row in rows:
 - `SKILL.md` in this directory: the full rule set with the reasoning behind each rule
 - `../sql-optimization/SKILL.md`: making existing queries faster, reading `EXPLAIN` output in depth
 - `../api-design/SKILL.md`: exposing these entities over HTTP without leaking schema details
-- `../security-audit/SKILL.md`: tenancy isolation, access control, and erasure requests
+- `../../security/security-audit/SKILL.md`: tenancy isolation, access control, and erasure requests
 - `../test-strategy/SKILL.md`: testing migrations and constraints against realistic data

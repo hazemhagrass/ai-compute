@@ -258,6 +258,6 @@ return { ok: false, error: "INVALID_INPUT" };
 
 - `SKILL.md` in this directory, for the full rules and every paired example.
 - `../api-design/SKILL.md` and `../api-integration/SKILL.md`, for the contracts the server components and actions call into.
-- `../security-audit/SKILL.md`, for the authenticate / validate / authorise sequence applied beyond server actions.
+- `../../security/security-audit/SKILL.md`, for the authenticate / validate / authorise sequence applied beyond server actions.
 - `../performance-profiling/SKILL.md`, for measuring bundle size and render cost once the structure is in place.
 - `../code-review/SKILL.md` and `../test-strategy/SKILL.md`, for using the Quick Checklist as review and test criteria.

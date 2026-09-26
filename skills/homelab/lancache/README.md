@@ -82,22 +82,21 @@ Full list: https://github.com/uklans/cache-domains
 
 Download games **before** the LAN party so first clients don't wait.
 
-**Install prefill tool**:
+**Pick games** (interactive; the login and selection persist in the config volume):
 ```bash
-docker run -it --rm tpill90/steamcache-prefill:latest select-apps
+docker run -it --rm --net=host \
+  -v ~/.config/SteamPrefill:/Config \
+  tpill90/steam-lancache-prefill:latest select-apps
 ```
 
-**Prefill from list**:
+**Prefill the selection**:
 ```bash
-# games.txt: one Steam AppID per line
-# 730 = CS:GO, 570 = Dota 2, 1172470 = Apex Legends
-docker run -it --rm \
-  -v /data/lancache:/data/cache \
-  -v $(pwd)/games.txt:/app/games.txt \
-  tpill90/steamcache-prefill:latest prefill /app/games.txt
+docker run -it --rm --net=host \
+  -v ~/.config/SteamPrefill:/Config \
+  tpill90/steam-lancache-prefill:latest prefill
 ```
 
-Find AppIDs: https://steamdb.info or `steamcache-prefill search <game name>`
+Run prefill on a machine whose DNS already points at lancache-dns; otherwise it warms Steam's CDN, not your cache
 
 ## Troubleshooting
 
@@ -258,10 +257,10 @@ Pre-download popular games to cache before LAN event. First client sees instant 
 
 **Prefill** (night before):
 ```bash
-docker run -it --rm \
-  -v /data/lancache:/data/cache \
-  tpill90/steamcache-prefill:latest select-apps
-# Select Apex, CS2, Fortnite → 220GB cached
+docker run -it --rm --net=host \
+  -v ~/.config/SteamPrefill:/Config \
+  tpill90/steam-lancache-prefill:latest select-apps
+# Select Apex, CS2, Fortnite, then run the same command with `prefill`
 ```
 
 **During event**:

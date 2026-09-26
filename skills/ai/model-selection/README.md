@@ -236,5 +236,5 @@ Verified siblings in this repository:
 - [`../../engineering/api-integration/SKILL.md`](../../engineering/api-integration/SKILL.md) -
   retries, timeouts, and failure handling for the provider calls behind a
   fallback chain.
-- [`../../productivity/skill-authoring/SKILL.md`](../../meta/skill-authoring/SKILL.md) -
+- [`../../meta/skill-authoring/SKILL.md`](../../meta/skill-authoring/SKILL.md) -
   conventions used to write and extend `SKILL.md` files like this one.

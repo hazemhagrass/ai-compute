@@ -95,6 +95,10 @@ for skill in "$REPO"/skills/*/*/SKILL.md; do
   # the category must be documented in TAXONOMY.md
   cat_name="$(basename "$(dirname "$dir")")"
   grep -qm1 "^| \`$cat_name\`" "$REPO/skills/TAXONOMY.md" || problems="$problems undocumented-category"
+  # every relative SKILL.md link in SKILL.md and README.md must resolve on disk
+  for link in $(grep -ohE '\.\./[A-Za-z0-9_./-]+/SKILL\.md' "$skill" "$dir/README.md" 2>/dev/null | sort -u); do
+    [ -f "$dir/$link" ] || problems="$problems broken-link:$link"
+  done
   if [ -n "$problems" ]; then
     bad "$rel:$problems"
   else

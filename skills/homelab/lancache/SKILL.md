@@ -52,7 +52,7 @@ On each gaming PC, set DNS to `192.168.1.10`. Works when you can't control the r
 
 **Verify interception**:
 ```bash
-nslookup steamcache.lancache.net 192.168.1.10
+nslookup lancache.steamcontent.com 192.168.1.10
 # Should return LANCACHE_IP, not the real CDN
 ```
 
@@ -73,25 +73,24 @@ Each has DNS rules in `lancache-dns`. Check `/etc/lancache/` inside the dns cont
 
 Download popular games to the cache before the LAN party so the first client doesn't wait.
 
-Use **steamcache-prefill**:
+Use **SteamPrefill** (image `tpill90/steam-lancache-prefill`). It runs as a Steam client, so it needs the host network to reach lancache-dns and a config volume to keep the Steam login between runs:
 ```bash
-docker run -it --rm \
-  -v /data/lancache:/data/cache:ro \
-  tpill90/steamcache-prefill:latest \
+docker run -it --rm --net=host \
+  -v ~/.config/SteamPrefill:/Config \
+  tpill90/steam-lancache-prefill:latest \
   select-apps
 ```
 
-Prefill from a list:
+`select-apps` opens an interactive picker and saves the selection into the config volume. Prefill everything selected:
 ```bash
-# prefill.txt: one Steam AppID per line (e.g., 730 for CS:GO)
-docker run -it --rm \
-  -v /data/lancache:/data/cache \
-  -v $(pwd)/prefill.txt:/app/prefill.txt \
-  tpill90/steamcache-prefill:latest \
-  prefill /app/prefill.txt
+# no list file: the selection made in select-apps is what gets prefilled
+docker run -it --rm --net=host \
+  -v ~/.config/SteamPrefill:/Config \
+  tpill90/steam-lancache-prefill:latest \
+  prefill
 ```
 
-**Find AppIDs**: https://steamdb.info or `steamcache-prefill search <game name>`.
+**Find AppIDs**: https://steamdb.info. Prefill must run on a machine whose DNS points at lancache-dns, otherwise it warms Steam CDN, not your cache.
 
 ## Troubleshooting
 
