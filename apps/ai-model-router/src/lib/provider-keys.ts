@@ -95,7 +95,13 @@ export function addProviderKey(
     )
     .run(providerId, label, encryptSecret(key), maskSecret(key));
   const id = Number(info.lastInsertRowid);
-  if (activate) activateProviderKey(id);
+  // First key for a provider becomes active without asking: a provider that
+  // has a key in the pool but none in use is a state nobody wants, and the
+  // old single-key UI never produced it.
+  const hasActive = db
+    .prepare("SELECT 1 FROM provider_keys WHERE provider_id = ? AND active = 1 AND id != ?")
+    .get(providerId, id);
+  if (activate || !hasActive) activateProviderKey(id);
   return getProviderKey(id)!;
 }
 

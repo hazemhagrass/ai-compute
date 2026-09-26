@@ -77,6 +77,11 @@ export interface RankOptions {
    * This implements #157 ("prefer local when nothing else is reachable").
    */
   fallbackToLocal?: boolean;
+  /**
+   * Move local models ahead of cloud ones in the final order (stable
+   * partition). Requires `providers` to know which provider is local.
+   */
+  preferLocal?: boolean;
 }
 
 /**
@@ -148,6 +153,19 @@ export function rankModels(
   }
 
   scored.sort((a, b) => b.score - a.score || b.model.quality - a.model.quality);
+
+  // preferLocal (#157): a stable partition, not a score change. Local models
+  // that survived every filter move ahead of cloud ones while keeping their
+  // relative order. Score stays honest in the breakdown; only the position
+  // changes, and the reason says why so the UI can show it.
+  if (opts.preferLocal && opts.providers) {
+    const isLocal = (s: Scored) => opts.providers?.get(s.model.providerId)?.kind === "local";
+    const local = scored.filter(isLocal);
+    if (local.length > 0 && local.length < scored.length) {
+      for (const s of local) s.reasons.unshift("local model preferred by policy");
+      scored.splice(0, scored.length, ...local, ...scored.filter((s) => !isLocal(s)));
+    }
+  }
 
   // Pinned model always surfaces first, flagged as a manual override.
   if (!opts.ignorePin && task.pinnedModelId) {

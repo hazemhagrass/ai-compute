@@ -32,7 +32,8 @@ describe("provider keys", () => {
   it("adds a key with a preview and no plaintext leak", () => {
     const k = keys.addProviderKey(providerId, "sk-abcdef123456", "personal", false);
     expect(k.label).toBe("personal");
-    expect(k.active).toBe(false);
+    // first key of a provider is auto-activated (see addProviderKey)
+    expect(k.active).toBe(true);
     // preview shows only the first + last few chars of the key
     expect(k.keyPreview).not.toBe("sk-abcdef123456");
     expect(k.keyPreview).toContain("•");
@@ -89,5 +90,21 @@ describe("provider keys", () => {
     got = keys.getProviderKey(k.id)!;
     expect(got.lastVerifyOk).toBe(false);
     expect(got.lastVerifyError).toBe("401 unauthorized");
+  });
+
+  it("first key for a provider auto-activates even when activate=false", () => {
+    const p = repo.createProvider({
+      name: "Auto activate",
+      baseUrl: "https://example.invalid/v1",
+      authType: "bearer",
+    });
+    const k1 = keys.addProviderKey(p.id, "sk-first-000001", "first", false);
+    expect(k1.active).toBe(true);
+    // the provider row now has a usable key too
+    expect(repo.getProviderSecret(p.id)).toBe("sk-first-000001");
+    // a second key stays inactive unless asked
+    const k2 = keys.addProviderKey(p.id, "sk-second-00002", "second", false);
+    expect(k2.active).toBe(false);
+    expect(keys.listProviderKeys(p.id).filter((x) => x.active)).toHaveLength(1);
   });
 });

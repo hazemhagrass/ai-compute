@@ -155,4 +155,26 @@ describe("engine fallbackToLocal (#157 part 2)", () => {
     });
     expect(result).toHaveLength(0);
   });
+
+  it("preferLocal moves local models first without changing scores", () => {
+    // Cloud scores higher on quality; without preferLocal it wins.
+    const cloud = mkModel({ id: 1, providerId: 1, quality: 95 });
+    const local = mkModel({ id: 2, providerId: 2, modelId: "llama3", quality: 60 });
+    const plain = rankModels(mkTask(), [cloud, local], { providers });
+    expect(plain.map((r) => r.model.id)).toEqual([1, 2]);
+
+    const preferred = rankModels(mkTask(), [cloud, local], { providers, preferLocal: true });
+    expect(preferred.map((r) => r.model.id)).toEqual([2, 1]);
+    // Score is untouched: the partition reorders, it does not rescore.
+    expect(preferred[1].score).toBe(plain[0].score);
+    expect(preferred[0].reasons[0]).toBe("local model preferred by policy");
+  });
+
+  it("preferLocal is a no-op when everything is local or nothing is", () => {
+    const a = mkModel({ id: 1, providerId: 2, quality: 90 });
+    const b = mkModel({ id: 2, providerId: 2, modelId: "b", quality: 50 });
+    const result = rankModels(mkTask(), [a, b], { providers, preferLocal: true });
+    expect(result.map((r) => r.model.id)).toEqual([1, 2]);
+    expect(result[0].reasons[0]).not.toBe("local model preferred by policy");
+  });
 });

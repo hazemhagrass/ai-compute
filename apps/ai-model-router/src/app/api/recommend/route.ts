@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { chat } from "@/lib/client";
-import { rankModels, taskFromText } from "@/lib/engine";
+import { rankModels, taskFromText, type RankProvider } from "@/lib/engine";
 import { explainExclusions } from "@/lib/exclusions";
 import { getProvider, getTask, getTaskBySlug, listModels, listProviders } from "@/lib/repo";
 import { saveRecommendation } from "@/lib/recommendations";
+import { getRoutingPolicy } from "@/lib/routing-policy";
 import { parseBody, recommendSchema } from "@/lib/schemas";
+import { checkEntitlement } from "@/lib/subscriptions";
 import { computeCost, recordUsage } from "@/lib/usage";
 import type { Recommendation, Scored, Task } from "@/lib/types";
 import { requireAuth } from "@/lib/auth";
@@ -59,19 +61,43 @@ export async function POST(request: Request) {
     : body.providerIds;
 
   const models = listModels({ enabledOnly: true });
+  // Persisted policy is the baseline; an explicit request field wins over it,
+  // so the UI sliders still work but a saved ceiling applies when the caller
+  // says nothing. Zero in the policy means "no cap" and must not become a
+  // filter of `<= 0`.
+  const policy = getRoutingPolicy();
+  const providerMap: ReadonlyMap<number, RankProvider> = new Map(
+    providers.map((p) => [p.id, { id: p.id, kind: p.kind, enabled: p.enabled }]),
+  );
   // The report must see the same population the ranker filters, including the
   // disabled rows, or the result would claim exclusions it never considered.
   const criteria = {
-    overrideWeights: body.overrideWeights,
+    overrideWeights: { ...policy.overrideWeights, ...body.overrideWeights },
     providerIds,
     ignorePin: body.ignorePin,
-    maxOutputCost: body.maxOutputCost,
-    minContext: body.minContext,
+    maxOutputCost:
+      body.maxOutputCost ?? (policy.maxOutputCostPer1M > 0 ? policy.maxOutputCostPer1M : undefined),
+    minContext: body.minContext ?? (policy.minContext > 0 ? policy.minContext : undefined),
     limit: Math.min(25, Math.max(1, body.limit ?? 8)),
     task,
+    providers: providerMap,
+    checkEntitlement: policy.enforceEntitlements ? checkEntitlement : undefined,
+    fallbackToLocal: policy.fallbackToLocal,
+    preferLocal: policy.preferLocal,
   };
   const ranked = rankModels(task, models, criteria);
   const exclusions = explainExclusions(models, criteria);
+
+  if (ranked.length === 0 && policy.strictEmpty) {
+    return NextResponse.json(
+      {
+        error: "no model satisfies the routing policy",
+        exclusions,
+        hint: "loosen the policy in Settings, add a subscription, or enable a local provider",
+      },
+      { status: 422 },
+    );
+  }
 
   const result: Recommendation = {
     task,
