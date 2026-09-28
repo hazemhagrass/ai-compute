@@ -17,6 +17,8 @@
  */
 import { getDb } from "./db";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto";
+import { buildRequest } from "./client";
+import { getProvider } from "./repo";
 
 export interface ProviderKey {
   id: number;
@@ -188,14 +190,147 @@ export function revealProviderKey(id: number): string {
   return decryptSecret(r.key_enc);
 }
 
+/**
+ * Record a verification outcome.
+ *
+ * ok: true/false = a definitive verdict from the provider; both the verdict
+ * and the verification timestamp are written. null = the probe never produced
+ * a verdict (timeout, 5xx): only the error text is written. last_verify_ok
+ * and last_verified_at are left exactly as they were, because last_verified_at
+ * means "last DEFINITIVE verification" -- a never-verified key keeps its empty
+ * timestamp, and a transient failure can neither turn "never verified" into
+ * "failed" nor overwrite a verdict someone actually observed.
+ */
 export function recordKeyVerification(
   id: number,
-  ok: boolean,
+  ok: boolean | null,
   error: string,
 ): void {
-  getDb()
-    .prepare(
-      "UPDATE provider_keys SET last_verified_at = datetime('now'), last_verify_ok = ?, last_verify_error = ?, updated_at = datetime('now') WHERE id = ?",
-    )
-    .run(ok ? 1 : 0, error, id);
+  const db = getDb();
+  if (ok === null) {
+    db.prepare(
+      "UPDATE provider_keys SET last_verify_error = ?, updated_at = datetime('now') WHERE id = ?",
+    ).run(error, id);
+    return;
+  }
+  db.prepare(
+    "UPDATE provider_keys SET last_verified_at = datetime('now'), last_verify_ok = ?, last_verify_error = ?, updated_at = datetime('now') WHERE id = ?",
+  ).run(ok ? 1 : 0, error, id);
+}
+
+/* -------------------------------------------------------------- verify (#162) */
+
+export interface KeyVerificationOutcome {
+  ok: boolean;
+  /** HTTP status of the probe; 0 when the request never completed. */
+  status: number;
+  latencyMs: number;
+  /** "definitive" = the key is known-good or known-bad; "unknown" = transient. */
+  certainty: "definitive" | "unknown";
+  error: string | null;
+}
+
+/**
+ * Verify one stored key against its provider (#162).
+ *
+ * The probe is a GET on the provider's models endpoint -- the cheapest call
+ * every provider accepts -- with THIS key substituted into the request. The
+ * provider's active key is deliberately not used: the point is to learn about
+ * the key in the pool row, not about whatever happens to be active.
+ *
+ * Failure classes, and why certainty matters:
+ *   - 401/403  -> definitive failure. The provider saw the key and rejected it.
+ *   - 200/2xx  -> definitive success.
+ *   - 5xx, timeouts, network errors -> unknown. The provider never evaluated
+ *     the key, so overwriting a prior ok=true with a transient error would
+ *     record a fact nobody observed. The error text is still stored for the
+ *     audit trail, but last_verify_ok is left as it was.
+ */
+export async function verifyProviderKey(
+  id: number,
+  timeoutMs = 10_000,
+): Promise<KeyVerificationOutcome> {
+  const key = getProviderKey(id);
+  if (!key) throw new Error("key not found");
+
+  const provider = getProvider(key.providerId);
+  if (!provider) throw new Error("provider not found");
+
+  const plaintext = revealProviderKey(id);
+  const started = Date.now();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  let status = 0;
+  let error: string | null = null;
+
+  try {
+    const { url, headers } = buildRequest(provider, provider.modelsPath || "/models", plaintext);
+    const res = await fetch(url, { headers, signal: ctrl.signal, cache: "no-store" });
+    status = res.status;
+    const body = await res.text();
+
+    if (res.ok) {
+      return { ok: true, status, latencyMs: Date.now() - started, certainty: "definitive", error: null };
+    }
+
+    // redactSecrets lives in client.ts; import it alongside buildRequest.
+    error = redactKeyError(body.slice(0, 400) || res.statusText, plaintext);
+
+    if (status === 401 || status === 403) {
+      return { ok: false, status, latencyMs: Date.now() - started, certainty: "definitive", error };
+    }
+    // 5xx and odd 4xx (429, 404 on a misconfigured path): the key was not
+    // judged. Record the error text but say so.
+    return { ok: false, status, latencyMs: Date.now() - started, certainty: "unknown", error };
+  } catch (err) {
+    // Abort from the timeout lands here too; the message names it.
+    const raw = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      status: 0,
+      latencyMs: Date.now() - started,
+      certainty: "unknown",
+      error: redactKeyError(raw, plaintext),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Verify-and-record: classify the probe, then persist it. Split from
+ * verifyProviderKey so tests can exercise classification against a mock
+ * fetch without touching the database, and so #166 (rotation on auth
+ * failure) can reuse the same classification.
+ */
+export async function verifyAndRecordKey(
+  id: number,
+  timeoutMs = 10_000,
+): Promise<KeyVerificationOutcome> {
+  const outcome = await verifyProviderKey(id, timeoutMs);
+
+  if (outcome.certainty === "definitive") {
+    recordKeyVerification(id, outcome.ok, outcome.error ?? "");
+  } else {
+    // Unknown: keep the previous verdict (or no verdict at all), store the
+    // error text only. The audit trail shows the probe happened without
+    // claiming a result nobody observed.
+    recordKeyVerification(id, null, outcome.error ?? "(unverified: transient error)");
+  }
+
+  return outcome;
+}
+
+/** Scrub the plaintext key (and its head/tail shapes) out of an error body. */
+function redactKeyError(text: string, key: string): string {
+  let out = text;
+  if (key && key.length >= 8) {
+    out = out.split(key).join("[REDACTED]");
+    const head = key.slice(0, 12);
+    const tail = key.slice(-8);
+    if (head.length >= 8) out = out.split(head).join("[REDACTED]");
+    if (tail.length >= 8) out = out.split(tail).join("[REDACTED]");
+  }
+  return out.replace(/\s+/g, " ").trim();
 }

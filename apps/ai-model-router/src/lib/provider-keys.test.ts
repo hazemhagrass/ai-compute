@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 const DIR = mkdtempSync(join(tmpdir(), "amr-keys-test-"));
 process.env.AMR_DATA_DIR = DIR;
@@ -106,5 +106,143 @@ describe("provider keys", () => {
     const k2 = keys.addProviderKey(p.id, "sk-second-00002", "second", false);
     expect(k2.active).toBe(false);
     expect(keys.listProviderKeys(p.id).filter((x) => x.active)).toHaveLength(1);
+  });
+});
+
+describe("verifyProviderKey (#162)", () => {
+  let pid2: number;
+  let keyIds: number[] = [];
+
+  beforeAll(() => {
+    const p = repo.createProvider({
+      name: "Verify Probe",
+      baseUrl: "https://verify.example/v1",
+      authType: "bearer",
+    });
+    pid2 = p.id;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    keyIds = [];
+  });
+
+  function addKey(key = "sk-verify-abcdefgh123456"): number {
+    const k = keys.addProviderKey(pid2, key, "probe", true);
+    keyIds.push(k.id);
+    return k.id;
+  }
+
+  it("200 classifies definitive success and records it", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 })));
+
+    const out = await keys.verifyProviderKey(id);
+
+    expect(out.ok).toBe(true);
+    expect(out.status).toBe(200);
+    expect(out.certainty).toBe("definitive");
+    expect(out.error).toBeNull();
+  });
+
+  it("401 classifies definitive failure with the body text", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("invalid api key", { status: 401 })));
+
+    const out = await keys.verifyProviderKey(id);
+
+    expect(out.ok).toBe(false);
+    expect(out.status).toBe(401);
+    expect(out.certainty).toBe("definitive");
+    expect(out.error).toContain("invalid api key");
+  });
+
+  it("500 classifies unknown, not definitive", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream exploded", { status: 500 })));
+
+    const out = await keys.verifyProviderKey(id);
+
+    expect(out.ok).toBe(false);
+    expect(out.status).toBe(500);
+    expect(out.certainty).toBe("unknown");
+  });
+
+  it("timeout/network error classifies unknown with status 0", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network down"); }));
+
+    const out = await keys.verifyProviderKey(id);
+
+    expect(out.ok).toBe(false);
+    expect(out.status).toBe(0);
+    expect(out.certainty).toBe("unknown");
+    expect(out.error).toContain("network down");
+  });
+
+  it("the plaintext key never appears in a recorded error", async () => {
+    const secret = "sk-verify-abcdefgh123456";
+    const id = addKey(secret);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(`bad key ${secret} for user`, { status: 401 })));
+
+    const out = await keys.verifyProviderKey(id);
+
+    expect(out.error).not.toContain(secret);
+    expect(out.error).toContain("[REDACTED]");
+  });
+
+  it("verifyAndRecordKey persists a definitive failure", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 403 })));
+
+    const out = await keys.verifyAndRecordKey(id);
+    const after = keys.getProviderKey(id)!;
+
+    expect(out.certainty).toBe("definitive");
+    expect(after.lastVerifyOk).toBe(false);
+    expect(after.lastVerifiedAt).not.toBe("");
+    expect(after.lastVerifyError).toBe("nope");
+  });
+
+  it("verifyAndRecordKey persists a definitive success", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
+
+    await keys.verifyAndRecordKey(id);
+    const after = keys.getProviderKey(id)!;
+
+    expect(after.lastVerifyOk).toBe(true);
+  });
+
+  it("a transient error does not overwrite a previous ok verdict", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
+    await keys.verifyAndRecordKey(id);
+    expect(keys.getProviderKey(id)!.lastVerifyOk).toBe(true);
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("gateway timeout", { status: 504 })));
+    await keys.verifyAndRecordKey(id);
+
+    const after = keys.getProviderKey(id)!;
+    expect(after.lastVerifyOk).toBe(true); // verdict preserved
+    expect(after.lastVerifyError).toContain("gateway timeout"); // audit kept
+  });
+
+  it("a transient error does not invent a verdict for a never-verified key", async () => {
+    const id = addKey();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 500 })));
+
+    await keys.verifyAndRecordKey(id);
+
+    const after = keys.getProviderKey(id)!;
+    // "never verified" is lastVerifiedAt === "" (the column is NOT NULL, so
+    // the empty timestamp is the never-judged marker, not a null verdict).
+    expect(after.lastVerifiedAt).toBe("");
+    expect(after.lastVerifyOk).toBe(false); // column default, not a verdict
+    expect(after.lastVerifyError).toContain("boom");
+  });
+
+  it("throws for a key id that does not exist", async () => {
+    await expect(keys.verifyProviderKey(999_999)).rejects.toThrow("key not found");
   });
 });

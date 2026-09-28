@@ -49,8 +49,9 @@ export function redactSecrets(text: string, secret?: string): string {
 export function buildRequest(
   provider: Provider,
   path: string,
+  explicitKey?: string,
 ): { url: string; headers: Record<string, string> } {
-  const key = getProviderSecret(provider.id);
+  const key = explicitKey !== undefined ? explicitKey : getProviderSecret(provider.id);
   const headers: Record<string, string> = {
     "content-type": "application/json",
     ...provider.headers,
