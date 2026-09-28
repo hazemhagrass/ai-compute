@@ -244,6 +244,44 @@ Unraid can run **Pi-hole** or **AdGuard Home** as Docker containers:
 
 Can also run **Lancache** on Unraid (separate cache server or same box if enough RAM/CPU).
 
+## Random shutdowns
+
+### Diagnose a hard power-off before touching anything
+
+- Read the previous boot's trip reason first: `dmesg | grep -i "reset reason"`. AMD boards report `internal CPU thermal limit was tripped` (code `0x00200a00`); other codes point at a power supply or VRM fault. A clean OS shutdown records a software reason instead, which redirects the hunt to plugins or a UPS.
+- Separate a hard trip from a clean shutdown by uptime. A thermal trip cuts power seconds to minutes after boot under load. A clean shutdown leaves a syslog tail with service stop messages.
+- Mirror syslog to flash (`Settings` -> `Syslog Server` -> mirror to flash) so the log survives a power cut. Without the mirror the evidence dies with the boot and the next diagnosis starts blind.
+- Treat a thermal trip as a cooling-control fault, not a hardware failure, until the fan curve is proven correct. A CPU that trips within seconds of boot is usually an idle fan, not a dead chip.
+
+### Fan control: one plugin per header
+
+- Run exactly one fan-control plugin. `dynamix.system.autofan` and `fanctrlplus` both write the same PWM sysfs nodes, and the loser's writes are silently overwritten every interval.
+- Check what autofan actually targets before trusting it. Its default binds a PWM header to a *disk* temperature sensor, which parks the CPU fan near idle whenever disks are cool. This is the classic cause of thermal trips on a loaded VM host.
+- Disable the plugin you are not using in its persisted config, not just in the UI: set `service="0"` in `/boot/config/plugins/dynamix.system.autofan/service.cfg` and confirm it is gone from autostart.
+- Restart the surviving fan loop after disabling the other plugin. Killing autofan also kills a manually started `fanctrlplus` process, and the PWM silently reverts to firmware default.
+- Run a pump header at constant duty (60 to 80 percent), never temperature-modulated. Water flow must not oscillate with CPU load. Set `idle` equal to `pwm` and disable the temperature override so the loop writes one value forever.
+- Confirm a header has a fan before tuning it. A PWM with no tach reading (0 RPM) is an unpopulated header, and any config pointed at it changes nothing.
+
+### Pick the right temperature sensor
+
+- Use k10temp `Tctl` for Ryzen CPU fan curves. It is the on-die value the CPU actually trips on. Find it by label, not by index: `grep . /sys/class/hwmon/hwmon*/temp*_label`.
+- Ignore the Super-I/O `CPUTIN` and `SYSTIN` sensors for CPU control. They sit on the motherboard chip, lag the die by seconds, and read low.
+- Read `Tccd1` and `Tccd2` to spot an uneven cooler. A large gap between the two core-complex dies means old paste or bad cooler seating, not a fan-curve problem.
+- Resolve hwmon paths every session. hwmon numbering shifts between boots, so a hardcoded `hwmon3` in a saved config can silently point at a different chip after a reboot.
+
+## CPU pinning for VM and Docker hosts
+
+See `references/cpu-and-fan-tuning.md` for the full procedure and the verification commands.
+
+- Map vCPU pins to physical cores before assigning. On a 2-way SMT chip, logical CPU `N` and `N+16` are hyperthread siblings of the same physical core. Two VMs both given core `15` share one core's execution units.
+- Give every VM exclusive cores. Overlapping `vcpupin` sets are the usual cause of one core group running far hotter than the other under mixed load.
+- Pin each vCPU to one thread of its core for light VMs, or both siblings for VMs that need more throughput. Do not hand two different VMs the same siblings.
+- Set `isolcpus` to match the VMs that genuinely need isolation, and give those cores to that VM alone. Reserving a core in `isolcpus` and then pinning a VM to it defeats the isolation.
+- Keep Docker off VM-owned cores. Set `<CPUset>` in the container templates *and* apply it live with `docker update`, since templates only take effect on container recreation.
+- Shrink a VM's `vcpu` count and its `<topology>` together. Changing only the count fails with `CPU topology doesn't match the desired vcpu count`, because the declared cores-times-threads must equal the vCPU total.
+- Persist VM changes with `virsh vcpupin --config` (plus `--live` to apply now). A live-only change is lost on the next VM start.
+- Back up `/etc/libvirt/qemu/*.xml` and `/boot/syslinux/syslinux.cfg` to flash before editing pins. `/etc/libvirt` is a loopback image, so an edit there is not visible on the flash backup unless you copy it out first.
+
 ## References
 
 - Official docs: https://docs.unraid.net
