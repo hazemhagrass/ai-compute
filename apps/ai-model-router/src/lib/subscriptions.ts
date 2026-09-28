@@ -9,6 +9,7 @@
 import { z } from "zod";
 
 import { getDb } from "./db";
+import type { BudgetEvaluation } from "./budget";
 
 export const subscriptionSchema = z.object({
   providerId: z.number().int().positive(),
@@ -170,4 +171,90 @@ export function checkEntitlement(
     };
   }
   return { allowed: true };
+}
+
+/* ------------------------------------------- implicit provider budget (#170) */
+
+export interface ProviderBudgetCheck {
+  /** Null when the provider has no implicit cap to enforce. */
+  monthlyBudget: number;
+  spentCents: number;
+  percentUsed: number;
+  status: "ok" | "warning" | "exceeded";
+}
+
+/**
+ * The monthly spend cap on a subscription, evaluated against THIS provider's
+ * usage_events only (#170).
+ *
+ * Deliberately an implicit budget, not a row in the budgets table: a
+ * subscription's monthlyBudget is what the user signed up for -- capping spend
+ * at the provider is a consequence of that, and it should follow the
+ * subscription automatically rather than requiring a second definition that
+ * can drift out of sync.
+ *
+ * Exposed through the same evaluation shape as a budgets-table entry
+ * (spend, percent, status) so #163's gate can consume it without a
+ * special case: the implicit budget id is sub-<providerId>, which cannot
+ * collide with a user-defined budget.
+ */
+export function evaluateBudgetForProvider(
+  providerId: number,
+  now: Date = new Date(),
+): ProviderBudgetCheck | null {
+  const sub = getSubscription(providerId);
+  if (!sub || sub.monthlyBudget <= 0) return null;
+
+  const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  const startIso = new Date(start).toISOString().slice(0, 19).replace("T", " ");
+  const endIso = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+  ).toISOString().slice(0, 19).replace("T", " ");
+
+  const row = getDb()
+    .prepare(
+      `SELECT COALESCE(SUM(cost_usd), 0) AS usd
+       FROM usage_events
+       WHERE provider_id = ? AND ts >= ? AND ts < ?`,
+    )
+    .get(providerId, startIso, endIso) as { usd: number };
+
+  const spentCents = Math.round((row.usd ?? 0) * 100);
+  const limitCents = Math.round(sub.monthlyBudget * 100);
+  const percentUsed = limitCents > 0 ? (spentCents / limitCents) * 100 : 0;
+  const status = percentUsed >= 100 ? "exceeded" : percentUsed >= 80 ? "warning" : "ok";
+
+  return { monthlyBudget: limitCents, spentCents, percentUsed, status };
+}
+
+/**
+ * The implicit budget as a BudgetEvaluation, for the call gate (#170). Built
+ * here rather than by evaluateBudget because the periods differ (calendar
+ * month, UTC, no weekStartsOn) and there is no stored Budget row to evaluate.
+ * 0-limit subscriptions return null upstream: no cap means nothing to enforce.
+ */
+export function implicitBudgetEvaluation(
+  providerId: number,
+  now: Date = new Date(),
+): BudgetEvaluation | null {
+  const check = evaluateBudgetForProvider(providerId, now);
+  if (!check) return null;
+
+  const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+  const iso = (t: number) => new Date(t).toISOString().slice(0, 19).replace("T", " ");
+
+  return {
+    budgetId: `sub-${providerId}`,
+    period: "monthly",
+    window: { start: iso(start), end: iso(end), key: `${now.getUTCFullYear()}-${now.getUTCMonth()}` },
+    limitCents: check.monthlyBudget,
+    spentCents: check.spentCents,
+    remainingCents: Math.max(0, check.monthlyBudget - check.spentCents),
+    percentUsed: check.percentUsed,
+    projectedCents: check.spentCents,
+    elapsedFraction:
+      (now.getTime() - start) / Math.max(1, end - start),
+    status: check.status,
+  };
 }

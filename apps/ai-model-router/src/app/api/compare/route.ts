@@ -116,7 +116,7 @@ export async function POST(request: Request) {
   // Budget gate (#163): both legs dispatch concurrently below, so the check
   // has to happen here, once, before either call is constructed. A blocked
   // compare records no spend for either leg.
-  const gate = enforceBudgets(getDb(), new Date());
+  const gate = await enforceBudgets(getDb(), new Date());
   if (!gate.ok && gate.blocked) {
     return NextResponse.json(
       {

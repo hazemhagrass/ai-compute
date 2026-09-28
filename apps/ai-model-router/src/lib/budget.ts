@@ -223,14 +223,18 @@ export function resetBudgetAlerts(id: string): void {
 /* -------------------------------------------------------------- evaluation */
 
 /** Integer millicents spent in [start, end). Summed as integers inside SQL. */
-function spentMillicents(db: Db, window: BudgetPeriodWindow): number {
+function spentMillicents(db: Db, window: BudgetPeriodWindow, providerId?: number): number {
   const row = db
     .prepare(
       `SELECT COALESCE(SUM(CAST(ROUND(cost_usd * ${MILLICENTS_PER_USD}) AS INTEGER)), 0) AS millicents
        FROM usage_events
-       WHERE ts >= ? AND ts < ?`,
+       WHERE ts >= ? AND ts < ? ${providerId !== undefined ? "AND provider_id = ?" : ""}`,
     )
-    .get(window.start, window.end) as { millicents: number };
+    .get(
+      ...(providerId !== undefined
+        ? [window.start, window.end, providerId]
+        : [window.start, window.end]),
+    ) as { millicents: number };
   return row.millicents ?? 0;
 }
 
@@ -342,19 +346,41 @@ export interface BudgetGateResult {
  * here: checkBudget handles once-per-period alert state, and a gate must
  * stay silent to avoid training the user to dismiss it before every call.
  */
-export function enforceBudgets(db: Db, now: Date): BudgetGateResult {
+export async function enforceBudgets(db: Db, now: Date): Promise<BudgetGateResult> {
   let blocked: BudgetEvaluation | null = null;
   let warningPercent: number | null = null;
 
-  for (const budget of listBudgets()) {
-    if (budget.limitCents <= 0) continue; // 0 = disabled/no cap
-    const evaluation = evaluateBudget(db, budget, now);
-
+  const consider = (evaluation: BudgetEvaluation): void => {
     if (evaluation.status === "exceeded" && (!blocked || evaluation.percentUsed > blocked.percentUsed)) {
       blocked = evaluation;
     } else if (evaluation.status === "warning" && (warningPercent === null || evaluation.percentUsed > warningPercent)) {
       warningPercent = evaluation.percentUsed;
     }
+  };
+
+  for (const budget of listBudgets()) {
+    if (budget.limitCents <= 0) continue; // 0 = disabled/no cap
+    consider(evaluateBudget(db, budget, now));
+  }
+
+  // Implicit per-subscription caps (#170): each provider with a subscription
+  // monthly cap contributes its own evaluation even with no budgets row.
+  // Explicit budgets win naturally: the implicit id (sub-<providerId>) is
+  // distinct, and the most-severe-exceeded rule picks whichever is stricter.
+  try {
+    // Dynamic import: subscriptions imports this module's evaluation types, so
+    // a static top-level import would be a cycle. Both modules are plain
+    // server code with no side effects, so the import is cheap after the
+    // first resolution.
+    const { listProviders } = await import("./repo");
+    const { implicitBudgetEvaluation } = await import("./subscriptions");
+    for (const p of listProviders()) {
+      const evaluation = implicitBudgetEvaluation(p.id, now);
+      if (evaluation) consider(evaluation);
+    }
+  } catch {
+    // Subscription caps are additive hardening; a lookup failure must not
+    // disable the explicit budgets that were already evaluated.
   }
 
   return { ok: blocked === null, blocked, warningPercent };

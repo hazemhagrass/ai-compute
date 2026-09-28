@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   // Budget gate (#163): refuse before any upstream call, and before the NDJSON
   // stream is constructed, so a blocked run cannot emit half a stream. A
   // rejected call must not appear in usage_events as spend.
-  const gate = enforceBudgets(getDb(), new Date());
+  const gate = await enforceBudgets(getDb(), new Date());
   if (!gate.ok && gate.blocked) {
     return NextResponse.json(
       {
