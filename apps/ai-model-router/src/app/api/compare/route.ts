@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { enforceBudgets } from "@/lib/budget";
 import { chat } from "@/lib/client";
+import { getDb } from "@/lib/db";
 import { getModel, getProvider, getTaskBySlug } from "@/lib/repo";
 import { compareSchema, parseBody } from "@/lib/schemas";
 import { computeCost, recordUsage, type UsageEvent } from "@/lib/usage";
@@ -111,6 +113,27 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const body: CompareBody = parsed.data;
 
+  // Budget gate (#163): both legs dispatch concurrently below, so the check
+  // has to happen here, once, before either call is constructed. A blocked
+  // compare records no spend for either leg.
+  const gate = enforceBudgets(getDb(), new Date());
+  if (!gate.ok && gate.blocked) {
+    return NextResponse.json(
+      {
+        error: "budget exceeded",
+        budget: {
+          id: gate.blocked.budgetId,
+          period: gate.blocked.period,
+          limitCents: gate.blocked.limitCents,
+          spentCents: gate.blocked.spentCents,
+          percentUsed: gate.blocked.percentUsed,
+        },
+        hint: "raise the limit or wait for the next period",
+      },
+      { status: 402 },
+    );
+  }
+
   const modelA = getModel(body.modelRowIdA);
   if (!modelA) return NextResponse.json({ error: "model A not found" }, { status: 404 });
   const modelB = getModel(body.modelRowIdB);
@@ -135,5 +158,11 @@ export async function POST(request: Request) {
     runLeg(modelB, providerB, system, body.prompt, maxTokens, task?.slug ?? "", task?.label ?? ""),
   ]);
 
-  return NextResponse.json({ a, b });
+  const headers = new Headers();
+  // Mirrors the playground stream header (#163): present only when a budget
+  // sits between the warning threshold and the cap.
+  if (gate.warningPercent !== null) {
+    headers.set("x-budget-warning", String(Math.round(gate.warningPercent)));
+  }
+  return NextResponse.json({ a, b }, { headers });
 }

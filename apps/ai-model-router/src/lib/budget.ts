@@ -319,3 +319,43 @@ export function checkBudget(db: Db, budget: Budget, now: Date): BudgetCheck {
 
   return { evaluation, alerts };
 }
+
+/* ------------------------------------------------------------- enforcement */
+
+export interface BudgetGateResult {
+  ok: boolean;
+  /** The blocking evaluation when ok is false. */
+  blocked: BudgetEvaluation | null;
+  /** Highest percent among warning-or-worse budgets that did NOT block. */
+  warningPercent: number | null;
+}
+
+/**
+ * Pre-call gate for enforcing budgets (#163): every enabled budget is
+ * evaluated against current spend, and an exceeded one refuses the call
+ * before any upstream request happens. A budget that only reports after
+ * money is spent is a report, not a budget.
+ *
+ * Returns the single most-severe blocking evaluation (a 402 body only has
+ * room for one) and, when the call proceeds, the highest warning percent so
+ * the route can raise an X-Budget-Warning header. Alert firing is NOT done
+ * here: checkBudget handles once-per-period alert state, and a gate must
+ * stay silent to avoid training the user to dismiss it before every call.
+ */
+export function enforceBudgets(db: Db, now: Date): BudgetGateResult {
+  let blocked: BudgetEvaluation | null = null;
+  let warningPercent: number | null = null;
+
+  for (const budget of listBudgets()) {
+    if (budget.limitCents <= 0) continue; // 0 = disabled/no cap
+    const evaluation = evaluateBudget(db, budget, now);
+
+    if (evaluation.status === "exceeded" && (!blocked || evaluation.percentUsed > blocked.percentUsed)) {
+      blocked = evaluation;
+    } else if (evaluation.status === "warning" && (warningPercent === null || evaluation.percentUsed > warningPercent)) {
+      warningPercent = evaluation.percentUsed;
+    }
+  }
+
+  return { ok: blocked === null, blocked, warningPercent };
+}

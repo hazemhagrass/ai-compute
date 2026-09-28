@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { enforceBudgets } from "@/lib/budget";
 import { chatStreamMessages } from "@/lib/client";
+import { getDb } from "@/lib/db";
 import { getModel, getProvider, getTaskBySlug } from "@/lib/repo";
 import { parseBody, playgroundSchema } from "@/lib/schemas";
 import { computeCost, recordUsage } from "@/lib/usage";
@@ -27,6 +29,27 @@ export async function POST(request: Request) {
   const parsed = await parseBody(request, playgroundSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
+
+  // Budget gate (#163): refuse before any upstream call, and before the NDJSON
+  // stream is constructed, so a blocked run cannot emit half a stream. A
+  // rejected call must not appear in usage_events as spend.
+  const gate = enforceBudgets(getDb(), new Date());
+  if (!gate.ok && gate.blocked) {
+    return NextResponse.json(
+      {
+        error: "budget exceeded",
+        budget: {
+          id: gate.blocked.budgetId,
+          period: gate.blocked.period,
+          limitCents: gate.blocked.limitCents,
+          spentCents: gate.blocked.spentCents,
+          percentUsed: gate.blocked.percentUsed,
+        },
+        hint: "raise the limit or wait for the next period",
+      },
+      { status: 402 },
+    );
+  }
 
   const model = getModel(body.modelRowId);
   if (!model) return NextResponse.json({ error: "model not found" }, { status: 404 });
@@ -138,6 +161,11 @@ export async function POST(request: Request) {
       "content-type": "application/x-ndjson; charset=utf-8",
       "cache-control": "no-store",
       "x-accel-buffering": "no",
+      // Present only when a budget is between the warning threshold and the
+      // cap, so the client can surface it without polling /api/budgets.
+      ...(gate.warningPercent !== null
+        ? { "x-budget-warning": String(Math.round(gate.warningPercent)) }
+        : {}),
     },
   });
 }

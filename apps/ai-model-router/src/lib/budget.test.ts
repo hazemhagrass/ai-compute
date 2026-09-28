@@ -359,6 +359,82 @@ describe("threshold alerts", () => {
   });
 });
 
+describe("enforceBudgets", () => {
+  // The gate evaluates EVERY saved budget, and budgets persist in the settings
+  // table for the whole file, so this block starts from an empty budget list.
+  // Without this, a budget created by an earlier describe would leak in and
+  // decide the outcome of these assertions.
+  beforeEach(() => {
+    for (const b of budget.listBudgets()) budget.deleteBudget(b.id);
+  });
+
+  it("blocks when a budget is exceeded, reporting the evaluation", () => {
+    const b = makeBudget("monthly", 1000); // $10 cap
+    spend("2026-09-05T00:00:00", 12); // $12 spent
+
+    const gate = budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
+
+    expect(gate.ok).toBe(false);
+    expect(gate.blocked?.budgetId).toBe(b.id);
+    expect(gate.blocked?.limitCents).toBe(1000);
+    expect(gate.blocked?.spentCents).toBe(1200);
+    expect(gate.blocked?.status).toBe("exceeded");
+  });
+
+  it("proceeds at warning level and reports the highest percent", () => {
+    makeBudget("monthly", 1000); // $10 cap
+    spend("2026-09-05T00:00:00", 9); // 90 percent, under the cap
+
+    const gate = budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
+
+    expect(gate.ok).toBe(true);
+    expect(gate.blocked).toBeNull();
+    expect(gate.warningPercent).toBeCloseTo(90, 5);
+  });
+
+  it("proceeds clean when under every budget", () => {
+    makeBudget("monthly", 1000);
+    spend("2026-09-05T00:00:00", 1); // 10 percent
+
+    const gate = budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
+
+    expect(gate.ok).toBe(true);
+    expect(gate.blocked).toBeNull();
+    expect(gate.warningPercent).toBeNull();
+  });
+
+  it("ignores a zero-limit budget (0 means no cap)", () => {
+    makeBudget("monthly", 0);
+    spend("2026-09-05T00:00:00", 500);
+
+    const gate = budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
+
+    expect(gate.ok).toBe(true);
+    expect(gate.blocked).toBeNull();
+  });
+
+  it("returns the most severe exceeded budget when several are over", () => {
+    const mild = makeBudget("monthly", 1000);
+    const harsh = makeBudget("monthly", 100);
+    spend("2026-09-05T00:00:00", 50); // 5000 percent of the $1 cap, 500 of $10
+
+    const gate = budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
+
+    expect(gate.ok).toBe(false);
+    expect(gate.blocked?.budgetId).toBe(harsh.id);
+    expect(gate.blocked?.budgetId).not.toBe(mild.id);
+  });
+
+  it("does not block on spend outside the current window", () => {
+    makeBudget("daily", 1000);
+    spend("2020-01-01T00:00:00", 999); // long past, different day
+
+    const gate = budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
+
+    expect(gate.ok).toBe(true);
+  });
+});
+
 describe("persistence", () => {
   it("round-trips a saved budget through the settings table", () => {
     const b = makeBudget("weekly", 4200, 0);
