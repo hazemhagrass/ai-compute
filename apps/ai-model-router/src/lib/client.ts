@@ -211,6 +211,8 @@ export interface ChatResult {
   error?: string;
   usage: ChatUsage;
   latencyMs: number;
+  /** HTTP status of the failed call, used to decide whether to rotate (#166). */
+  status?: number;
 }
 
 /** ~4 chars per token is the standard rough approximation across tokenizers. */
@@ -361,6 +363,7 @@ async function chatViaShape(
     if (!res.ok) {
       return {
         ok: false,
+        status: res.status,
         text: "",
         error: redactSecrets(text.slice(0, 600) || res.statusText, secret),
         usage: { ...emptyUsage, inputTokens: estimateTokens(transcript) },
@@ -419,6 +422,54 @@ export async function chat(
  * Usage is estimated against the whole transcript so multi-turn cost stays
  * honest even when a provider omits the usage block.
  */
+
+/**
+ * On a 401/403, rotate to the next stored key and retry ONCE (#166). Retrying
+ * more than once risks looping through every key in the pool on a single
+ * user-facing call; one retry catches the common case (the active key was
+ * revoked, a spare exists) without turning a slow provider outage into a
+ * multi-key stampede.
+ *
+ * The rotation decision and the audit write both live in provider-keys.ts's
+ * handleAuthFailure so the record of "this key failed" cannot happen without
+ * the rotation attempt that follows it. Imported lazily to avoid a circular
+ * static import: provider-keys.ts imports buildRequest from this module.
+ */
+async function maybeRotateAndRetry<T extends ChatResult>(
+  result: T,
+  provider: Provider,
+  allowRotation: boolean,
+  retry: () => Promise<T>,
+): Promise<T> {
+  if (result.ok) return result;
+  if (result.status !== 401 && result.status !== 403) return result;
+
+  const pk = await import("./provider-keys");
+
+  if (!allowRotation) {
+    // This call IS the retry: its 401/403 proves the rotated-to key is also
+    // dead. Record that, and report exhaustion with both keys counted --
+    // without rotating again, which would silently walk the whole pool on a
+    // single user-facing request.
+    pk.recordAuthFailure(provider.id, result.error ?? "");
+    return {
+      ...result,
+      error: `all keys exhausted (2 tried): ${result.error ?? ""}`.trim(),
+    };
+  }
+
+  const outcome = pk.handleAuthFailure(provider.id, result.error ?? "");
+
+  if (!outcome.retry) {
+    return {
+      ...result,
+      error: `all keys exhausted (${outcome.keysTried} tried): ${result.error ?? ""}`.trim(),
+    };
+  }
+
+  return retry();
+}
+
 export async function chatMessages(
   provider: Provider,
   modelId: string,
@@ -426,6 +477,7 @@ export async function chatMessages(
   messages: ChatMessage[],
   timeoutMs = 120000,
   maxTokens = 2000,
+  _allowRotation = true,
 ): Promise<ChatResult> {
   const isAnthropic =
     provider.chatPath.includes("/messages") || provider.slug === "anthropic";
@@ -447,7 +499,7 @@ export async function chatMessages(
     const secret = provider.authType === "none" ? "" : (getProviderSecret(provider.id) ?? "");
     const adapter = resolveShapeAdapter(provider, secret);
     if (adapter) {
-      return chatViaShape(
+      const result = await chatViaShape(
         adapter,
         modelId,
         system,
@@ -457,6 +509,9 @@ export async function chatMessages(
         secret,
         transcript,
         emptyUsage,
+      );
+      return maybeRotateAndRetry(result, provider, _allowRotation, () =>
+        chatMessages(provider, modelId, system, messages, timeoutMs, maxTokens, false),
       );
     }
   }
@@ -495,13 +550,17 @@ export async function chatMessages(
     const latencyMs = Date.now() - started;
 
     if (!res.ok) {
-      return {
+      const failed: ChatResult = {
         ok: false,
+        status: res.status,
         text: "",
         error: redactSecrets(text.slice(0, 600) || res.statusText, secret),
         usage: { ...emptyUsage, inputTokens: estimateTokens(transcript) },
         latencyMs,
       };
+      return maybeRotateAndRetry(failed, provider, _allowRotation, () =>
+        chatMessages(provider, modelId, system, messages, timeoutMs, maxTokens, false),
+      );
     }
 
     const json = JSON.parse(text) as Record<string, unknown>;
@@ -607,6 +666,7 @@ export async function chatStreamMessages(
   timeoutMs = 120000,
   maxTokens = 2000,
   cb: ChatStreamCallbacks = {},
+  _allowRotation = true,
 ): Promise<ChatStreamResult> {
   const isAnthropic =
     provider.chatPath.includes("/messages") || provider.slug === "anthropic";
@@ -657,14 +717,21 @@ export async function chatStreamMessages(
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      return {
+      const failed: ChatStreamResult = {
         ok: false,
         streamed: false,
         text: "",
+        status: res.status,
         error: redactSecrets(text.slice(0, 600) || res.statusText, secret),
         usage: { ...emptyUsage, inputTokens: estimateTokens(transcript) },
         latencyMs: Date.now() - started,
       };
+      // No byte has been forwarded to cb yet -- the status check happens
+      // before the body is read -- so a rotation-retry here cannot produce a
+      // half-delivered stream.
+      return maybeRotateAndRetry(failed, provider, _allowRotation, () =>
+        chatStreamMessages(provider, modelId, system, messages, timeoutMs, maxTokens, cb, false),
+      );
     }
 
     const ctype = res.headers.get("content-type") ?? "";

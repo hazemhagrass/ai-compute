@@ -334,3 +334,78 @@ function redactKeyError(text: string, key: string): string {
   }
   return out.replace(/\s+/g, " ").trim();
 }
+
+/* -------------------------------------------------------------- rotation (#166) */
+
+export interface RotationResult {
+  rotated: boolean;
+  /** True when the retried request also got 401/403 and no keys remain. */
+  exhausted: boolean;
+  /** Keys tried, including the one that failed and any rotated-to key. */
+  keysTried: number;
+  error: string | null;
+}
+
+/**
+ * Rotate to the next inactive key after a 401/403 and re-sync the provider
+ * row (#166). Returns which key (if any) the caller should retry with.
+ *
+ * Deliberately NOT verifying before activating: an extra models-endpoint call
+ * per rotation adds latency and its own failure modes, and the retry that the
+ * caller is about to make IS the verification -- if the next key is also bad,
+ * the retry's 401 lands here again and the pool reports exhaustion. The
+ * request path is the judge.
+ */
+/**
+ * Handle a 401/403 from a live call: record it against the key that was
+ * actually active when the request was sent, then rotate. Centralised here
+ * (rather than in client.ts) so the decision and the audit write happen in
+ * one place and can be unit tested without mocking fetch twice.
+ */
+export function handleAuthFailure(
+  providerId: number,
+  errorText: string,
+): { retry: boolean; exhausted: boolean; keysTried: number } {
+  recordAuthFailure(providerId, errorText);
+
+  const { result } = rotateToNextKey(providerId);
+  return { retry: result.rotated, exhausted: result.exhausted, keysTried: result.keysTried };
+}
+
+/**
+ * Record a definitive auth failure against the currently active key WITHOUT
+ * rotating. Used by the retried call (#166): its 401 proves the rotated-to
+ * key is also dead, but rotating again on one user-facing request would walk
+ * the whole pool silently -- the caller reports exhaustion instead, and the
+ * next request starts fresh from whatever the pool holds.
+ */
+export function recordAuthFailure(providerId: number, errorText: string): void {
+  const active = listProviderKeys(providerId).find((k) => k.active);
+  if (active) {
+    recordKeyVerification(active.id, false, errorText.slice(0, 400));
+  }
+}
+
+export function rotateToNextKey(providerId: number): { key: ProviderKey | null; result: RotationResult } {
+  const inactive = listProviderKeys(providerId).filter((k) => !k.active);
+  if (inactive.length === 0) {
+    return {
+      key: null,
+      result: { rotated: false, exhausted: true, keysTried: 1, error: "no other keys available" },
+    };
+  }
+
+  const next = inactive[0];
+  const activated = activateProviderKey(next.id);
+  if (!activated) {
+    return {
+      key: null,
+      result: { rotated: false, exhausted: true, keysTried: 1, error: "activation failed" },
+    };
+  }
+
+  return {
+    key: activated,
+    result: { rotated: true, exhausted: false, keysTried: 2, error: null },
+  };
+}

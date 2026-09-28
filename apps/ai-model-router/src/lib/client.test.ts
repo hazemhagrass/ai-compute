@@ -1,7 +1,50 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { estimateTokens, extractModelIds, normalizeShapeUsage, readUsage, redactSecrets, resolveShapeAdapter } from "./client";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+import {
+  chatMessages,
+  chatStreamMessages,
+  estimateTokens,
+  extractModelIds,
+  normalizeShapeUsage,
+  readUsage,
+  redactSecrets,
+  resolveShapeAdapter,
+} from "./client";
 import type { Provider } from "./types";
+
+// A real database is required for rotation (#166): the key pool lives in it.
+const DIR = mkdtempSync(join(tmpdir(), "amr-rotate-test-"));
+process.env.AMR_DATA_DIR = DIR;
+process.env.AMR_DB_PATH = join(DIR, "rotate.db");
+process.env.AMR_SECRET = "test-secret-not-a-real-key-000000";
+
+const keysMod = await import("./provider-keys");
+const repo = await import("./repo");
+
+let rotateProviderId: number;
+let keyIds: number[] = [];
+
+beforeAll(() => {
+  const p = repo.createProvider({
+    name: "Rotate Target",
+    baseUrl: "https://rotate.example/v1",
+    authType: "bearer",
+  });
+  rotateProviderId = p.id;
+  keyIds = [
+    keysMod.addProviderKey(p.id, "sk-rotate-key-aaaaaaaa", "first", true).id,
+    keysMod.addProviderKey(p.id, "sk-rotate-key-bbbbbbbb", "second", false).id,
+    keysMod.addProviderKey(p.id, "sk-rotate-key-cccccccc", "third", false).id,
+  ];
+});
+
+afterAll(() => {
+  rmSync(DIR, { recursive: true, force: true });
+});
 
 function baseProvider(overrides: Partial<Provider>): Provider {
   return {
@@ -354,5 +397,131 @@ describe("extractModelIds", () => {
     );
 
     expect(ids).toEqual(["ok"]);
+  });
+});
+
+
+describe("rotation on auth failure (#166)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    // Reset the pool to its seeded state between tests.
+    keysMod.activateProviderKey(keyIds[0]);
+  });
+
+  function fetchReturning(status: number, body = "unauthorized"): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(body, { status, headers: { "content-type": "text/plain" } })),
+    );
+  }
+
+  it("rotates to a spare key and succeeds on the retry", async () => {
+    const p = repo.getProvider(rotateProviderId)!;
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        call += 1;
+        if (call === 1) return new Response("revoked", { status: 401 });
+        return new Response(JSON.stringify({ choices: [{ message: { content: "ok after rotate" } }] }), { status: 200 });
+      }),
+    );
+
+    const result = await chatMessages(p, "g-x", "sys", [{ role: "user", content: "hi" }]);
+
+    expect(result.ok).toBe(true);
+    expect(result.text).toBe("ok after rotate");
+    expect(call).toBe(2);
+    // The second key became active.
+    const active = keysMod.listProviderKeys(rotateProviderId).find((k) => k.active)!;
+    expect(active.id).toBe(keyIds[1]);
+  });
+
+  it("records the failed verification for the revoked key", async () => {
+    const p = repo.getProvider(rotateProviderId)!;
+    fetchReturning(401, "token expired");
+
+    await chatMessages(p, "g-x", "sys", [{ role: "user", content: "hi" }]);
+
+    const revoked = keysMod.getProviderKey(keyIds[0])!;
+    expect(revoked.lastVerifyOk).toBe(false);
+    expect(revoked.lastVerifiedAt).not.toBe("");
+    expect(revoked.lastVerifyError).toContain("token expired");
+  });
+
+  it("a retried call that also 401s reports exhaustion naming the count", async () => {
+    const p = repo.getProvider(rotateProviderId)!;
+    fetchReturning(401, "still bad");
+
+    const result = await chatMessages(p, "g-x", "sys", [{ role: "user", content: "hi" }]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("all keys exhausted (2 tried)");
+    // Only one retry: fetch was called twice, not three times.
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+    // The third key was never activated (one rotation per request).
+    const active = keysMod.listProviderKeys(rotateProviderId).find((k) => k.active)!;
+    expect(active.id).toBe(keyIds[1]);
+  });
+
+  it("a single-key provider reports exhaustion without rotating", async () => {
+    const p2 = repo.createProvider({
+      name: "Single Key",
+      baseUrl: "https://single.example/v1",
+      authType: "bearer",
+    });
+    keysMod.addProviderKey(p2.id, "sk-single-only-key-x", "only", true);
+    const got = repo.getProvider(p2.id)!;
+    fetchReturning(403, "forbidden");
+
+    const result = await chatMessages(got, "g-x", "sys", [{ role: "user", content: "hi" }]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("all keys exhausted (1 tried)");
+  });
+
+  it("streaming rotates before any byte is forwarded", async () => {
+    const p = repo.getProvider(rotateProviderId)!;
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        call += 1;
+        if (call === 1) return new Response("revoked", { status: 401 });
+        return new Response(
+          "data: {\"choices\":[{\"delta\":{\"content\":\"stream-ok\"}}]}\n\ndata: [DONE]\n\n",
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        );
+      }),
+    );
+
+    const tokens: string[] = [];
+    const result = await chatStreamMessages(
+      p,
+      "g-x",
+      "sys",
+      [{ role: "user", content: "hi" }],
+      120000,
+      2000,
+      { onToken: (t) => tokens.push(t) },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.text).toBe("stream-ok");
+    expect(tokens).toEqual(["stream-ok"]);
+    expect(call).toBe(2);
+  });
+
+  it("non-auth failures (500) never rotate", async () => {
+    const p = repo.getProvider(rotateProviderId)!;
+    fetchReturning(500, "boom");
+
+    const result = await chatMessages(p, "g-x", "sys", [{ role: "user", content: "hi" }]);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).not.toContain("exhausted");
+    // Still the first key.
+    const active = keysMod.listProviderKeys(rotateProviderId).find((k) => k.active)!;
+    expect(active.id).toBe(keyIds[0]);
   });
 });
