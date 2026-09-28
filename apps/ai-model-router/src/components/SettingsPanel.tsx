@@ -36,6 +36,27 @@ interface RoutingPolicy {
   overrideWeights: Record<string, number>;
 }
 
+interface BudgetCheck {
+  evaluation: {
+    budgetId: string;
+    period: string;
+    limitCents: number;
+    spentCents: number;
+    remainingCents: number;
+    percentUsed: number;
+    projectedCents: number;
+    status: string;
+  };
+}
+
+interface BudgetRow {
+  id: string;
+  label: string;
+  period: string;
+  limitCents: number;
+  check: BudgetCheck;
+}
+
 interface ProviderKey {
   id: number;
   providerId: number;
@@ -54,6 +75,8 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [policy, setPolicy] = useState<RoutingPolicy | null>(null);
   const [keys, setKeys] = useState<ProviderKey[]>([]);
+  const [budgets, setBudgets] = useState<BudgetRow[]>([]);
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
 
@@ -61,14 +84,17 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
     setLoading(true);
     setStatus("");
     try {
-      const [subsRes, polRes] = await Promise.all([
+      const [subsRes, polRes, budRes] = await Promise.all([
         fetch("/api/subscriptions"),
         fetch("/api/routing-policy"),
+        fetch("/api/budgets"),
       ]);
       const subsJson = await subsRes.json();
       const polJson = await polRes.json();
+      const budJson = await budRes.json();
       setSubscriptions(subsJson.subscriptions ?? []);
       setPolicy(polJson.policy);
+      setBudgets(budJson.budgets ?? []);
       if (selectedProvider) {
         const kRes = await fetch(`/api/providers/${selectedProvider}/keys`);
         const kJson = await kRes.json();
@@ -148,6 +174,33 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
     }
   }
 
+  /** Probe the stored key against the provider (#169); result lands in refresh. */
+  async function verifyKey(keyId: number) {
+    if (!selectedProvider) return;
+    setVerifyingId(keyId);
+    try {
+      const res = await fetch(
+        `/api/providers/${selectedProvider}/keys/${keyId}/verify`,
+        { method: "POST" },
+      );
+      if (res.ok) {
+        const j = await res.json();
+        setStatus(
+          j.certainty === "unknown"
+            ? `unverified: ${j.error ?? "transient error"}`
+            : j.ok
+              ? "verified ok"
+              : `failed: ${j.error ?? res.status}`,
+        );
+      } else {
+        setStatus(`error: ${res.status}`);
+      }
+      refresh();
+    } finally {
+      setVerifyingId(null);
+    }
+  }
+
   async function deleteKey(keyId: number) {
     if (!selectedProvider) return;
     if (!confirm("Delete this key? This cannot be undone.")) return;
@@ -157,6 +210,32 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
     );
     if (res.ok) {
       setStatus("deleted");
+      refresh();
+    }
+  }
+
+  async function saveBudget(label: string, period: string, limitCents: number) {
+    setStatus("saving budget...");
+    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || period;
+    const res = await fetch("/api/budgets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, label, period, limitCents }),
+    });
+    if (res.ok) {
+      setStatus("budget saved");
+      refresh();
+    } else {
+      const j = await res.json().catch(() => ({ error: res.status }));
+      setStatus(`error: ${j.error ?? res.status}`);
+    }
+  }
+
+  async function deleteBudget(id: string) {
+    if (!confirm("Delete this budget?")) return;
+    const res = await fetch(`/api/budgets/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (res.ok) {
+      setStatus("budget deleted");
       refresh();
     }
   }
@@ -247,6 +326,8 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
         )}
       </section>
 
+      <BudgetsSection budgets={budgets} onSave={saveBudget} onDelete={deleteBudget} />
+
       <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/60 p-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
@@ -279,7 +360,9 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
               keys={keys}
               onAdd={addKey}
               onActivate={activateKey}
+              onVerify={verifyKey}
               onDelete={deleteKey}
+              verifyingId={verifyingId}
             />
           </div>
         )}
@@ -377,12 +460,16 @@ function KeysList({
   keys,
   onAdd,
   onActivate,
+  onVerify,
   onDelete,
+  verifyingId,
 }: {
   keys: ProviderKey[];
   onAdd: (label: string, key: string, activate: boolean) => void;
   onActivate: (id: number) => void;
+  onVerify: (id: number) => void;
   onDelete: (id: number) => void;
+  verifyingId: number | null;
 }) {
   const [label, setLabel] = useState("");
   const [rawKey, setRawKey] = useState("");
@@ -399,6 +486,7 @@ function KeysList({
             <th className="pb-2 text-left">Label</th>
             <th className="pb-2 text-left">Preview</th>
             <th className="pb-2 text-left">Verified</th>
+            <th className="pb-2 text-left">Check</th>
             <th className="pb-2 text-left">Active</th>
             <th className="pb-2"></th>
           </tr>
@@ -422,6 +510,21 @@ function KeysList({
                 ) : (
                   <span className="text-[var(--fg-dim)]">never</span>
                 )}
+              </td>
+              <td className="py-2">
+                {k.active && k.lastVerifiedAt && !k.lastVerifyOk && (
+                  // The sneaky case: the models-endpoint probe passes but the
+                  // key is revoked -- the provider health dot cannot see this,
+                  // only a real key verification can.
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" aria-label="active key failed verification" />
+                )}
+                <button
+                  onClick={() => onVerify(k.id)}
+                  disabled={verifyingId !== null}
+                  className="text-xs text-[var(--accent)] hover:underline disabled:opacity-40"
+                >
+                  {verifyingId === k.id ? "verifying..." : "verify"}
+                </button>
               </td>
               <td className="py-2">
                 {k.active ? (
@@ -489,5 +592,135 @@ function KeysList({
         </button>
       </form>
     </div>
+  );
+}
+
+
+function money(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
+ * Budgets with live status (issues #158/#164): definition + usage strip in one
+ * line each, so the state that refuses a call is visible in the same place it
+ * is configured. A strip turns warning (>= 80 percent) amber and exceeded red;
+ * the same thresholds the call gate (#163) enforces, so what the user sees
+ * here is exactly what governs the next request.
+ */
+function BudgetsSection({
+  budgets,
+  onSave,
+  onDelete,
+}: {
+  budgets: BudgetRow[];
+  onSave: (label: string, period: string, limitCents: number) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [label, setLabel] = useState("");
+  const [period, setPeriod] = useState("monthly");
+  const [dollars, setDollars] = useState(10);
+
+  return (
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/60 p-5">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
+        Budgets
+      </h3>
+
+      {budgets.length === 0 ? (
+        <p className="text-sm text-[var(--fg-dim)]">
+          No budgets. Calls are unthrottled until one is set.
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase text-[var(--fg-dim)]">
+            <tr>
+              <th className="pb-2 text-left">Budget</th>
+              <th className="pb-2 text-left">Period</th>
+              <th className="pb-2 text-left">Spent</th>
+              <th className="pb-2 text-left">Status</th>
+              <th className="pb-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {budgets.map((b) => {
+              const ev = b.check.evaluation;
+              const warn = ev.status === "warning" || ev.status === "exceeded";
+              return (
+                <tr key={b.id} className="border-t border-[var(--border)]">
+                  <td className="py-2">
+                    {b.label || b.id}
+                    <div className="text-xs text-[var(--fg-dim)]">
+                      {money(ev.spentCents)} of {money(ev.limitCents)}
+                    </div>
+                  </td>
+                  <td className="py-2 text-xs">{ev.period}</td>
+                  <td className="py-2 text-xs">{Math.round(ev.percentUsed)}%</td>
+                  <td className="py-2">
+                    <span
+                      className={
+                        ev.status === "exceeded"
+                          ? "rounded bg-red-500/20 px-2 py-0.5 text-xs text-red-400"
+                          : warn
+                            ? "rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400"
+                            : "rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-500"
+                      }
+                    >
+                      {ev.status}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right">
+                    <button
+                      onClick={() => onDelete(b.id)}
+                      className="text-xs text-red-400 hover:underline"
+                    >
+                      delete
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(label || period, period, Math.round(dollars * 100));
+          setLabel("");
+        }}
+        className="mt-3 grid gap-2 rounded-md border border-dashed border-[var(--border)] p-3 sm:grid-cols-[2fr_1fr_1fr_auto]"
+      >
+        <input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Label (defaults to period)"
+          className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm"
+        />
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value)}
+          className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm"
+        >
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+          <option value="monthly">monthly</option>
+        </select>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={dollars}
+          onChange={(e) => setDollars(Number(e.target.value))}
+          className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm"
+        />
+        <button
+          type="submit"
+          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c]"
+        >
+          Add budget
+        </button>
+      </form>
+    </section>
   );
 }
