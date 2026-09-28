@@ -1,5 +1,7 @@
 import type DatabaseType from "better-sqlite3";
 
+import { getSetting, setSetting } from "./db";
+
 /**
  * Privacy-preserving log retention.
  *
@@ -24,6 +26,27 @@ export const RETENTION_DEFAULTS = {
   maxAgeDays: 30,
   maxRows: 10_000,
 } as const;
+
+/**
+ * Saved recommendations grow the same way usage rows do, on a much smaller
+ * table. A month is long enough to revisit a routing decision and short enough
+ * that the snapshots (each one a full ranked list) stay small; the hard cap
+ * protects a heavy user without an age-based surprise mass-delete.
+ */
+export const RECOMMENDATION_RETENTION_DEFAULTS = {
+  maxAgeDays: 30,
+  maxRows: 1_000,
+} as const;
+
+/**
+ * How often the automatic pass is allowed to run. Retention is a background
+ * concern: running it on every analytics load would put two DELETEs in front of
+ * an interactive request for no benefit, since nothing meaningful changes in an
+ * hour.
+ */
+export const AUTO_RETENTION_INTERVAL_MS = 60 * 60 * 1000;
+
+const LAST_RUN_KEY = "retention:last_run";
 
 /* --------------------------------------------------------------- redaction */
 
@@ -178,4 +201,114 @@ export function applyRetention(
   }
 
   return { deletedByAge, deletedByCount, deleted: deletedByAge + deletedByCount };
+}
+
+/* ------------------------------------------------- recommendation pruning */
+
+export interface RecommendationPruneResult {
+  deletedByAge: number;
+  deletedByCount: number;
+  deleted: number;
+}
+
+/**
+ * Enforce retention on saved recommendations (#171). A separate function from
+ * `applyRetention` because the two tables carry different data and different
+ * caps: merging them would force one policy on both and make the reported
+ * counts ambiguous.
+ */
+export function pruneRecommendations(
+  db: DatabaseType.Database,
+  options: RetentionOptions = RECOMMENDATION_RETENTION_DEFAULTS,
+): RecommendationPruneResult {
+  const { maxAgeDays, maxRows } = options;
+  let deletedByAge = 0;
+  let deletedByCount = 0;
+
+  if (typeof maxAgeDays === "number" && Number.isFinite(maxAgeDays) && maxAgeDays >= 0) {
+    deletedByAge = db
+      .prepare(`DELETE FROM recommendations WHERE ts < datetime('now', ?)`)
+      .run(`-${maxAgeDays} days`).changes;
+  }
+
+  if (typeof maxRows === "number" && Number.isFinite(maxRows) && maxRows >= 0) {
+    deletedByCount = db
+      .prepare(
+        `DELETE FROM recommendations WHERE id IN (
+           SELECT id FROM recommendations ORDER BY ts DESC, id DESC LIMIT -1 OFFSET ?
+         )`,
+      )
+      .run(Math.floor(maxRows)).changes;
+  }
+
+  return { deletedByAge, deletedByCount, deleted: deletedByAge + deletedByCount };
+}
+
+/* ------------------------------------------------------ automatic pass */
+
+/** Policy in force, honouring settings overrides with the defaults as fallback. */
+export function retentionPolicy(): {
+  usage: RetentionOptions;
+  recommendations: RetentionOptions;
+} {
+  const num = (key: string, fallback: number): number => {
+    const raw = getSetting(key, "");
+    if (!raw) return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+  };
+
+  return {
+    usage: {
+      maxAgeDays: num("retention:max_age_days", RETENTION_DEFAULTS.maxAgeDays),
+      maxRows: num("retention:max_rows", RETENTION_DEFAULTS.maxRows),
+    },
+    recommendations: {
+      maxAgeDays: num(
+        "retention:recommendation_max_age_days",
+        RECOMMENDATION_RETENTION_DEFAULTS.maxAgeDays,
+      ),
+      maxRows: num("retention:recommendation_max_rows", RECOMMENDATION_RETENTION_DEFAULTS.maxRows),
+    },
+  };
+}
+
+export interface AutoRetentionResult {
+  ran: boolean;
+  /** ISO timestamp of the pass that last actually deleted rows. */
+  lastRunAt: string | null;
+  usage: RetentionResult | null;
+  recommendations: RecommendationPruneResult | null;
+}
+
+/**
+ * Run retention at most once per interval (#165). Retention exists to stop
+ * unbounded growth, and a rule nobody triggers does not stop anything, so this
+ * is called from server start and from the analytics path rather than only from
+ * the manual endpoint.
+ *
+ * The last-run stamp lives in settings, not in module memory, so a process
+ * restart does not cause a fresh pass on every boot.
+ */
+export function maybeApplyRetention(
+  db: DatabaseType.Database,
+  now: Date = new Date(),
+  intervalMs: number = AUTO_RETENTION_INTERVAL_MS,
+): AutoRetentionResult {
+  const lastRaw = getSetting(LAST_RUN_KEY, "");
+  const lastMs = lastRaw ? Date.parse(lastRaw) : Number.NaN;
+
+  if (Number.isFinite(lastMs) && now.getTime() - lastMs < intervalMs) {
+    return { ran: false, lastRunAt: lastRaw, usage: null, recommendations: null };
+  }
+
+  const policy = retentionPolicy();
+  const usage = applyRetention(db, policy.usage);
+  const recommendations = pruneRecommendations(db, policy.recommendations);
+
+  // Stamp even when nothing was deleted: the point is to bound how often the
+  // DELETEs run, not to record that work happened.
+  setSetting(LAST_RUN_KEY, now.toISOString());
+
+  return { ran: true, lastRunAt: now.toISOString(), usage, recommendations };
 }

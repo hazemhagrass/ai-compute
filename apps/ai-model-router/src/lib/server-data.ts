@@ -1,6 +1,8 @@
 import "server-only";
 
+import { getDb } from "./db";
 import { listModels, listProviders, listTasks } from "./repo";
+import { maybeApplyRetention } from "./retention";
 import { analytics, listUsage, type Analytics, type UsageEvent } from "./usage";
 import type { Model, Provider, Task } from "./types";
 
@@ -24,6 +26,11 @@ export const LOGS_PAGE_SIZE = 25;
 export const DEFAULT_ANALYTICS_DAYS = 30;
 
 export function getInitialData(): InitialData {
+  // Retention runs here as well as from the analytics API (#165): the initial
+  // server render is a guaranteed once-per-page-load entry point, and the pass
+  // itself is guarded to at most once per hour.
+  maybeApplyRetention(getDb());
+
   return {
     providers: listProviders(),
     models: listModels(),

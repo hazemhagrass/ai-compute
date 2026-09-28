@@ -12,8 +12,15 @@ process.env.AMR_DB_PATH = join(DIR, "test.db");
 process.env.AMR_SECRET = "test-secret-not-a-real-key-000000";
 
 const { getDb } = await import("./db");
-const { RETENTION_DEFAULTS, applyRetention, redactPrompt, truncateForLog } =
-  await import("./retention");
+const {
+  RETENTION_DEFAULTS,
+  RECOMMENDATION_RETENTION_DEFAULTS,
+  applyRetention,
+  pruneRecommendations,
+  maybeApplyRetention,
+  redactPrompt,
+  truncateForLog,
+} = await import("./retention");
 
 let db: ReturnType<typeof getDb>;
 
@@ -310,5 +317,118 @@ describe("applyRetention", () => {
     applyRetention(db, { maxRows: 0 });
 
     expect(remaining()).toHaveLength(0);
+  });
+});
+
+
+describe("retention defaults", () => {
+  it("recommendation pruning is stricter than usage retention", () => {
+    // The recommendation table stores a full ranked snapshot per row, so its
+    // cap must be well below the usage table's, or snapshots would dominate
+    // the database. Pinning the relationship here stops a default change from
+    // silently inverting it.
+    expect(RECOMMENDATION_RETENTION_DEFAULTS.maxRows).toBeLessThan(RETENTION_DEFAULTS.maxRows);
+    expect(RECOMMENDATION_RETENTION_DEFAULTS.maxAgeDays).toBeLessThanOrEqual(
+      RETENTION_DEFAULTS.maxAgeDays,
+    );
+  });
+});
+
+describe("pruneRecommendations (#171)", () => {
+  let rtag = 0;
+
+  /** Insert a recommendation with an explicit age in days. */
+  function seedRec(daysAgo: number): number {
+    const info = db
+      .prepare(
+        `INSERT INTO recommendations (ts, task_slug, task_label, prompt, ranked_json)
+         VALUES (datetime('now', ?), ?, '', '', '[]')`,
+      )
+      .run(`-${daysAgo} days`, `rec-prune-test-${++rtag}`);
+    return Number(info.lastInsertRowid);
+  }
+
+  it("deletes by age and keeps recent rows", () => {
+    const old1 = seedRec(90);
+    const old2 = seedRec(45);
+    const fresh = seedRec(2);
+
+    pruneRecommendations(db, { maxAgeDays: 30 });
+    const left = (db.prepare("SELECT id FROM recommendations").all() as { id: number }[]).map(
+      (r) => r.id,
+    );
+
+    expect(left).not.toContain(old1);
+    expect(left).not.toContain(old2);
+    expect(left).toContain(fresh);
+  });
+
+  it("enforces the hard cap regardless of age", () => {
+    const ids = [seedRec(1), seedRec(1), seedRec(1), seedRec(1), seedRec(1)];
+
+    pruneRecommendations(db, { maxRows: 2 });
+    const left = (db.prepare("SELECT id FROM recommendations").all() as { id: number }[]).map(
+      (r) => r.id,
+    );
+
+    // Newest two survive.
+    expect(left).toContain(ids[4]);
+    expect(left).toContain(ids[3]);
+    expect(left).not.toContain(ids[0]);
+  });
+
+  it("is a no-op when the policy is satisfied", () => {
+    seedRec(1);
+    const before = (db.prepare("SELECT COUNT(*) AS n FROM recommendations").get() as { n: number }).n;
+
+    const result = pruneRecommendations(db, { maxAgeDays: 30, maxRows: 1000 });
+
+    expect(result.deleted).toBe(0);
+    const after = (db.prepare("SELECT COUNT(*) AS n FROM recommendations").get() as { n: number }).n;
+    expect(after).toBe(before);
+  });
+});
+
+describe("maybeApplyRetention (#165)", () => {
+  it("runs on the first call and stamps the last-run time", () => {
+    const result = maybeApplyRetention(db, new Date("2026-09-28T12:00:00Z"));
+
+    expect(result.ran).toBe(true);
+    expect(result.lastRunAt).toBe("2026-09-28T12:00:00.000Z");
+    expect(result.usage).not.toBeNull();
+    expect(result.recommendations).not.toBeNull();
+  });
+
+  it("skips the second call inside the same interval", () => {
+    const t0 = new Date("2026-10-01T00:00:00Z");
+    maybeApplyRetention(db, t0);
+
+    const second = maybeApplyRetention(db, new Date(t0.getTime() + 60_000));
+
+    expect(second.ran).toBe(false);
+    expect(second.usage).toBeNull();
+  });
+
+  it("runs again once the interval has elapsed", () => {
+    const t0 = new Date("2026-11-01T00:00:00Z");
+    maybeApplyRetention(db, t0, 60 * 60 * 1000);
+
+    const third = maybeApplyRetention(db, new Date(t0.getTime() + 61 * 60 * 1000), 60 * 60 * 1000);
+
+    expect(third.ran).toBe(true);
+  });
+
+  it("actually prunes old rows when it runs", () => {
+    const stale = db
+      .prepare(
+        `INSERT INTO recommendations (ts, task_slug, task_label, prompt, ranked_json)
+         VALUES (datetime('now', '-400 days'), 'stale-rec', '', '', '[]')`,
+      )
+      .run().lastInsertRowid;
+
+    maybeApplyRetention(db, new Date("2026-12-01T00:00:00Z"));
+
+    const gone = db.prepare("SELECT id FROM recommendations WHERE id = ?").get(stale);
+    expect(gone).toBeUndefined();
   });
 });
