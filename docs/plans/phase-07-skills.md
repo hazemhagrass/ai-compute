@@ -16,7 +16,7 @@ live issue state so a closed issue flips its own box.
 
 `🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩`
 
-🟩 **15 done** · 🟧 **0 in progress** · ⬜ **0 remaining** — 15 tickets
+🟩 **17 done** · 🟧 **0 in progress** · ⬜ **0 remaining** — 17 tickets
 
 <!-- tracker:end -->
 
@@ -37,6 +37,8 @@ live issue state so a closed issue flips its own box.
 - [x] **[#42](https://github.com/hazemhagrass/ai-compute/issues/42) · Create a prompt-engineering skill** `M` — Write skills/ai/prompt-engineering/SKILL.md: getting reliable output from a model.
 - [x] **[#43](https://github.com/hazemhagrass/ai-compute/issues/43) · Create a model-selection skill** `M` — Write skills/ai/model-selection/SKILL.md: choosing the right model for a task, the human-readable counterpart to this repo app.
 - [x] **[#46](https://github.com/hazemhagrass/ai-compute/issues/46) · Create a skill-authoring meta-skill** `M` — Write skills/productivity/skill-authoring/SKILL.md: how to write the other skills well. This is the highest-leverage entry because it governs every future one.
+- [x] **[#159](https://github.com/hazemhagrass/ai-compute/issues/159) · Add meta/context-file-audit skill: audit always-loaded agent context** `?` — Add meta/context-file-audit: a repeatable audit of the files an agent loads into every session, so persistent context stays true and small.
+- [x] **[#161](https://github.com/hazemhagrass/ai-compute/issues/161) · Add engineering/site-test skill: repeatable browser QA pass, kept current with the site** `?` — Generalize the pixelvent-launchpad .claude/skills/site-test/ implementation (11K lines, 15 scripts) into a portable, project-agnostic agent skill in the ai-computer library.
 
 ---
 

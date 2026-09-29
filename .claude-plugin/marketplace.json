@@ -7,14 +7,14 @@
   },
   "metadata": {
     "description": "Agent skills for engineering, security, data, writing and personal workflows. Every skill is validated and security-scanned in CI.",
-    "version": "1.0.0"
+    "version": "2.0.0"
   },
   "plugins": [
     {
       "name": "ai-computer-ai",
       "source": "./",
       "description": "Working with models: prompting, model selection, agent SDKs. 3 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -35,7 +35,7 @@
       "name": "ai-computer-career",
       "source": "./",
       "description": "Resumes, portfolios, interviews, and negotiation. 12 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -65,7 +65,7 @@
       "name": "ai-computer-content",
       "source": "./",
       "description": "content skills. 5 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -88,7 +88,7 @@
       "name": "ai-computer-data",
       "source": "./",
       "description": "Analysis and presentation of data: dataframes, SQL, BI, visualisation. 5 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -111,7 +111,7 @@
       "name": "ai-computer-design",
       "source": "./",
       "description": "Usability, accessibility, and design systems. 2 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -131,7 +131,7 @@
       "name": "ai-computer-devops",
       "source": "./",
       "description": "Build, deploy, run, observe: containers, orchestration, pipelines. 3 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -152,7 +152,7 @@
       "name": "ai-computer-devtools",
       "source": "./",
       "description": "The developer's own machine and loop: shell, dotfiles, regex, navigation. 8 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -178,7 +178,7 @@
       "name": "ai-computer-engineering",
       "source": "./",
       "description": "Writing and changing production code: refactoring, debugging, testing, APIs. 15 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -211,7 +211,7 @@
       "name": "ai-computer-finance",
       "source": "./",
       "description": "Personal money: budgets, portfolios, retirement. 3 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -232,7 +232,7 @@
       "name": "ai-computer-homelab",
       "source": "./",
       "description": "Self-hosted infrastructure at home. 3 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -253,7 +253,7 @@
       "name": "ai-computer-knowledge",
       "source": "./",
       "description": "Personal and team knowledge bases: notes, wikis, structured bases. 3 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -274,7 +274,7 @@
       "name": "ai-computer-learning",
       "source": "./",
       "description": "Learning and teaching: retention, course and curriculum design. 2 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -294,7 +294,7 @@
       "name": "ai-computer-meta",
       "source": "./",
       "description": "Skills about this repository's own artefacts. 2 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -314,7 +314,7 @@
       "name": "ai-computer-office",
       "source": "./",
       "description": "Producing documents in office formats: Word, Excel, PowerPoint, Sheets. 8 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -340,7 +340,7 @@
       "name": "ai-computer-presentation",
       "source": "./",
       "description": "Slides and live delivery. 1 skill.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -359,7 +359,7 @@
       "name": "ai-computer-productivity",
       "source": "./",
       "description": "Email, meetings, and personal organisation. 1 skill.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -378,7 +378,7 @@
       "name": "ai-computer-research",
       "source": "./",
       "description": "Finding and verifying what is true: literature, citations, papers, surveys. 8 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -404,7 +404,7 @@
       "name": "ai-computer-security",
       "source": "./",
       "description": "Finding and fixing vulnerabilities before someone else does. 5 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -427,7 +427,7 @@
       "name": "ai-computer-workflow",
       "source": "./",
       "description": "How work itself is organised: planning, specs, autonomous execution. 5 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
@@ -450,7 +450,7 @@
       "name": "ai-computer-writing",
       "source": "./",
       "description": "Prose for a reader: docs, blogs, newsletters, copy. 5 skills.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": {
         "name": "Hazem Hagrass"
       },
