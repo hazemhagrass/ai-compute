@@ -206,6 +206,16 @@ defeats the isolation; give the reserved cores to that VM alone.
 
 ## 7. Verify
 
+Fan health at a glance (verified live on Selene 2026-09-29: PWM1 on k10temp
+Tctl curve, Tctl ~73-78 C under load, fan1 ~3366 RPM; PWM2 fixed 204,
+fan2 ~1900 RPM; three fanctrlplus loops running, autofan in service=0):
+
+```bash
+sensors 2>/dev/null | grep -E 'MB Temp|Tccd|Array Fan'   # plateau + fans
+cat /sys/devices/platform/nct6775.*/hwmon/hwmon*/pwm1    # duty under load
+tail /var/log/fanctrlplus_array_watch.log                # array state events only
+```
+
 ```bash
 # Final VM state
 for vm in $(virsh list --name | sed '/^$/d'); do

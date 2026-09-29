@@ -29,13 +29,25 @@ check_link() {
 
 for category in "$REPO"/skills/*/; do
   [ -d "$category" ] || continue
-  name="$(basename "$category")"
-  check_link "$HOME/.hermes/skills/$name"
-  check_link "$HOME/.claude/skills/$name"
+  cat_name="$(basename "$category")"
+  for skill in "$category"*/; do
+    [ -f "$skill/SKILL.md" ] || continue
+    skill_name="$(basename "$skill")"
+    check_link "$HOME/.hermes/skills/$cat_name/$skill_name"
+    check_link "$HOME/.claude/skills/$cat_name/$skill_name"
+  done
 done
 
-for f in "$HOME/.hermes/config.yaml" "$HOME/.claude/CLAUDE.md"; do
-  [ -e "$f" ] && check_link "$f"
+# The config/CLAUDE.md links only apply when this repo actually ships those
+# files; when hermes/ or claude/ is absent (machine-local ownership instead)
+# there is nothing to check and demanding a symlink would be wrong.
+for rel in hermes/config.yaml claude/CLAUDE.md; do
+  [ -f "$REPO/$rel" ] || continue
+  case "$rel" in
+    hermes/*) dst="$HOME/.hermes/${rel#hermes/}" ;;
+    claude/*) dst="$HOME/.claude/${rel#claude/}" ;;
+  esac
+  [ -e "$dst" ] && check_link "$dst"
 done
 fi  # DOCTOR_LOCAL
 

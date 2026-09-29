@@ -269,9 +269,13 @@ Can also run **Lancache** on Unraid (separate cache server or same box if enough
 - Read `Tccd1` and `Tccd2` to spot an uneven cooler. A large gap between the two core-complex dies means old paste or bad cooler seating, not a fan-curve problem.
 - Resolve hwmon paths every session. hwmon numbering shifts between boots, so a hardcoded `hwmon3` in a saved config can silently point at a different chip after a reboot.
 
+## Plugin cron: the user-field trap
+
+Unraid's dillon crond takes NO user field: five time fields then the command (`/etc/cron.d/root` proves it). A Debian-style line (`* * * * * root /usr/bin/php ...`) makes crond run `root` as the command -- the job's log fills with `/bin/sh: line 1: root: command not found` every minute while the real job never runs. Found live in the unraid-vitals plugin (repo commit 65cf262): the collector was dead since install. Verify a fix by watching the job's output mtime cross a minute boundary, not the log. Check an existing `/etc/cron.d/*` file on the target before writing a cron line anywhere.
+
 ## CPU pinning for VM and Docker hosts
 
-See `references/cpu-and-fan-tuning.md` for the full procedure and the verification commands.
+See `references/cpu-and-fan-tuning.md` and `references/selene-server.md` (live state of 192.168.1.254: fan fix, SMART sweep, plugin state, pending decisions) for the full procedure and verification commands.
 
 - Map vCPU pins to physical cores before assigning. On a 2-way SMT chip, logical CPU `N` and `N+16` are hyperthread siblings of the same physical core. Two VMs both given core `15` share one core's execution units.
 - Give every VM exclusive cores. Overlapping `vcpupin` sets are the usual cause of one core group running far hotter than the other under mixed load.
