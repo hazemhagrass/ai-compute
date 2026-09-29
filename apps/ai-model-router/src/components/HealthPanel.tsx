@@ -121,6 +121,29 @@ function HealthRow({ row }: { row: ProviderHealth }) {
           {row.error}
         </span>
       )}
+      {row.keyAudit?.lastVerifiedAt && !row.keyAudit.lastVerifyOk && (
+        // The active key's last DEFINITIVE verification failed -- even if the
+        // provider looks up right now (#175). Relative time, not a clock time:
+        // the question is "was this recent", not "what was the timestamp".
+        <span
+          className="shrink-0 rounded bg-[var(--bad)]/10 px-2 py-0.5 text-xs text-[var(--bad)]"
+          title={`Last verification of ${row.keyAudit.activePreview ?? "the active key"} failed`}
+        >
+          key failed {relativeTime(row.keyAudit.lastVerifiedAt)}
+        </span>
+      )}
     </li>
   );
+}
+
+/** Coarse relative time for audit fields; precision is not the point. */
+function relativeTime(iso: string): string {
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms)) return "";
+  const mins = Math.round(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }

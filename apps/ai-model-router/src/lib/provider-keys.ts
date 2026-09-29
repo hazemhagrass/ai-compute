@@ -365,11 +365,26 @@ export interface RotationResult {
 export function handleAuthFailure(
   providerId: number,
   errorText: string,
-): { retry: boolean; exhausted: boolean; keysTried: number } {
-  recordAuthFailure(providerId, errorText);
+): { retry: boolean; exhausted: boolean; keysTried: number; revokedPreview: string | null } {
+  const active = listProviderKeys(providerId).find((k) => k.active);
+  if (active) {
+    recordKeyVerification(active.id, false, errorText.slice(0, 400));
+  }
 
   const { result } = rotateToNextKey(providerId);
-  return { retry: result.rotated, exhausted: result.exhausted, keysTried: result.keysTried };
+  return {
+    retry: result.rotated,
+    exhausted: result.exhausted,
+    keysTried: result.keysTried,
+    // The preview of the key that was just rejected, for the error surface
+    // (#175): a screenshot should name which credential died.
+    revokedPreview: active?.keyPreview ?? null,
+  };
+}
+
+/** Active-key identity for the caller's failure message (#175). Preview only. */
+export function identityOfActiveKey(providerId: number): ProviderKey | null {
+  return listProviderKeys(providerId).find((k) => k.active) ?? null;
 }
 
 /**

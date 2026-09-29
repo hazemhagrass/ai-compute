@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redactSecrets, testConnection } from "./client";
+import { listProviderKeys } from "./provider-keys";
 import { listProviders } from "./repo";
 import type { Provider } from "./types";
 
@@ -18,6 +19,12 @@ export interface ProviderHealth {
   modelCount: number | null;
   status: number | null;
   error: string | null;
+  /** Key-pool audit (#175): what the last DEFINITIVE verification said. */
+  keyAudit: {
+    activePreview: string | null;
+    lastVerifiedAt: string | null;
+    lastVerifyOk: boolean | null;
+  } | null;
 }
 
 export interface HealthReport {
@@ -37,8 +44,24 @@ function sanitizeError(raw: string): string {
   return msg.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Key audit fields snapshotted outside the try, so they ride along on every
+ * outcome (up, down, thrown). Reading the pool is one indexed query per
+ * provider and the health panel is not hot, so that is acceptable.
+ */
+function keyAuditFor(providerId: number): ProviderHealth["keyAudit"] {
+  const keys = listProviderKeys(providerId);
+  if (keys.length === 0) return null;
+  const active = keys.find((k) => k.active) ?? null;
+  return {
+    activePreview: active?.keyPreview ?? null,
+    lastVerifiedAt: active?.lastVerifiedAt ? active.lastVerifiedAt : null,
+    lastVerifyOk: active ? active.lastVerifyOk : null,
+  };
+}
+
 async function probeProvider(p: Provider): Promise<ProviderHealth> {
-  const base = { id: p.id, name: p.name };
+  const base = { id: p.id, name: p.name, keyAudit: keyAuditFor(p.id) };
   if (p.authType !== "none" && !p.hasKey) {
     return { ...base, ok: false, latencyMs: 0, modelCount: null, status: null, error: "no API key configured" };
   }

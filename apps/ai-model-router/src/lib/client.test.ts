@@ -456,7 +456,9 @@ describe("rotation on auth failure (#166)", () => {
     const result = await chatMessages(p, "g-x", "sys", [{ role: "user", content: "hi" }]);
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("all keys exhausted (2 tried)");
+    expect(result.error).toContain("all keys exhausted (2 tried: ");
+    // The revoked key preview is named (#175): actionable from a screenshot.
+    expect(result.error).toContain("rejected (401)");
     // Only one retry: fetch was called twice, not three times.
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
     // The third key was never activated (one rotation per request).
@@ -477,7 +479,7 @@ describe("rotation on auth failure (#166)", () => {
     const result = await chatMessages(got, "g-x", "sys", [{ role: "user", content: "hi" }]);
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("all keys exhausted (1 tried)");
+    expect(result.error).toContain("all keys exhausted (1 tried");
   });
 
   it("streaming rotates before any byte is forwarded", async () => {

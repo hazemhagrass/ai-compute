@@ -440,6 +440,7 @@ async function maybeRotateAndRetry<T extends ChatResult>(
   provider: Provider,
   allowRotation: boolean,
   retry: () => Promise<T>,
+  trail: string[] = [],
 ): Promise<T> {
   if (result.ok) return result;
   if (result.status !== 401 && result.status !== 403) return result;
@@ -450,20 +451,28 @@ async function maybeRotateAndRetry<T extends ChatResult>(
     // This call IS the retry: its 401/403 proves the rotated-to key is also
     // dead. Record that, and report exhaustion with both keys counted --
     // without rotating again, which would silently walk the whole pool on a
-    // single user-facing request.
+    // single user-facing request. The trail names every revoked key preview
+    // (#175) so the error is actionable from a screenshot.
+    const revoked = pk.identityOfActiveKey(provider.id);
     pk.recordAuthFailure(provider.id, result.error ?? "");
+    trail.push(
+      `${revoked?.keyPreview ?? "active key"} rejected (${result.status})`,
+    );
     return {
       ...result,
-      error: `all keys exhausted (2 tried): ${result.error ?? ""}`.trim(),
+      error: `all keys exhausted (2 tried: ${trail.join(", ")}): ${result.error ?? ""}`.trim(),
     };
   }
 
   const outcome = pk.handleAuthFailure(provider.id, result.error ?? "");
+  if (outcome.revokedPreview) {
+    trail.push(`${outcome.revokedPreview} rejected (${result.status})`);
+  }
 
   if (!outcome.retry) {
     return {
       ...result,
-      error: `all keys exhausted (${outcome.keysTried} tried): ${result.error ?? ""}`.trim(),
+      error: `all keys exhausted (${outcome.keysTried} tried${trail.length ? `: ${trail.join(", ")}` : ""}): ${result.error ?? ""}`.trim(),
     };
   }
 
@@ -478,6 +487,7 @@ export async function chatMessages(
   timeoutMs = 120000,
   maxTokens = 2000,
   _allowRotation = true,
+  trail: string[] = [],
 ): Promise<ChatResult> {
   const isAnthropic =
     provider.chatPath.includes("/messages") || provider.slug === "anthropic";
@@ -511,7 +521,7 @@ export async function chatMessages(
         emptyUsage,
       );
       return maybeRotateAndRetry(result, provider, _allowRotation, () =>
-        chatMessages(provider, modelId, system, messages, timeoutMs, maxTokens, false),
+        chatMessages(provider, modelId, system, messages, timeoutMs, maxTokens, false, trail),
       );
     }
   }
@@ -559,7 +569,7 @@ export async function chatMessages(
         latencyMs,
       };
       return maybeRotateAndRetry(failed, provider, _allowRotation, () =>
-        chatMessages(provider, modelId, system, messages, timeoutMs, maxTokens, false),
+        chatMessages(provider, modelId, system, messages, timeoutMs, maxTokens, false, trail),
       );
     }
 
@@ -667,6 +677,7 @@ export async function chatStreamMessages(
   maxTokens = 2000,
   cb: ChatStreamCallbacks = {},
   _allowRotation = true,
+  trail: string[] = [],
 ): Promise<ChatStreamResult> {
   const isAnthropic =
     provider.chatPath.includes("/messages") || provider.slug === "anthropic";
@@ -730,7 +741,7 @@ export async function chatStreamMessages(
       // before the body is read -- so a rotation-retry here cannot produce a
       // half-delivered stream.
       return maybeRotateAndRetry(failed, provider, _allowRotation, () =>
-        chatStreamMessages(provider, modelId, system, messages, timeoutMs, maxTokens, cb, false),
+        chatStreamMessages(provider, modelId, system, messages, timeoutMs, maxTokens, cb, false, trail),
       );
     }
 
