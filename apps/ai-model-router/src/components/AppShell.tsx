@@ -6,6 +6,7 @@ import AnalyticsPanel from "@/components/AnalyticsPanel";
 import ComparePanel from "@/components/ComparePanel";
 import DashboardPanel from "@/components/DashboardPanel";
 import HealthPanel from "@/components/HealthPanel";
+import HermesPanel from "@/components/HermesPanel";
 import LogsPanel from "@/components/LogsPanel";
 import ModelsPanel from "@/components/ModelsPanel";
 import PlaygroundPanel from "@/components/PlaygroundPanel";
@@ -16,6 +17,7 @@ import { useCatalog, useToasts } from "@/components/store";
 import type { InitialData } from "@/lib/server-data";
 
 const TABS = [
+  { id: "hermes", label: "Hermes", hint: "profiles, providers & tiers" },
   { id: "router", label: "Router", hint: "pick the right model" },
   { id: "playground", label: "Playground", hint: "run a prompt" },
   { id: "compare", label: "Compare", hint: "two models, one prompt" },
@@ -31,7 +33,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function AppShell({ initial }: { initial: InitialData }) {
-  const [tab, setTab] = useState<TabId>("router");
+  const [tab, setTab] = useState<TabId>("hermes");
   const { providers, models, tasks, refreshing, error, refresh } = useCatalog({
     providers: initial.providers,
     models: initial.models,
@@ -101,6 +103,7 @@ export default function AppShell({ initial }: { initial: InitialData }) {
       )}
 
       <main className="amr-in">
+        {tab === "hermes" && <HermesPanel onToast={push} />}
         {tab === "router" && (
           <RouterPanel
             providers={providers}
