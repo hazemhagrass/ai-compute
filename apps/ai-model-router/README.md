@@ -7,11 +7,14 @@ A Next.js app that picks the right AI model for each task, tracks cost and usage
 - **Recommends models** per task using a scoring engine (quality, speed, cheapness, skills) with structured exclusion explanations
 - **Streams multi-turn chat** through any provider (OpenAI, Anthropic, Gemini, Bedrock, or local Ollama)
 - **Tracks cost** at the token level (cached, reasoning, input, output priced separately) and reconciles against provider invoices
-- **Budgets with alerts** (daily/weekly/monthly limits, 50/80/100% thresholds, burn-rate projection)
+- **Budgets with enforcement** (daily/weekly/monthly limits, 50/80/100% thresholds, burn-rate projection) -- a call that would cross its budget is refused with a 402 before the upstream request happens
 - **Compares two models side by side** on the same prompt
 - **Validates model ids** against the provider's discovery endpoint before saving
-- **Health dashboard** that tests every provider connection concurrently
-- **Persists recommendations** so a choice can be revisited later
+- **Health dashboard** that tests every provider connection concurrently, plus per-key verification (probe a stored key against its provider; a revoked active key is flagged even when the provider itself looks healthy)
+- **Persists recommendations** so a choice can be revisited later, pruned automatically (30 days, newest-1000 cap)
+- **Automatic retention** on usage data and recommendations, run at most hourly from server start / first render / analytics -- no schema growth by neglect
+- **Multi-key pools per provider** with automatic rotation: a 401/403 fails over to the next stored key on the same request, and exhaustion is reported after at most one rotation
+- **Subscriptions** with entitlement filtering and an implicit per-provider monthly cap (a $5 plan means $5 across that provider's traffic, not per-model)
 - **Exports/imports config** (providers, models, tasks) for replication
 - **Backs up and restores** the database + encryption key with verified decryption
 - **Real eval harness** that measures per-axis scores (coding, reasoning, speed) to replace hand-written guesses
@@ -48,7 +51,7 @@ Discover models, add them, and chat works through the router.
 ```bash
 pnpm typecheck   # tsc --noEmit
 pnpm lint        # eslint src --max-warnings 0
-pnpm test        # vitest (479 tests across 28 files)
+pnpm test        # vitest (540 tests across 32 files)
 pnpm build       # next build
 ```
 
@@ -67,9 +70,9 @@ Opens on port 3000. DB and `.secret` live in a named volume (`amr-data`). Losing
 ## Structure
 
 - `src/lib/` — core logic (engine, schemas, repo, client, usage, crypto, backup, import, export, reconcile, retention, eval)
-- `src/app/api/` — 18 routes (thin over lib)
-- `src/components/` — 8 panels (router, playground, compare, analytics, logs, providers, health, models)
-- `src/lib/*.test.ts` — 479 tests
+- `src/app/api/` — 32 routes (thin over lib)
+- `src/components/` — 9 panels (router, playground, compare, analytics, logs, providers, health, models, dashboard + settings)
+- `src/lib/*.test.ts` — 540 tests
 
 ## Architecture
 
