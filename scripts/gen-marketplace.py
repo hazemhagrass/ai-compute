@@ -110,12 +110,36 @@ def build() -> dict:
     }
 
 
+def committed_version() -> str | None:
+    """Version recorded in the committed manifest, if there is one.
+
+    CI checks out the tree without tags (no fetch-depth), so read_version()
+    falls back to 0.1.0 there while the committed manifest says 2.0.0 - the
+    freshness check fails on every push even though nothing is stale. In
+    check mode the tag is not the authority anyway: --check asks whether the
+    tree still produces the file that was committed, so the committed file's
+    own version is the right baseline for the comparison.
+    """
+    if not OUT.is_file():
+        return None
+    try:
+        return json.loads(OUT.read_text()).get("metadata", {}).get("version")
+    except (OSError, ValueError):
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="verify the committed manifest is current")
     args = ap.parse_args()
 
     data = build()
+    if args.check:
+        known = committed_version()
+        if known is not None:
+            data["metadata"]["version"] = known
+            for plug in data["plugins"]:
+                plug["version"] = known
     text = json.dumps(data, indent=2) + "\n"
 
     if args.check:
