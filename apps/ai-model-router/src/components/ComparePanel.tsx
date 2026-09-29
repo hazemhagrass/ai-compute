@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import type { Model } from "@/lib/types";
 import { Field, inputCls } from "./ProvidersPanel";
-import { api } from "./store";
+import { BudgetBlocked, BudgetWarning, budgetBlockFrom, budgetWarningFrom } from "./BudgetBanner";
 import { Card, fmtNum, fmtUsd } from "./ui";
 
 interface CompareLegResult {
@@ -90,6 +90,8 @@ export default function ComparePanel({ models }: { models: Model[] }) {
   const [system, setSystem] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnPercent, setWarnPercent] = useState<number | null>(null);
+  const [budgetBlock, setBudgetBlock] = useState<{ id: string; period: string; limitCents: number; spentCents: number } | null>(null);
   const [result, setResult] = useState<CompareResponse | null>(null);
 
   const sameModel = modelA !== "" && modelA === modelB;
@@ -99,17 +101,33 @@ export default function ComparePanel({ models }: { models: Model[] }) {
     if (!canRun) return;
     setBusy(true);
     setError(null);
+    setBudgetBlock(null);
+    setWarnPercent(null);
     try {
-      const res = await api<CompareResponse>("/api/compare", {
+      const res = await fetch("/api/compare", {
         method: "POST",
-        json: {
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
           modelRowIdA: Number(modelA),
           modelRowIdB: Number(modelB),
           prompt,
           system: system || undefined,
-        },
+        }),
+        cache: "no-store",
       });
-      setResult(res);
+      if (res.status === 402) {
+        // Budget gate refused before either leg (#163): show the budget.
+        const block = await budgetBlockFrom(res);
+        if (block) setBudgetBlock(block);
+        throw new Error((await res.json().catch(() => null))?.error ?? "budget exceeded");
+      }
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(j?.error ?? `HTTP ${res.status}`);
+      }
+      const warned = budgetWarningFrom(res);
+      if (warned !== null) setWarnPercent(warned);
+      setResult((await res.json()) as CompareResponse);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setResult(null);
@@ -119,8 +137,11 @@ export default function ComparePanel({ models }: { models: Model[] }) {
   };
 
   return (
-    <Card
-      title="Compare"
+    <div className="space-y-2">
+      {budgetBlock && <BudgetBlocked budget={budgetBlock} />}
+      {warnPercent !== null && <BudgetWarning percent={warnPercent} />}
+      <Card
+        title="Compare"
       subtitle="Same prompt, two models, side by side. Both calls are logged to usage."
     >
       <div className="flex flex-col gap-4">
@@ -195,5 +216,6 @@ export default function ComparePanel({ models }: { models: Model[] }) {
         )}
       </div>
     </Card>
+    </div>
   );
 }

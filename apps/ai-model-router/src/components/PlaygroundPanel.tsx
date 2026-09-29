@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { BudgetBlocked, BudgetWarning, budgetBlockFrom, budgetWarningFrom } from "./BudgetBanner";
 import type { Model, Task } from "@/lib/types";
 
 /** One turn rendered in the conversation thread. */
@@ -55,6 +56,8 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
+  const [warnPercent, setWarnPercent] = useState<number | null>(null);
+  const [budgetBlock, setBudgetBlock] = useState<{ id: string; period: string; limitCents: number; spentCents: number } | null>(null);
 
   const modelLabel = enabled.find((m) => m.id === modelRowId)?.label ?? "";
 
@@ -129,6 +132,8 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
     if (!modelRowId || !prompt.trim() || running) return;
     setRunning(true);
     setError("");
+    setWarnPercent(null);
+    setBudgetBlock(null);
     const userText = prompt.trim();
     // Append the user turn and an empty assistant turn up front; token frames
     // grow the assistant bubble live as they stream in.
@@ -154,11 +159,20 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
       });
       if (!res.ok) {
         // Pre-stream failures (404 model, 400 body) still arrive as JSON.
+        if (res.status === 402) {
+          // The budget gate refused before any provider request (#163):
+          // show the budget itself, not a generic failure.
+          const block = await budgetBlockFrom(res);
+          if (block) setBudgetBlock(block);
+        }
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         fail(data?.error ?? `HTTP ${res.status}`);
         setThread((t) => t.slice(0, -2));
         return;
       }
+
+      const warned = budgetWarningFrom(res);
+      if (warned !== null) setWarnPercent(warned);
       if (!res.body) {
         fail("response has no body");
         setThread((t) => t.slice(0, -2));
@@ -196,6 +210,8 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
 
   return (
     <div className="space-y-2">
+      {budgetBlock && <BudgetBlocked budget={budgetBlock} />}
+      {warnPercent !== null && <BudgetWarning percent={warnPercent} />}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
           Playground: {modelLabel || "pick a model"}
