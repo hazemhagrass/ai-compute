@@ -50,6 +50,15 @@ export default function ModelsPanel({
   const [providerFilter, setProviderFilter] = useState<number | "all">("all");
   const [syncing, setSyncing] = useState(false);
   const [page, setPage] = useState(0);
+  const [evaluating, setEvaluating] = useState<number | null>(null);
+  const [evalPreview, setEvalPreview] = useState<{
+    modelId: number;
+    version: string | null;
+    updates: Record<string, number>;
+    current: Record<string, number>;
+    tokensPerSec: number;
+    costUsd: number;
+  } | null>(null);
 
   const PAGE_SIZE = 50;
 
@@ -122,6 +131,75 @@ export default function ModelsPanel({
     await api(`/api/models/${m.id}`, { method: "DELETE" });
     onToast("Model deleted", "good");
     onRefresh();
+  }
+
+  /** Run eval as a dry run (#173): show what WOULD change, apply nothing. */
+  async function runEval(m: Model) {
+    setEvaluating(m.id);
+    try {
+      const res = await api<{
+        eval: { axes?: { axis: string; measured: boolean; score?: number }[]; observedTokensPerSec?: number; observedCostUsd?: number };
+        version: string | null;
+        wouldApply?: Record<string, number>;
+      }>("/api/eval", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ modelId: m.id, dryRun: true }),
+      });
+      const would = res.wouldApply ?? {};
+      setEvalPreview({
+        modelId: m.id,
+        version: res.version,
+        updates: would,
+        current: m.skills ?? {},
+        tokensPerSec: res.eval?.observedTokensPerSec ?? 0,
+        costUsd: res.eval?.observedCostUsd ?? 0,
+      });
+      onToast(
+        Object.keys(would).length > 0
+          ? "eval measured -- review the preview, then apply"
+          : "nothing measured to apply",
+        Object.keys(would).length > 0 ? "info" : "bad",
+      );
+    } catch {
+      onToast("eval run failed -- see server logs", "bad");
+    } finally {
+      setEvaluating(null);
+    }
+  }
+
+  /** Commit the previewed write, passing the stamped version for the guard. */
+  async function applyEval() {
+    if (!evalPreview) return;
+    setEvaluating(evalPreview.modelId);
+    try {
+      const res = await fetch("/api/eval", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          modelId: evalPreview.modelId,
+          apply: true,
+          ...(evalPreview.version ? { evalVersion: evalPreview.version } : {}),
+        }),
+      });
+      if (res.status === 409) {
+        const j = await res.json();
+        onToast(
+          `version mismatch: model stamped ${j.currentVersion}, you reviewed ${j.requestedVersion} -- run another dry run`,
+          "bad",
+        );
+      } else if (res.ok) {
+        setEvalPreview(null);
+        onToast("eval scores applied", "good");
+        onRefresh();
+      } else {
+        onToast(`apply failed (${res.status})`, "bad");
+      }
+    } catch {
+      onToast("apply failed -- see server logs", "bad");
+    } finally {
+      setEvaluating(null);
+    }
   }
 
   return (
@@ -263,6 +341,14 @@ export default function ModelsPanel({
                           className="h-3.5 w-3.5 accent-[var(--accent)]"
                         />
                         <button
+                          onClick={() => runEval(m)}
+                          disabled={evaluating !== null}
+                          title="Measure skill/speed/cost axes with the eval harness, preview before applying"
+                          className="rounded border border-[var(--border)] px-2 py-1 hover:bg-[var(--panel-2)] disabled:opacity-40"
+                        >
+                          {evaluating === m.id ? "measuring..." : "eval"}
+                        </button>
+                        <button
                           onClick={() => setEditing(m)}
                           className="rounded border border-[var(--border)] px-2 py-1 hover:bg-[var(--panel-2)]"
                         >
@@ -305,6 +391,71 @@ export default function ModelsPanel({
             </button>
           </div>
         )}
+        {evalPreview && (
+          <div className="rounded-xl border border-[var(--accent)]/40 bg-[var(--panel-2)]/60 p-4 text-xs">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="font-semibold">
+                Eval preview -- model #{evalPreview.modelId}
+                {evalPreview.version ? ` (stamped ${evalPreview.version})` : " (no previous stamp)"}
+              </span>
+              <button onClick={() => setEvalPreview(null)} className="text-[var(--fg-dim)] hover:underline">
+                dismiss
+              </button>
+            </div>
+            {Object.keys(evalPreview.updates).length === 0 ? (
+              <p className="text-[var(--fg-dim)]">Nothing measured: all cases failed or the model was unreachable.</p>
+            ) : (
+              <table className="w-full">
+                <thead className="text-[var(--fg-dim)]">
+                  <tr>
+                    <th className="pb-1 text-left">Axis</th>
+                    <th className="pb-1 text-right">Current</th>
+                    <th className="pb-1 text-right">Measured</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(evalPreview.updates).map(([axis, value]) => (
+                    <tr key={axis} className="border-t border-[var(--border-soft)]">
+                      <td className="py-1">{axis}</td>
+                      <td className="py-1 text-right text-[var(--fg-dim)]">
+                        {evalPreview.current[axis] !== undefined ? Math.round(evalPreview.current[axis] * 10) / 10 : "--"}
+                      </td>
+                      <td className="py-1 text-right font-mono tabular-nums">
+                        {Math.round(value * 10) / 10}
+                        {evalPreview.current[axis] !== undefined &&
+                          evalPreview.current[axis] !== value && (
+                            <span className="ml-1 text-[var(--warn)]">changes</span>
+                          )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-[var(--fg-dim)]">
+                {evalPreview.tokensPerSec > 0 && `${Math.round(evalPreview.tokensPerSec)} tok/s measured`}
+                {evalPreview.costUsd > 0 && ` · $${evalPreview.costUsd.toFixed(4)} per case avg`}
+              </span>
+              <span className="flex gap-2">
+                <button
+                  onClick={() => setEvalPreview(null)}
+                  className="rounded border border-[var(--border)] px-3 py-1 hover:bg-[var(--panel-2)]"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={applyEval}
+                  disabled={evaluating !== null || Object.keys(evalPreview.updates).length === 0}
+                  className="rounded bg-[var(--accent)] px-3 py-1 font-medium text-[#06070c] disabled:opacity-40"
+                >
+                  Apply {Object.keys(evalPreview.updates).length} scores
+                </button>
+              </span>
+            </div>
+          </div>
+        )}
+
       </Card>
     </div>
   );
