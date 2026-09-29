@@ -7,7 +7,11 @@ import {
   providerKind,
   requiresSchema,
 } from "./schemas";
-import { encryptSecret } from "./crypto";
+import { encryptSecret, maskSecret } from "./crypto";
+import { getSubscription, upsertSubscription } from "./subscriptions";
+import { saveBudget } from "./budget";
+import { addProviderKey, activateProviderKey } from "./provider-keys";
+import { updateRoutingPolicy } from "./routing-policy";
 
 /**
  * Config import: the inverse of `GET /api/export`.
@@ -40,6 +44,10 @@ export interface ImportSummary {
   providers: SectionStats;
   models: SectionStats;
   tasks: SectionStats;
+  subscriptions: SectionStats;
+  budgets: SectionStats;
+  providerKeys: SectionStats;
+  routingPolicy: "imported" | "kept" | "skipped";
   /**
    * Providers that referenced a masked or placeholder key. Their key slot is
    * left empty on purpose: a masked string is not a credential, and storing
@@ -50,7 +58,7 @@ export interface ImportSummary {
 
 /** One offending row, in a shape a user can act on. */
 export interface ImportRowError {
-  section: "providers" | "models" | "tasks";
+  section: "providers" | "models" | "tasks" | "subscriptions" | "budgets" | "providerKeys";
   index: number;
   issues: string[];
 }
@@ -138,16 +146,71 @@ const exportedTaskSchema = z.object({
 });
 
 export const configImportSchema = z.object({
-  version: z.literal(1),
+  /** v1 = providers/models/tasks. v2 adds subscriptions, budgets, routing
+   * policy, and key-pool metadata (never the secrets themselves). */
+  version: z.union([z.literal(1), z.literal(2)]),
   exportedAt: z.string().optional(),
   providers: z.array(z.unknown()).max(5000).optional(),
   models: z.array(z.unknown()).max(50_000).optional(),
   tasks: z.array(z.unknown()).max(5000).optional(),
+  /* ---- v2 sections ---- */
+  subscriptions: z.array(z.unknown()).max(1000).optional(),
+  budgets: z.array(z.unknown()).max(1000).optional(),
+  routingPolicy: z.unknown().optional(),
+  providerKeys: z.array(z.unknown()).max(5000).optional(),
 });
 
 export type ExportedProvider = z.infer<typeof exportedProviderSchema>;
 export type ExportedModel = z.infer<typeof exportedModelSchema>;
 export type ExportedTask = z.infer<typeof exportedTaskSchema>;
+
+/** Provider is linked by slug on import (same rule as models). */
+const exportedSubscriptionSchema = z.object({
+  providerSlug: z.string().trim().min(1, "providerSlug is required"),
+  tier: z.string().trim().min(1).optional(),
+  allowModels: z.array(z.string()).optional(),
+  denyModels: z.array(z.string()).optional(),
+  monthlyInput: nonNegative.optional(),
+  monthlyOutput: nonNegative.optional(),
+  monthlyBudget: nonNegative.optional(),
+  notes: z.string().optional(),
+});
+
+/** Key pool metadata. The secret itself is NOT exportable, ever. */
+const exportedProviderKeySchema = z.object({
+  providerSlug: z.string().trim().min(1, "providerSlug is required"),
+  label: z.string().trim().min(1).optional(),
+  active: z.boolean().optional(),
+  wasActive: z.boolean().optional(),
+});
+
+const exportedBudgetSchema = z.object({
+  id: z.string().trim().min(1, "budget id is required"),
+  label: z.string().optional(),
+  period: z.enum(["daily", "weekly", "monthly"]),
+  limitCents: z.coerce.number().int().nonnegative(),
+  weekStartsOn: z.coerce.number().int().min(0).max(6).optional(),
+});
+
+export type ExportedSubscription = z.infer<typeof exportedSubscriptionSchema>;
+export type ExportedProviderKey = z.infer<typeof exportedProviderKeySchema>;
+export type ExportedBudget = z.infer<typeof exportedBudgetSchema>;
+
+/**
+ * Routing policy singleton. Typed loosely here on purpose: the server's own
+ * zod schema is a moving target as policy fields evolve, and an import that
+ * hard-fails on a field it does not know would pin two deployments to the
+ * same release. Unknown fields pass through and are ignored on write.
+ */
+const routingPolicySection = z
+  .object({
+    preferLocal: z.boolean().optional(),
+    maxOutputCostPer1M: z.coerce.number().min(0).optional(),
+    minContext: z.coerce.number().int().min(0).optional(),
+    overrideWeights: z.record(z.string(), z.coerce.number()).optional(),
+    exclusions: z.array(z.string()).optional(),
+  })
+  .passthrough();
 
 /* ---------------------------------------------------------- secret guard */
 
@@ -172,6 +235,10 @@ interface ParsedConfig {
   providers: ExportedProvider[];
   models: ExportedModel[];
   tasks: ExportedTask[];
+  subscriptions: ExportedSubscription[];
+  budgets: ExportedBudget[];
+  providerKeys: ExportedProviderKey[];
+  routingPolicy: Record<string, unknown> | null;
 }
 
 /**
@@ -216,10 +283,25 @@ export function parseConfigImport(raw: unknown): ParsedConfig {
     return out;
   };
 
+  const isV2 = top.data.version >= 2;
+
   const parsed: ParsedConfig = {
     providers: collect(top.data.providers, exportedProviderSchema, "providers"),
     models: collect(top.data.models, exportedModelSchema, "models"),
     tasks: collect(top.data.tasks, exportedTaskSchema, "tasks"),
+    subscriptions: isV2
+      ? collect(top.data.subscriptions, exportedSubscriptionSchema, "subscriptions")
+      : [],
+    budgets: isV2
+      ? collect(top.data.budgets, exportedBudgetSchema, "budgets")
+      : [],
+    providerKeys: isV2
+      ? collect(top.data.providerKeys, exportedProviderKeySchema, "providerKeys")
+      : [],
+    // The routing policy is a singleton: validate as one object, not rows.
+    routingPolicy: isV2 && top.data.routingPolicy !== undefined
+      ? (routingPolicySection.parse(top.data.routingPolicy) as Record<string, unknown>)
+      : null,
   };
 
   if (issues.length > 0) throw new ImportValidationError(issues);
@@ -260,6 +342,10 @@ export function importConfig(
     providers: emptyStats(),
     models: emptyStats(),
     tasks: emptyStats(),
+    subscriptions: emptyStats(),
+    budgets: emptyStats(),
+    providerKeys: emptyStats(),
+    routingPolicy: data.routingPolicy ? "imported" : "kept",
     maskedKeys: [],
   };
 
@@ -424,6 +510,92 @@ export function importConfig(
         summary.tasks.updated++;
       } else {
         summary.tasks.skipped++;
+      }
+    }
+
+    /* ---- v2: subscriptions, keyed by provider slug (mandatory on link). */
+    for (const s of data.subscriptions) {
+      const providerId = providerIdBySlug.get(s.providerSlug);
+      if (providerId === undefined) {
+        throw new Error(
+          `subscriptions: no provider with slug "${s.providerSlug}"`,
+        );
+      }
+      const stored = getSubscription(providerId);
+      if (!stored) {
+        upsertSubscription({
+          providerId,
+          tier: s.tier ?? "free",
+          allowModels: s.allowModels ?? [],
+          denyModels: s.denyModels ?? [],
+          monthlyInput: s.monthlyInput ?? 0,
+          monthlyOutput: s.monthlyOutput ?? 0,
+          monthlyBudget: s.monthlyBudget ?? 0,
+          notes: s.notes ?? "",
+        });
+        summary.subscriptions.inserted++;
+      } else if (conflict === "upsert") {
+        upsertSubscription({
+          providerId,
+          tier: s.tier ?? stored.tier,
+          allowModels: s.allowModels ?? stored.allowModels,
+          denyModels: s.denyModels ?? stored.denyModels,
+          monthlyInput: s.monthlyInput ?? stored.monthlyInput,
+          monthlyOutput: s.monthlyOutput ?? stored.monthlyOutput,
+          monthlyBudget: s.monthlyBudget ?? stored.monthlyBudget,
+          notes: s.notes ?? stored.notes,
+        });
+        summary.subscriptions.updated++;
+      } else {
+        summary.subscriptions.skipped++;
+      }
+    }
+
+    /* ---- v2: budgets, keyed by id, written through the normal save path. */
+    for (const b of data.budgets) {
+      const payload = {
+        id: b.id,
+        label: b.label ?? "",
+        period: b.period,
+        limitCents: b.limitCents,
+        weekStartsOn: b.weekStartsOn ?? 1,
+      };
+      saveBudget(payload);
+      summary.budgets.inserted++;
+    }
+
+    /* ---- v2: key pool metadata. A placeholder preview is imported so the
+     * pool SHAPE survives a move even though the secret must be re-entered;
+     * active is honoured only when no key exists yet (a fresh machine keeps
+     * its own active choice otherwise). */
+    for (const k of data.providerKeys) {
+      const providerId = providerIdBySlug.get(k.providerSlug);
+      if (providerId === undefined) {
+        throw new Error(
+          `providerKeys: no provider with slug "${k.providerSlug}"`,
+        );
+      }
+      const placeholder = maskSecret(`imported-${k.label ?? "key"}`);
+      const added = addProviderKey(providerId, placeholder, k.label ?? "imported", false);
+      if (k.active) {
+        activateProviderKey(added.id);
+      }
+      summary.providerKeys.inserted++;
+    }
+
+    /* ---- v2: routing policy, only when absent (singleton, not a rowset). */
+    if (data.routingPolicy) {
+      // Existence probe via the same key the module itself reads, so a key
+      // rename cannot make an import silently overwrite a live policy.
+      const POLICY_KEY = "routing_policy_v1";
+      const current = db
+        .prepare("SELECT COUNT(*) AS n FROM settings WHERE key = ?")
+        .get(POLICY_KEY) as { n: number };
+      if (current.n === 0) {
+        updateRoutingPolicy(data.routingPolicy);
+        summary.routingPolicy = "imported";
+      } else {
+        summary.routingPolicy = "kept";
       }
     }
   })();

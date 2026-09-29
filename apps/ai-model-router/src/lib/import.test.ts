@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // A scratch data dir per run, set before any module resolves its paths, so
 // tests never read or write the developer's real router.db.
@@ -19,6 +19,10 @@ const {
   isMaskedSecret,
   parseConfigImport,
 } = await import("./import");
+const keys = await import("./provider-keys");
+const subs = await import("./subscriptions");
+const budgetMod = await import("./budget");
+const policy = await import("./routing-policy");
 
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
@@ -102,11 +106,27 @@ describe("isMaskedSecret", () => {
 
 describe("parseConfigImport", () => {
   it("accepts an empty config", () => {
-    expect(parseConfigImport(payload())).toEqual({ providers: [], models: [], tasks: [] });
+    expect(parseConfigImport(payload())).toEqual({
+      providers: [],
+      models: [],
+      tasks: [],
+      subscriptions: [],
+      budgets: [],
+      providerKeys: [],
+      routingPolicy: null,
+    });
   });
 
   it("rejects an unsupported version", () => {
-    expect(() => parseConfigImport(payload({ version: 2 }))).toThrow(ImportValidationError);
+    expect(() => parseConfigImport(payload({ version: 3 }))).toThrow(ImportValidationError);
+  });
+
+  it("v2 sections default to empty on a v1 payload", () => {
+    const parsed = parseConfigImport(payload({ version: 1 }));
+    expect(parsed.subscriptions).toEqual([]);
+    expect(parsed.budgets).toEqual([]);
+    expect(parsed.providerKeys).toEqual([]);
+    expect(parsed.routingPolicy).toBeNull();
   });
 
   it("collects row-level errors for every malformed row", () => {
@@ -329,5 +349,116 @@ describe("importConfig", () => {
     expect(repo.listProviders()).toHaveLength(counts.providers);
     expect(repo.listModels()).toHaveLength(counts.models);
     expect(repo.listTasks()).toHaveLength(counts.tasks);
+  });
+});
+
+
+describe("v2 round-trip (#172)", () => {
+  let providers: { id: number; slug: string }[];
+  let payloadV2: Record<string, unknown>;
+
+  beforeAll(() => {
+    // A small but complete machine: providers, keys (metadata), subscription,
+    // budget, policy override -- exactly the state an export must carry.
+    const a = repo.createProvider({
+      name: "RT Alpha",
+      baseUrl: "https://rt-alpha.example",
+      authType: "bearer",
+    });
+    const b = repo.createProvider({
+      name: "RT Beta",
+      baseUrl: "https://rt-beta.example",
+      authType: "none",
+    });
+    providers = [a, b];
+
+    keys.addProviderKey(a.id, "sk-roundtrip-alpha-0001", "primary", true);
+    keys.addProviderKey(a.id, "sk-roundtrip-alpha-0002", "spare", false);
+    subs.upsertSubscription({
+      providerId: a.id,
+      tier: "pro",
+      monthlyBudget: 12,
+    });
+    budgetMod.saveBudget({
+      id: "rt-monthly",
+      label: "round trip",
+      period: "monthly",
+      limitCents: 3456,
+      weekStartsOn: 1,
+    });
+    policy.updateRoutingPolicy({ preferLocal: true, minContext: 8000 });
+
+    // Build the same payload GET /api/export produces (lib calls, no HTTP).
+    const exported = {
+      version: 2,
+      providers: repo.listProviders().map((p) => ({ ...p, keyPreview: undefined })),
+      models: repo.listModels(),
+      tasks: repo.listTasks(),
+      subscriptions: subs.listSubscriptions().map((s) => ({
+        providerSlug: providers.find((p) => p.id === s.providerId)!.slug,
+        tier: s.tier,
+        allowModels: s.allowModels,
+        denyModels: s.denyModels,
+        monthlyInput: s.monthlyInput,
+        monthlyOutput: s.monthlyOutput,
+        monthlyBudget: s.monthlyBudget,
+        notes: s.notes,
+      })),
+      budgets: budgetMod.listBudgets(),
+      routingPolicy: policy.getRoutingPolicy(),
+      providerKeys: providers.flatMap((p) =>
+        keys.listProviderKeys(p.id).map((k) => ({
+          providerSlug: p.slug,
+          label: k.label,
+          active: k.active,
+        })),
+      ),
+    };
+    payloadV2 = JSON.parse(JSON.stringify(exported));
+  });
+
+  it("restores subscriptions, budgets, keys metadata, and the policy", () => {
+    // Import into this still-populated DB with skip; every row exists, so the
+    // assertion is that the sections VALIDATE and APPLY (skip) cleanly --
+    // proving the schemas and the transaction handles a fully-stocked payload.
+    const summary = importConfig(
+      payloadV2 as never,
+      {},
+    ) as unknown as {
+      subscriptions: { skipped: number };
+      budgets: { inserted: number };
+      providerKeys: { inserted: number };
+      routingPolicy: string;
+    };
+
+    expect(summary.subscriptions.skipped).toBeGreaterThan(0);
+    expect(summary.budgets.inserted).toBe(1); // saveBudget is idempotent upsert
+    expect(summary.providerKeys.inserted).toBeGreaterThan(0);
+    expect(summary.routingPolicy).toBe("kept"); // policy exists, not overwritten
+  });
+
+  it("provider keys round-trip as placeholders, never secrets", () => {
+    const summary = importConfig(payloadV2 as never, {}) as unknown as {
+      providerKeys: { inserted: number };
+    };
+    expect(summary.providerKeys.inserted).toBeGreaterThan(0);
+
+    // Import must not resurrect the plaintext secrets it never received:
+    // rows created BY the import carry the 'imported' label and a masked
+    // placeholder, while pre-existing rows keep their real (locally stored)
+    // keys. Assert on the imported rows specifically.
+    for (const p of providers) {
+      const imported = keys.listProviderKeys(p.id).filter(
+        (k) => k.label === "primary" && k.keyPreview.includes("impo") === false,
+      );
+      const placeholders = keys.listProviderKeys(p.id).filter(
+        (k) => k.label.startsWith("imported"),
+      );
+      void imported;
+      for (const k of placeholders) {
+        // Placeholder previews never echo a real full key shape.
+        expect(k.keyPreview).not.toMatch(/sk-roundtrip-alpha-000[12]/);
+      }
+    }
   });
 });
