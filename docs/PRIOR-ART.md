@@ -39,6 +39,7 @@ are written down.
 | `engineering/debugging` | Many debugging skills | Built on binary search over *three* axes (code, data, environment) and on questioning both assumptions, rather than a generic "reproduce, isolate, fix" loop. |
 | `career/infographic-resume` | Resume-design skills | Takes a position most do not: percentage skill bars are a credibility problem, not a design flaw. "Python 85%" has no unit, no scale, no source, and is a written promise to be examined at that level in the interview. |
 | `content/video-script-writer`, `content/podcast-production` | Content-creation skills | Reference links were fetched and confirmed live; a guessed URL that 404'd was replaced with one that resolved, and a dead FTC link was dropped rather than cited. |
+| `homelab/unraid` | Official Unraid docs and forum guides | Documents the platform quirk they miss: Unraid's dillon crond takes no user field in cron.d lines, so a Debian-style `root` field makes cron run `root` as a command - the log fills with errors while the job never runs, which reads exactly like activity. Found live in an installed plugin; upstream docs state no such trap. |
 | `meta/skill-authoring` | Skill-authoring guides | Enforced by machine. `scripts/doctor.sh` checks the frontmatter contract, `scripts/scan-skills.py` checks for injection, and CI fails the build. Guidance nobody can quietly violate. |
 
 ### Whole-library properties
