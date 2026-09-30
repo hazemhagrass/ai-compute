@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { api } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
+import type { ExclusionGroup, ExclusionReport } from "@/lib/exclusions";
 import type { Model, Provider, Recommendation, Scored, Task } from "@/lib/types";
 
 const AXES = [
@@ -391,8 +392,67 @@ export default function RouterPanel({
             )}
           </Card>
         )}
+
+        {rec?.exclusions && rec.exclusions.totalExcluded > 0 && (
+          <ExclusionsCard report={rec.exclusions} />
+        )}
       </div>
     </div>
+  );
+}
+
+function ExclusionsCard({ report }: { report: ExclusionReport }) {
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const byGroupKey = (g: ExclusionGroup) => `${g.code}:${g.subject ?? ""}`;
+  const excludedById = new Map(report.excluded.map((e) => [e.modelId, e]));
+
+  return (
+    <Card
+      title="Excluded candidates"
+      subtitle={report.summary}
+      className="border-[var(--warn)]/30"
+    >
+      <ul className="space-y-2">
+        {report.groups.map((g) => {
+          const key = byGroupKey(g);
+          const isOpen = openGroup === key;
+          return (
+            <li key={key} className="rounded-lg border border-[var(--border-soft)]">
+              <button
+                onClick={() => setOpenGroup(isOpen ? null : key)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-[var(--panel-2)]/60"
+              >
+                <span>
+                  <span className="font-medium">{g.count}</span> {g.label}
+                </span>
+                <span className="text-[var(--fg-dim)]">{isOpen ? "hide" : "show"}</span>
+              </button>
+              {isOpen && (
+                <ul className="space-y-1.5 border-t border-[var(--border-soft)] px-3 py-2 text-[11px]">
+                  {g.modelIds.map((id) => {
+                    const candidate = excludedById.get(id);
+                    if (!candidate) return null;
+                    return (
+                      <li key={id}>
+                        <span className="font-medium">{candidate.label}</span>
+                        <span className="ml-1.5 text-[var(--fg-dim)]">
+                          ({candidate.providerSlug})
+                        </span>
+                        <ul className="mt-0.5 ml-3 list-disc space-y-0.5 text-[var(--fg-dim)]">
+                          {candidate.reasons.map((r, i) => (
+                            <li key={i}>{r.message}</li>
+                          ))}
+                        </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 
