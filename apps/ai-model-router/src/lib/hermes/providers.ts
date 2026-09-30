@@ -55,6 +55,12 @@ function inferCatalogId(id: string, entry: ProviderEntry | undefined): string {
   return id;
 }
 
+/** Exposed for callers outside this module (e.g. the connection-test route)
+ * that need to resolve which catalog entry a provider id authenticates as. */
+export function getCatalogIdForProvider(id: string, entry: ProviderEntry | undefined): string {
+  return inferCatalogId(id, entry);
+}
+
 function hasAnyEnvKey(envPath: string, names: string[]): boolean {
   if (!names.length) return false;
   const values = envValues(envPath);

@@ -53,8 +53,9 @@ interface TierRouterConfig {
   enabled: boolean;
   default_tier: string;
   cooldown_s: number;
-  classifier: { pool: ModelRef[] };
+  classifier: { pool: ModelRef[]; timeout_s?: number; history_turns?: number };
   tiers: Record<string, TierEntry>;
+  routes?: Record<string, Record<string, string>>;
 }
 
 interface ModelUsageRow {
@@ -110,8 +111,9 @@ export default function HermesPanel({
   const [providers, setProviders] = useState<HermesProviderView[] | null>(null);
   const [tierRouter, setTierRouter] = useState<TierRouterConfig | null>(null);
   const [usage, setUsage] = useState<ProfileUsageSummary | null>(null);
-  const [tab, setTab] = useState<"providers" | "router" | "usage">("providers");
+  const [tab, setTab] = useState<"providers" | "router" | "aliases" | "usage">("providers");
   const [showAddProvider, setShowAddProvider] = useState(false);
+  const [showNewProfile, setShowNewProfile] = useState(false);
 
   const loadProfiles = useCallback(async () => {
     const res = await api<{ profiles: HermesProfileSummary[] }>("/api/hermes/profiles");
@@ -175,34 +177,44 @@ export default function HermesPanel({
     );
   }
 
-  if (profiles.length === 0) {
-    return (
-      <Card>
-        <Empty>
-          No Hermes profiles found. This dashboard reads/writes the live Hermes install at{" "}
-          <code className="font-mono">~/.hermes</code>.
-        </Empty>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
           Profile
         </label>
-        <select
-          value={activeId ?? ""}
-          onChange={(e) => setActiveId(e.target.value)}
-          className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+        {profiles.length > 0 && (
+          <select
+            value={activeId ?? ""}
+            onChange={(e) => setActiveId(e.target.value)}
+            className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+          >
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label} {p.isDefault ? "(default)" : ""}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <button
+          onClick={() => setShowNewProfile(!showNewProfile)}
+          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-[var(--panel-2)]"
         >
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label} {p.isDefault ? "(default)" : ""}
-            </option>
-          ))}
-        </select>
+          + New profile
+        </button>
+
+        {activeProfile && !activeProfile.isDefault && (
+          <DeleteProfileButton
+            profileId={activeProfile.id}
+            onDeleted={() => {
+              setActiveId(null);
+              loadProfiles().catch(() => {});
+              onToast(`Deleted profile ${activeProfile.id}`, "good");
+            }}
+            onToast={onToast}
+          />
+        )}
 
         {activeProfile && (
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--fg-dim)]">
@@ -226,55 +238,252 @@ export default function HermesPanel({
         )}
       </div>
 
-      <div className="flex gap-2 border-b border-[var(--border)] pb-2 text-sm">
-        {(
-          [
-            ["providers", "Providers & keys"],
-            ["router", "Router & tiers"],
-            ["usage", "Usage"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`rounded-lg px-3 py-1.5 ${
-              tab === id ? "bg-[var(--accent)] text-[#06070c] font-semibold" : "hover:bg-[var(--panel-2)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {showNewProfile && (
+        <NewProfileForm
+          onCancel={() => setShowNewProfile(false)}
+          onCreated={(id) => {
+            setShowNewProfile(false);
+            loadProfiles().catch(() => {});
+            setActiveId(id);
+            onToast(`Created profile ${id}`, "good");
+          }}
+          onToast={onToast}
+        />
+      )}
 
-      {!activeId || !providers ? (
+      {profiles.length === 0 ? (
         <Card>
-          <Empty>Loading…</Empty>
+          <Empty>
+            No Hermes profiles found. This dashboard reads/writes the live Hermes install at{" "}
+            <code className="font-mono">~/.hermes</code>. Create a profile above to get started.
+          </Empty>
         </Card>
-      ) : tab === "providers" ? (
-        <ProvidersTab
-          profileId={activeId}
-          providers={providers}
-          showAdd={showAddProvider}
-          onShowAdd={setShowAddProvider}
-          onRefresh={refresh}
-          onToast={onToast}
-        />
-      ) : tab === "router" ? (
-        <RouterTab
-          profileId={activeId}
-          providers={providers}
-          tierRouter={tierRouter}
-          onRefresh={refresh}
-          onToast={onToast}
-        />
       ) : (
-        <UsageTab usage={usage} />
+        <>
+          <div className="flex gap-2 border-b border-[var(--border)] pb-2 text-sm">
+            {(
+              [
+                ["providers", "Providers & keys"],
+                ["router", "Router & tiers"],
+                ["aliases", "Fallback & aliases"],
+                ["usage", "Usage"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`rounded-lg px-3 py-1.5 ${
+                  tab === id ? "bg-[var(--accent)] text-[#06070c] font-semibold" : "hover:bg-[var(--panel-2)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {!activeId || !providers ? (
+            <Card>
+              <Empty>Loading…</Empty>
+            </Card>
+          ) : tab === "providers" ? (
+            <ProvidersTab
+              profileId={activeId}
+              providers={providers}
+              showAdd={showAddProvider}
+              onShowAdd={setShowAddProvider}
+              onRefresh={refresh}
+              onToast={onToast}
+            />
+          ) : tab === "router" ? (
+            <RouterTab
+              profileId={activeId}
+              providers={providers}
+              tierRouter={tierRouter}
+              onRefresh={refresh}
+              onToast={onToast}
+            />
+          ) : tab === "aliases" ? (
+            <FallbackAliasesTab key={activeId} profileId={activeId} providers={providers} onToast={onToast} />
+          ) : (
+            <UsageTab usage={usage} />
+          )}
+        </>
       )}
     </div>
   );
 }
 
+/* -------------------------------------------------------- Profile lifecycle */
+
+function NewProfileForm({
+  onCancel,
+  onCreated,
+  onToast,
+}: {
+  onCancel: () => void;
+  onCreated: (id: string) => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [id, setId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function create() {
+    if (!id.trim()) {
+      onToast("Profile name is required", "bad");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api(`/api/hermes/profiles`, { method: "POST", json: { id: id.trim() } });
+      onCreated(id.trim());
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Failed to create profile", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card title="New profile" className="border-[var(--accent)]/40">
+      <Field label="Profile name" hint="creates ~/.hermes/profiles/<name>/ with an empty config — letters, digits, . _ -">
+        <input
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+          placeholder="my-second-profile"
+          className={`${inputCls} font-mono`}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              create();
+            }
+          }}
+        />
+      </Field>
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={create}
+          disabled={saving}
+          className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Creating…" : "Create profile"}
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function DeleteProfileButton({
+  profileId,
+  onDeleted,
+  onToast,
+}: {
+  profileId: string;
+  onDeleted: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function remove() {
+    if (
+      !confirm(
+        `Delete profile "${profileId}"? Its directory is moved aside (not destroyed) but stops appearing everywhere in Hermes.`,
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await api(`/api/hermes/profiles/${profileId}`, { method: "DELETE", json: { confirm: true } });
+      onDeleted();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Delete failed", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={remove}
+      disabled={busy}
+      className="rounded-lg border border-[var(--bad)]/40 px-3 py-1.5 text-xs text-[var(--bad)] hover:bg-[var(--bad)]/10 disabled:opacity-50"
+    >
+      {busy ? "Deleting…" : "Delete profile"}
+    </button>
+  );
+}
+
 /* ------------------------------------------------------------ Providers */
+
+interface ProbeResult {
+  ok: boolean;
+  notTestable: boolean;
+  status: number | null;
+  latencyMs: number;
+  modelCount: number | null;
+  error: string | null;
+}
+
+function TestProviderButton({ profileId, providerId }: { profileId: string; providerId: string }) {
+  const [state, setState] = useState<"idle" | "testing" | "done">("idle");
+  const [result, setResult] = useState<ProbeResult | null>(null);
+
+  async function run() {
+    setState("testing");
+    try {
+      const res = await api<ProbeResult>(`/api/hermes/profiles/${profileId}/providers/${providerId}/test`, {
+        method: "POST",
+      });
+      setResult(res);
+    } catch (err) {
+      setResult({
+        ok: false,
+        notTestable: false,
+        status: null,
+        latencyMs: 0,
+        modelCount: null,
+        error: err instanceof Error ? err.message : "test failed",
+      });
+    } finally {
+      setState("done");
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        onClick={run}
+        disabled={state === "testing"}
+        className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-[var(--panel-2)] disabled:opacity-50"
+      >
+        {state === "testing" ? "Testing…" : "Test"}
+      </button>
+      {state === "done" && result && (
+        <span
+          className={`rounded-md px-2 py-1 text-[11px] ${
+            result.notTestable
+              ? "bg-[var(--panel-2)] text-[var(--fg-dim)]"
+              : result.ok
+                ? "bg-[var(--good)]/12 text-[var(--good)]"
+                : "bg-[var(--bad)]/12 text-[var(--bad)]"
+          }`}
+          title={result.error ?? undefined}
+        >
+          {result.notTestable
+            ? "not probeable (oauth/sdk auth)"
+            : result.ok
+              ? `ok · ${result.latencyMs}ms${result.modelCount !== null ? ` · ${result.modelCount} models` : ""}`
+              : `failed${result.status ? ` (${result.status})` : ""}: ${(result.error ?? "").slice(0, 60)}`}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function ProvidersTab({
   profileId,
@@ -415,6 +624,7 @@ function ProvidersTab({
                 >
                   Edit
                 </button>
+                <TestProviderButton profileId={profileId} providerId={p.id} />
                 {!p.isDefault && (
                   <button
                     onClick={() => makeDefault(p)}
@@ -792,6 +1002,36 @@ function RouterTab({
           }}
           onToast={onToast}
         />
+        <div className="mt-4 border-t border-[var(--border)] pt-4">
+          <ClassifierSettingsForm
+            profileId={profileId}
+            timeoutS={tierRouter?.classifier.timeout_s}
+            historyTurns={tierRouter?.classifier.history_turns}
+            onSaved={() => {
+              onRefresh();
+              onToast("Classifier settings saved", "good");
+            }}
+            onToast={onToast}
+          />
+        </div>
+      </Card>
+
+      <Card title="Task routes">
+        <p className="mb-3 text-[11px] text-[var(--fg-dim)]">
+          Force a specific task/subtype straight to a tier, bypassing the classifier (e.g. task
+          <code className="mx-1 font-mono">plan</code>, subtype <code className="mx-1 font-mono">easy</code> →
+          tier <code className="mx-1 font-mono">plan</code>).
+        </p>
+        <TaskRoutesEditor
+          profileId={profileId}
+          routes={tierRouter?.routes ?? {}}
+          tierNames={Object.keys(tierRouter?.tiers ?? {})}
+          onSaved={() => {
+            onRefresh();
+            onToast("Route saved", "good");
+          }}
+          onToast={onToast}
+        />
       </Card>
     </div>
   );
@@ -1036,6 +1276,222 @@ function ClassifierPoolEditor({
   );
 }
 
+function ClassifierSettingsForm({
+  profileId,
+  timeoutS,
+  historyTurns,
+  onSaved,
+  onToast,
+}: {
+  profileId: string;
+  timeoutS: number | undefined;
+  historyTurns: number | undefined;
+  onSaved: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [timeoutStr, setTimeoutStr] = useState(timeoutS !== undefined ? String(timeoutS) : "");
+  const [historyStr, setHistoryStr] = useState(historyTurns !== undefined ? String(historyTurns) : "");
+  const [saving, setSaving] = useState(false);
+  const [lastTimeoutS, setLastTimeoutS] = useState(timeoutS);
+  const [lastHistoryTurns, setLastHistoryTurns] = useState(historyTurns);
+  if (timeoutS !== lastTimeoutS || historyTurns !== lastHistoryTurns) {
+    setLastTimeoutS(timeoutS);
+    setLastHistoryTurns(historyTurns);
+    setTimeoutStr(timeoutS !== undefined ? String(timeoutS) : "");
+    setHistoryStr(historyTurns !== undefined ? String(historyTurns) : "");
+  }
+
+  async function save() {
+    const patch: { timeout_s?: number; history_turns?: number } = {};
+    if (timeoutStr.trim()) {
+      const n = Number(timeoutStr);
+      if (!Number.isFinite(n) || n <= 0) {
+        onToast("Timeout must be a positive number of seconds", "bad");
+        return;
+      }
+      patch.timeout_s = n;
+    }
+    if (historyStr.trim()) {
+      const n = Number(historyStr);
+      if (!Number.isInteger(n) || n < 0) {
+        onToast("History turns must be a non-negative whole number", "bad");
+        return;
+      }
+      patch.history_turns = n;
+    }
+    if (Object.keys(patch).length === 0) return;
+
+    setSaving(true);
+    try {
+      await api(`/api/hermes/profiles/${profileId}/classifier`, { method: "PATCH", json: patch });
+      onSaved();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Save failed", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <Field label="Timeout (seconds)" hint="how long the classifier call is allowed to take">
+        <input
+          value={timeoutStr}
+          onChange={(e) => setTimeoutStr(e.target.value)}
+          placeholder="12"
+          inputMode="decimal"
+          className={`${inputCls} w-28 font-mono`}
+        />
+      </Field>
+      <Field label="History turns" hint="how many prior turns feed the classifier's decision">
+        <input
+          value={historyStr}
+          onChange={(e) => setHistoryStr(e.target.value)}
+          placeholder="4"
+          inputMode="numeric"
+          className={`${inputCls} w-28 font-mono`}
+        />
+      </Field>
+      <button
+        onClick={save}
+        disabled={saving}
+        className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+      >
+        {saving ? "Saving…" : "Save classifier settings"}
+      </button>
+    </div>
+  );
+}
+
+function TaskRoutesEditor({
+  profileId,
+  routes,
+  tierNames,
+  onSaved,
+  onToast,
+}: {
+  profileId: string;
+  routes: Record<string, Record<string, string>>;
+  tierNames: string[];
+  onSaved: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [task, setTask] = useState("");
+  const [subtype, setSubtype] = useState("");
+  const [tier, setTier] = useState(tierNames[0] ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const flat = Object.entries(routes).flatMap(([t, subtypes]) =>
+    Object.entries(subtypes).map(([s, target]) => ({ task: t, subtype: s, target })),
+  );
+
+  async function addRoute() {
+    if (!task.trim() || !subtype.trim() || !tier.trim()) {
+      onToast("Task, subtype, and tier are all required", "bad");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api(`/api/hermes/profiles/${profileId}/classifier`, {
+        method: "POST",
+        json: { task: task.trim(), subtype: subtype.trim(), tier: tier.trim() },
+      });
+      setTask("");
+      setSubtype("");
+      onSaved();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Save failed", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRoute(t: string, s: string) {
+    try {
+      await api(`/api/hermes/profiles/${profileId}/classifier`, {
+        method: "DELETE",
+        json: { task: t, subtype: s },
+      });
+      onSaved();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Remove failed", "bad");
+    }
+  }
+
+  return (
+    <div>
+      {flat.length > 0 && (
+        <table className="mb-4 w-full text-xs">
+          <thead>
+            <tr className="text-left text-[var(--fg-dim)]">
+              <th className="pb-2 font-medium">Task</th>
+              <th className="pb-2 font-medium">Subtype</th>
+              <th className="pb-2 font-medium">Tier</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {flat.map((r) => (
+              <tr key={`${r.task}.${r.subtype}`} className="border-t border-[var(--border)]">
+                <td className="py-2 font-mono">{r.task}</td>
+                <td className="py-2 font-mono">{r.subtype}</td>
+                <td className="py-2 font-mono">{r.target}</td>
+                <td className="py-2 text-right">
+                  <button
+                    onClick={() => removeRoute(r.task, r.subtype)}
+                    className="rounded-md border border-[var(--bad)]/40 px-2 py-1 text-[var(--bad)] hover:bg-[var(--bad)]/10"
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {tierNames.length === 0 ? (
+        <Empty>Add a tier first.</Empty>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Task">
+            <input
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              placeholder="plan"
+              className={`${inputCls} w-32 font-mono`}
+            />
+          </Field>
+          <Field label="Subtype">
+            <input
+              value={subtype}
+              onChange={(e) => setSubtype(e.target.value)}
+              placeholder="easy"
+              className={`${inputCls} w-32 font-mono`}
+            />
+          </Field>
+          <Field label="Tier">
+            <select value={tier} onChange={(e) => setTier(e.target.value)} className={inputCls}>
+              {tierNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <button
+            onClick={addRoute}
+            disabled={saving}
+            className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Add route"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TierForm({
   profileId,
   providers,
@@ -1161,6 +1617,271 @@ function TierForm({
         </button>
       </div>
     </Card>
+  );
+}
+
+/* ---------------------------------------------------- Fallback & aliases */
+
+function FallbackAliasesTab({
+  profileId,
+  providers,
+  onToast,
+}: {
+  profileId: string;
+  providers: HermesProviderView[];
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [chain, setChain] = useState<ModelRef[] | null>(null);
+  const [aliases, setAliases] = useState<Record<string, ModelRef> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [chainRes, aliasRes] = await Promise.all([
+          api<{ chain: ModelRef[] }>(`/api/hermes/profiles/${profileId}/fallback`),
+          api<{ aliases: Record<string, ModelRef> }>(`/api/hermes/profiles/${profileId}/aliases`),
+        ]);
+        if (cancelled) return;
+        setChain(chainRes.chain);
+        setAliases(aliasRes.aliases);
+      } catch (err) {
+        if (!cancelled) onToast(err instanceof Error ? err.message : "Failed to load", "bad");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, onToast]);
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card title="Global fallback chain">
+        <p className="mb-3 text-[11px] text-[var(--fg-dim)]">
+          Used when a provider call fails outside the tier router (or by a tier with no fallback of its own).
+          Order is the failover order.
+        </p>
+        {chain === null || !providers ? (
+          <Empty>Loading…</Empty>
+        ) : (
+          <FallbackChainEditor
+            profileId={profileId}
+            providers={providers}
+            chain={chain}
+            onSaved={(next) => {
+              setChain(next);
+              onToast("Fallback chain saved", "good");
+            }}
+            onToast={onToast}
+          />
+        )}
+      </Card>
+
+      <Card title="Model aliases">
+        <p className="mb-3 text-[11px] text-[var(--fg-dim)]">
+          Friendly names resolvable via <code className="font-mono">/model &lt;alias&gt;</code> or as{" "}
+          <code className="font-mono">model.default</code>, instead of a raw provider/model pair.
+        </p>
+        {aliases === null || !providers ? (
+          <Empty>Loading…</Empty>
+        ) : (
+          <AliasesEditor
+            profileId={profileId}
+            providers={providers}
+            aliases={aliases}
+            onSaved={(next) => {
+              setAliases(next);
+              onToast("Alias saved", "good");
+            }}
+            onToast={onToast}
+          />
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function FallbackChainEditor({
+  profileId,
+  providers,
+  chain,
+  onSaved,
+  onToast,
+}: {
+  profileId: string;
+  providers: HermesProviderView[];
+  chain: ModelRef[];
+  onSaved: (next: ModelRef[]) => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [local, setLocal] = useState<ModelRef[]>(chain);
+  const [saving, setSaving] = useState(false);
+  const dirty = JSON.stringify(local) !== JSON.stringify(chain);
+  const [lastChain, setLastChain] = useState(chain);
+  if (chain !== lastChain) {
+    setLastChain(chain);
+    setLocal(chain);
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await api<{ chain: ModelRef[] }>(`/api/hermes/profiles/${profileId}/fallback`, {
+        method: "PUT",
+        json: { chain: local },
+      });
+      onSaved(res.chain);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Save failed", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (providers.length === 0) {
+    return <Empty>Add a provider first.</Empty>;
+  }
+
+  return (
+    <div>
+      <ModelRefListEditor providers={providers} refs={local} onChange={setLocal} />
+      {dirty && (
+        <button
+          onClick={save}
+          disabled={saving}
+          className="mt-3 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save fallback chain"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function AliasesEditor({
+  profileId,
+  providers,
+  aliases,
+  onSaved,
+  onToast,
+}: {
+  profileId: string;
+  providers: HermesProviderView[];
+  aliases: Record<string, ModelRef>;
+  onSaved: (next: Record<string, ModelRef>) => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [name, setName] = useState("");
+  const [provider, setProvider] = useState(providers[0]?.id ?? "");
+  const [model, setModel] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function addAlias() {
+    if (!name.trim() || !provider || !model.trim()) {
+      onToast("Alias name, provider, and model are all required", "bad");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api<{ aliases: Record<string, ModelRef> }>(`/api/hermes/profiles/${profileId}/aliases`, {
+        method: "POST",
+        json: { name: name.trim(), ref: { provider, model: model.trim() } },
+      });
+      setName("");
+      setModel("");
+      onSaved(res.aliases);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Save failed", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeAlias(aliasName: string) {
+    try {
+      const res = await api<{ aliases: Record<string, ModelRef> }>(`/api/hermes/profiles/${profileId}/aliases`, {
+        method: "DELETE",
+        json: { name: aliasName },
+      });
+      onSaved(res.aliases);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Remove failed", "bad");
+    }
+  }
+
+  const entries = Object.entries(aliases);
+
+  return (
+    <div>
+      {entries.length > 0 && (
+        <table className="mb-4 w-full text-xs">
+          <thead>
+            <tr className="text-left text-[var(--fg-dim)]">
+              <th className="pb-2 font-medium">Alias</th>
+              <th className="pb-2 font-medium">Provider / model</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map(([aliasName, ref]) => (
+              <tr key={aliasName} className="border-t border-[var(--border)]">
+                <td className="py-2 font-mono">{aliasName}</td>
+                <td className="py-2 font-mono">
+                  {ref.provider}/{ref.model}
+                </td>
+                <td className="py-2 text-right">
+                  <button
+                    onClick={() => removeAlias(aliasName)}
+                    className="rounded-md border border-[var(--bad)]/40 px-2 py-1 text-[var(--bad)] hover:bg-[var(--bad)]/10"
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {providers.length === 0 ? (
+        <Empty>Add a provider first.</Empty>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Alias name">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="fast"
+              className={`${inputCls} w-32 font-mono`}
+            />
+          </Field>
+          <Field label="Provider">
+            <select value={provider} onChange={(e) => setProvider(e.target.value)} className={inputCls}>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.id}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Model">
+            <input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="claude-opus-5"
+              className={`${inputCls} w-40 font-mono`}
+            />
+          </Field>
+          <button
+            onClick={addAlias}
+            disabled={saving}
+            className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Add alias"}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -9,7 +9,7 @@ import { z } from "zod";
  * section we don't know about (mcp_servers, terminal, compression, ...).
  */
 
-const modelRefSchema = z.object({
+export const modelRefSchema = z.object({
   provider: z.string(),
   model: z.string(),
   base_url: z.string().optional(),
@@ -111,4 +111,10 @@ export function emptyTierRouter(): TierRouterConfig {
     classifier: { pool: [] },
     tiers: {},
   };
+}
+
+/** A brand-new profile's config.yaml — valid against the schema, empty of
+ * providers/tiers, ready for the dashboard to populate. */
+export function emptyHermesConfig(): HermesConfig {
+  return parseHermesConfig({});
 }
