@@ -273,6 +273,35 @@ export function retentionPolicy(): {
   };
 }
 
+/**
+ * Persist a policy override. Only the fields provided are changed; omitting
+ * a field leaves its current setting (or default) in force. This is what the
+ * settings UI writes to before the automatic hourly pass or a manual prune
+ * picks the new numbers up — it does not itself delete anything.
+ */
+export function setRetentionPolicy(patch: {
+  usageMaxAgeDays?: number;
+  usageMaxRows?: number;
+  recommendationMaxAgeDays?: number;
+  recommendationMaxRows?: number;
+}): void {
+  if (patch.usageMaxAgeDays !== undefined) {
+    setSetting("retention:max_age_days", String(Math.floor(patch.usageMaxAgeDays)));
+  }
+  if (patch.usageMaxRows !== undefined) {
+    setSetting("retention:max_rows", String(Math.floor(patch.usageMaxRows)));
+  }
+  if (patch.recommendationMaxAgeDays !== undefined) {
+    setSetting(
+      "retention:recommendation_max_age_days",
+      String(Math.floor(patch.recommendationMaxAgeDays)),
+    );
+  }
+  if (patch.recommendationMaxRows !== undefined) {
+    setSetting("retention:recommendation_max_rows", String(Math.floor(patch.recommendationMaxRows)));
+  }
+}
+
 export interface AutoRetentionResult {
   ran: boolean;
   /** ISO timestamp of the pass that last actually deleted rows. */

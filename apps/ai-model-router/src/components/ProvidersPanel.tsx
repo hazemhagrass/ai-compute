@@ -128,6 +128,7 @@ export default function ProvidersPanel({
         >
           Export config
         </a>
+        <ImportButton onToast={onToast} onImported={onRefresh} />
       </div>
 
       {editingId === "new" && (
@@ -545,5 +546,104 @@ export function Field({
       <div className="mt-1.5">{children}</div>
       {hint && <p className="mt-1 text-[11px] text-[var(--fg-dim)]">{hint}</p>}
     </label>
+  );
+}
+
+/* --------------------------------------------------------------- Import */
+
+interface ImportSectionStats {
+  inserted: number;
+  skipped: number;
+  updated: number;
+}
+
+interface ImportSummary {
+  providers: ImportSectionStats;
+  models: ImportSectionStats;
+  tasks: ImportSectionStats;
+  subscriptions: ImportSectionStats;
+  budgets: ImportSectionStats;
+  providerKeys: ImportSectionStats;
+  routingPolicy: "imported" | "kept" | "skipped";
+  maskedKeys: string[];
+}
+
+function ImportButton({
+  onToast,
+  onImported,
+}: {
+  onToast: (msg: string, tone?: "info" | "good" | "bad") => void;
+  onImported: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [conflict, setConflict] = useState<"skip" | "upsert">("skip");
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
+  const inputId = "amr-import-file";
+
+  async function handleFile(file: File) {
+    setBusy(true);
+    setSummary(null);
+    try {
+      const text = await file.text();
+      let payload: unknown;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new Error("Not valid JSON");
+      }
+      const res = await api<{ ok: boolean; summary: ImportSummary }>("/api/import", {
+        method: "POST",
+        json: { ...(payload as Record<string, unknown>), conflict },
+      });
+      setSummary(res.summary);
+      onToast("Import complete", "good");
+      onImported();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Import failed", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        value={conflict}
+        onChange={(e) => setConflict(e.target.value as "skip" | "upsert")}
+        title="What to do when an imported row already exists (matched by slug/id)"
+        className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none"
+      >
+        <option value="skip">Skip existing</option>
+        <option value="upsert">Overwrite existing</option>
+      </select>
+      <label
+        htmlFor={inputId}
+        className={`cursor-pointer rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm hover:bg-[var(--panel-2)] ${
+          busy ? "pointer-events-none opacity-50" : ""
+        }`}
+      >
+        {busy ? "Importing…" : "Import config"}
+      </label>
+      <input
+        id={inputId}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        disabled={busy}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void handleFile(file);
+        }}
+      />
+      {summary && (
+        <span className="rounded-md bg-[var(--good)]/12 px-2 py-1 text-[11px] text-[var(--good)]">
+          providers +{summary.providers.inserted}/{summary.providers.updated} · models +
+          {summary.models.inserted}/{summary.models.updated} · tasks +{summary.tasks.inserted}/
+          {summary.tasks.updated}
+          {summary.maskedKeys.length > 0 && ` · ${summary.maskedKeys.length} key(s) need re-entry`}
+        </span>
+      )}
+    </div>
   );
 }

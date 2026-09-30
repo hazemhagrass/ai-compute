@@ -20,6 +20,8 @@ const {
   maybeApplyRetention,
   redactPrompt,
   truncateForLog,
+  retentionPolicy,
+  setRetentionPolicy,
 } = await import("./retention");
 
 let db: ReturnType<typeof getDb>;
@@ -430,5 +432,56 @@ describe("maybeApplyRetention (#165)", () => {
 
     const gone = db.prepare("SELECT id FROM recommendations WHERE id = ?").get(stale);
     expect(gone).toBeUndefined();
+  });
+});
+
+describe("retentionPolicy / setRetentionPolicy (#183)", () => {
+  it("falls back to the built-in defaults when nothing is set", () => {
+    // Fresh DB in this suite already has no overrides on first call for keys
+    // this describe block does not touch.
+    const policy = retentionPolicy();
+
+    expect(policy.usage.maxAgeDays).toBeGreaterThanOrEqual(0);
+    expect(policy.recommendations.maxRows).toBeGreaterThanOrEqual(0);
+  });
+
+  it("persists a partial override and leaves the rest untouched", () => {
+    const before = retentionPolicy();
+
+    setRetentionPolicy({ usageMaxAgeDays: 7 });
+    const after = retentionPolicy();
+
+    expect(after.usage.maxAgeDays).toBe(7);
+    expect(after.usage.maxRows).toBe(before.usage.maxRows);
+    expect(after.recommendations).toEqual(before.recommendations);
+  });
+
+  it("updates all four fields when given a full patch", () => {
+    setRetentionPolicy({
+      usageMaxAgeDays: 14,
+      usageMaxRows: 500,
+      recommendationMaxAgeDays: 10,
+      recommendationMaxRows: 200,
+    });
+
+    const policy = retentionPolicy();
+
+    expect(policy.usage).toEqual({ maxAgeDays: 14, maxRows: 500 });
+    expect(policy.recommendations).toEqual({ maxAgeDays: 10, maxRows: 200 });
+  });
+
+  it("what it persists is what a manual prune actually uses", () => {
+    setRetentionPolicy({ usageMaxAgeDays: 5, usageMaxRows: 1000 });
+    const { slug, remaining } = seedLogs([{ daysAgo: 10 }, { daysAgo: 1 }]);
+    isolate(slug);
+
+    const policy = retentionPolicy();
+    const result = applyRetention(db, {
+      maxAgeDays: policy.usage.maxAgeDays,
+      maxRows: policy.usage.maxRows,
+    });
+
+    expect(result.deletedByAge).toBe(1);
+    expect(remaining()).toHaveLength(1);
   });
 });

@@ -328,6 +328,8 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
 
       <BudgetsSection budgets={budgets} onSave={saveBudget} onDelete={deleteBudget} />
 
+      <RetentionSection />
+
       <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/60 p-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
@@ -721,6 +723,168 @@ function BudgetsSection({
           Add budget
         </button>
       </form>
+    </section>
+  );
+}
+
+/**
+ * Log/recommendation retention policy (#183): view the current caps, edit
+ * them, and trigger a prune immediately rather than waiting for the hourly
+ * automatic pass. Self-contained (own fetch-on-mount) so it drops into the
+ * settings page without threading more state through the parent.
+ */
+interface RetentionPolicy {
+  usage: { maxAgeDays?: number; maxRows?: number };
+  recommendations: { maxAgeDays?: number; maxRows?: number };
+}
+
+function RetentionSection() {
+  const [policy, setPolicy] = useState<RetentionPolicy | null>(null);
+  const [autoRunIntervalMs, setAutoRunIntervalMs] = useState<number | null>(null);
+  const [form, setForm] = useState({
+    usageMaxAgeDays: 30,
+    usageMaxRows: 10000,
+    recommendationMaxAgeDays: 30,
+    recommendationMaxRows: 1000,
+  });
+  const [saving, setSaving] = useState(false);
+  const [pruning, setPruning] = useState(false);
+  const [lastResult, setLastResult] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/retention");
+        const json = await res.json();
+        if (cancelled) return;
+        setPolicy(json.policy);
+        setAutoRunIntervalMs(json.autoRunIntervalMs ?? null);
+        setForm({
+          usageMaxAgeDays: json.policy.usage.maxAgeDays ?? 30,
+          usageMaxRows: json.policy.usage.maxRows ?? 10000,
+          recommendationMaxAgeDays: json.policy.recommendations.maxAgeDays ?? 30,
+          recommendationMaxRows: json.policy.recommendations.maxRows ?? 1000,
+        });
+      } catch {
+        // Settings page tolerates a failed section — the rest still renders.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function savePolicy() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/retention", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      setPolicy(json.policy);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function pruneNow() {
+    setPruning(true);
+    setLastResult("");
+    try {
+      const res = await fetch("/api/retention", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      const json = await res.json();
+      setLastResult(
+        `Deleted ${json.deleted ?? 0} usage row(s), ${json.recommendations?.deleted ?? 0} recommendation(s).`,
+      );
+    } catch (err) {
+      setLastResult(err instanceof Error ? err.message : "Prune failed");
+    } finally {
+      setPruning(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/60 p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
+          Retention
+        </h3>
+        {autoRunIntervalMs !== null && (
+          <span className="text-xs text-[var(--fg-dim)]">
+            auto-runs every {Math.round(autoRunIntervalMs / 60000)}min
+          </span>
+        )}
+      </div>
+
+      {policy && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Usage log max age (days)</span>
+            <input
+              type="number"
+              min={1}
+              value={form.usageMaxAgeDays}
+              onChange={(e) => setForm((f) => ({ ...f, usageMaxAgeDays: Number(e.target.value) }))}
+              className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Usage log max rows</span>
+            <input
+              type="number"
+              min={1}
+              value={form.usageMaxRows}
+              onChange={(e) => setForm((f) => ({ ...f, usageMaxRows: Number(e.target.value) }))}
+              className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Recommendation history max age (days)</span>
+            <input
+              type="number"
+              min={1}
+              value={form.recommendationMaxAgeDays}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, recommendationMaxAgeDays: Number(e.target.value) }))
+              }
+              className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Recommendation history max rows</span>
+            <input
+              type="number"
+              min={1}
+              value={form.recommendationMaxRows}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, recommendationMaxRows: Number(e.target.value) }))
+              }
+              className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
+            />
+          </label>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          onClick={savePolicy}
+          disabled={saving}
+          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c] disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save policy"}
+        </button>
+        <button
+          onClick={pruneNow}
+          disabled={pruning}
+          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm hover:bg-[var(--panel-2)] disabled:opacity-50"
+        >
+          {pruning ? "Pruning…" : "Prune now"}
+        </button>
+        {lastResult && <span className="text-xs text-[var(--fg-dim)]">{lastResult}</span>}
+      </div>
     </section>
   );
 }

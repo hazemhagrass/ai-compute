@@ -10,6 +10,7 @@ import {
   applyRetention,
   pruneRecommendations,
   retentionPolicy,
+  setRetentionPolicy,
 } from "@/lib/retention";
 import { parseBody } from "@/lib/schemas";
 
@@ -18,6 +19,13 @@ export const dynamic = "force-dynamic";
 const retentionSchema = z.object({
   maxAgeDays: z.number().int().positive().optional(),
   maxRows: z.number().int().positive().optional(),
+});
+
+const policySchema = z.object({
+  usageMaxAgeDays: z.number().int().positive().optional(),
+  usageMaxRows: z.number().int().positive().optional(),
+  recommendationMaxAgeDays: z.number().int().positive().optional(),
+  recommendationMaxRows: z.number().int().positive().optional(),
 });
 
 /** Current policy, so the UI can show what will be pruned and when. */
@@ -56,4 +64,17 @@ export async function POST(request: Request) {
   const recommendations = pruneRecommendations(getDb(), policy.recommendations);
 
   return NextResponse.json({ ...result, recommendations });
+}
+
+/** Update the stored retention policy (does not itself delete anything — the
+ * next manual or automatic pass picks the new numbers up). */
+export async function PATCH(request: Request) {
+  const denied = await requireAuth();
+  if (denied) return denied;
+
+  const parsed = await parseBody(request, policySchema);
+  if (!parsed.ok) return parsed.response;
+
+  setRetentionPolicy(parsed.data);
+  return NextResponse.json({ policy: retentionPolicy() });
 }
