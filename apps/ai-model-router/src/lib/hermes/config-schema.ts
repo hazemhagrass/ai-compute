@@ -14,7 +14,8 @@ export const modelRefSchema = z.object({
   model: z.string(),
   base_url: z.string().optional(),
   timeout: z.number().optional(),
-  // Read per-pool-entry by agent/tier_router.py; api_key is an ${ENV} ref.
+  // Not read by agent/tier_router.py (it resolves credentials via
+  // resolve_runtime_provider); typed so other entry consumers round-trip them.
   api_key: z.string().optional(),
   api_mode: z.string().optional(),
 });

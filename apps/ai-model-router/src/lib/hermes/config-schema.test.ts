@@ -1,68 +1,43 @@
 import { describe, expect, it } from "vitest";
 import { parseHermesConfig } from "@/lib/hermes/config-schema";
+import DEFAULT_PROFILE_TIER_ROUTER from "./default-tier-router.fixture.json";
 
 /**
- * Fixture mirrors the live tier_router block of the Hermes default profile
- * (~/.hermes/config.yaml), secrets api_key-redacted. Hermes reads these keys
- * in agent/tier_router.py and agent/systemone_router.py; the dashboard schema
- * must round-trip them losslessly.
+ * default-tier-router.fixture.json is a verbatim snapshot of the tier_router
+ * block in the Hermes default profile (~/.hermes/config.yaml). It holds no
+ * credentials: tier_router resolves keys via resolve_runtime_provider, never
+ * from the block. Hermes reads these keys in agent/tier_router.py and
+ * agent/systemone_router.py; the dashboard schema must round-trip them.
  */
-const DEFAULT_PROFILE_TIER_ROUTER = {
-  enabled: true,
-  default_tier: "normal",
-  cooldown_s: 300,
-  restore_primary: true,
-  classifier: {
-    pool: [{ provider: "custom", model: "qwen3:14b" }],
-    enabled: true,
-    history_turns: 4,
-    timeout_s: 30,
-    systemone: {
-      enabled: true,
-      endpoints: ["http://127.0.0.1:11434/api/chat"],
-      timeout_s: 12,
-      attempt_timeout_s: 8,
-      min_confidence: 0.75,
-    },
-  },
-  tiers: {
-    normal: {
-      mode: "round_robin",
-      escalate_to: "complex",
-      pool: [
-        { provider: "opencode-go", model: "glm-5.3-flash" },
-        { provider: "custom", model: "qwen3:14b", base_url: "http://127.0.0.1:11434" },
-      ],
-      fallback: [{ provider: "custom", model: "gpt-oss:20b" }],
-    },
-    complex: {
-      mode: "priority",
-      escalate_to: null,
-      pool: [{ provider: "anthropic", model: "claude-fable-5-1", api_key: "***" }],
-      fallback: [],
-    },
-  },
-};
-
 describe("tier_router schema parity with the default profile", () => {
-  it("round-trips restore_primary and classifier.systemone losslessly", () => {
+  it("round-trips the live default-profile block losslessly", () => {
     const parsed = parseHermesConfig({ tier_router: DEFAULT_PROFILE_TIER_ROUTER });
-    const tr = parsed.tier_router;
-
-    expect(tr?.restore_primary).toBe(true);
-    expect(tr?.classifier.systemone).toEqual(DEFAULT_PROFILE_TIER_ROUTER.classifier.systemone);
-
-    // Re-serialize and compare against the fixture: nothing added, dropped, or mangled.
-    const back = tr && JSON.parse(JSON.stringify(tr));
+    const back = JSON.parse(JSON.stringify(parsed.tier_router));
     expect(back).toEqual(DEFAULT_PROFILE_TIER_ROUTER);
   });
 
-  it("types systemone with the fields Hermes actually reads", () => {
-    const parsed = parseHermesConfig({ tier_router: DEFAULT_PROFILE_TIER_ROUTER });
-    const sysone = parsed.tier_router?.classifier.systemone;
+  it("types restore_primary, routes and classifier.systemone", () => {
+    const tr = parseHermesConfig({ tier_router: DEFAULT_PROFILE_TIER_ROUTER }).tier_router;
+    expect(tr?.restore_primary).toBe(true);
+    expect(tr?.routes).toEqual(DEFAULT_PROFILE_TIER_ROUTER.routes);
+    const sysone = tr?.classifier.systemone;
     expect(sysone?.enabled).toBe(true);
-    expect(sysone?.min_confidence).toBe(0.75);
-    expect(sysone?.attempt_timeout_s).toBe(8);
+    expect(sysone?.min_confidence).toBe(DEFAULT_PROFILE_TIER_ROUTER.classifier.systemone.min_confidence);
+    expect(sysone?.attempt_timeout_s).toBe(DEFAULT_PROFILE_TIER_ROUTER.classifier.systemone.attempt_timeout_s);
+  });
+
+  it("round-trips optional entry keys (base_url, api_mode, api_key ref)", () => {
+    const block = {
+      tiers: {
+        normal: {
+          mode: "priority",
+          pool: [{ provider: "custom", model: "m", base_url: "http://h:1/v1", api_mode: "chat_completions", api_key: "${KEY}" }],
+          fallback: [],
+        },
+      },
+    };
+    const back = JSON.parse(JSON.stringify(parseHermesConfig({ tier_router: block }).tier_router));
+    expect(back.tiers.normal.pool[0]).toEqual(block.tiers.normal.pool[0]);
   });
 
   it("keeps restore_primary and systemone optional for profiles that don't set them", () => {
