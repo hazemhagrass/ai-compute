@@ -14,6 +14,9 @@ export const modelRefSchema = z.object({
   model: z.string(),
   base_url: z.string().optional(),
   timeout: z.number().optional(),
+  // Read per-pool-entry by agent/tier_router.py; api_key is an ${ENV} ref.
+  api_key: z.string().optional(),
+  api_mode: z.string().optional(),
 });
 export type ModelRef = z.infer<typeof modelRefSchema>;
 
@@ -54,11 +57,23 @@ const tierRouterSchema = z
     enabled: z.boolean().default(false),
     default_tier: z.string().default("normal"),
     cooldown_s: z.number().default(120),
+    restore_primary: z.boolean().optional(),
     classifier: z
       .object({
         pool: z.array(modelRefSchema).default([]),
+        enabled: z.boolean().optional(),
         timeout_s: z.number().optional(),
         history_turns: z.number().optional(),
+        systemone: z
+          .object({
+            enabled: z.boolean().optional(),
+            endpoints: z.array(z.string()).optional(),
+            timeout_s: z.number().optional(),
+            attempt_timeout_s: z.number().optional(),
+            min_confidence: z.number().optional(),
+          })
+          .passthrough()
+          .optional(),
       })
       .passthrough()
       .default({ pool: [] }),
