@@ -2,8 +2,6 @@
 
 import type { ReactNode } from "react";
 
-/* ------------------------------------------------------------------ utils */
-
 export const CHART_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
@@ -31,8 +29,6 @@ export function fmtNum(n: number): string {
 export function fmtPct(n: number): string {
   return `${(n * 100).toFixed(n < 0.1 ? 1 : 0)}%`;
 }
-
-/* --------------------------------------------------------------- shells */
 
 export function Card({
   title,
@@ -109,15 +105,12 @@ export function Empty({ children }: { children: ReactNode }) {
   );
 }
 
-/* --------------------------------------------------------------- charts */
-
 export interface Slice {
   label: string;
   value: number;
   sub?: string;
 }
 
-/** Donut chart with a centre total. Pure SVG, no dependency. */
 export function Donut({
   data,
   total,
@@ -137,7 +130,6 @@ export function Donut({
   const r = size / 2 - 14;
   const circ = 2 * Math.PI * r;
 
-  // Precompute each arc's start offset so rendering stays a pure map.
   const arcs = data.reduce<
     { label: string; frac: number; len: number; offset: number }[]
   >((acc, d) => {
@@ -215,7 +207,6 @@ export function Donut({
   );
 }
 
-/** Horizontal ranked bars — the "distribution over models" view. */
 export function BarList({
   data,
   format = fmtNum,
@@ -264,7 +255,6 @@ export interface Point {
   b?: number;
 }
 
-/** Dual-series area/line chart used for daily cost + calls. */
 export function AreaChart({
   points,
   aLabel,
@@ -366,7 +356,6 @@ export function AreaChart({
   );
 }
 
-/** 24-bucket activity histogram — "when do I actually use AI". */
 export function HourHistogram({
   data,
 }: {
@@ -413,7 +402,6 @@ export function HourHistogram({
   );
 }
 
-/** Context-window fill gauge per model. */
 export function ContextGauge({
   rows,
 }: {
@@ -443,7 +431,6 @@ export function ContextGauge({
                 className="absolute inset-y-0 left-0 rounded-full"
                 style={{ width: `${r.avgFill * 100}%`, background: tone }}
               />
-              {/* 70% degradation threshold marker */}
               <div
                 className="absolute inset-y-0 w-px bg-[var(--fg-dim)]"
                 style={{ left: "70%" }}

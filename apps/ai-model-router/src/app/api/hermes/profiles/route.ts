@@ -22,8 +22,6 @@ export async function GET() {
   return NextResponse.json({ profiles: listHermesProfiles() });
 }
 
-/** Create a new named profile (`profiles/<id>/` with a minimal config.yaml
- * + empty .env). The default profile always exists and can't be created. */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;

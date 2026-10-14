@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// A scratch data dir per run, set before the db module resolves its paths,
-// so tests never read or write the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-retention-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "test.db");
@@ -32,15 +30,8 @@ beforeAll(() => {
 
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
-/* --------------------------------------------------------------- helpers */
-
 let tag = 0;
 
-/**
- * Opening the database seeds a starter catalogue, and other suites may share
- * the file, so every retention assertion is scoped to rows carrying this
- * suite's unique task_slug rather than to a global count.
- */
 function seedLogs(rows: { daysAgo: number }[]): {
   slug: string;
   ids: number[];
@@ -64,13 +55,9 @@ function seedLogs(rows: { daysAgo: number }[]): {
   };
 }
 
-/** Retention scoped to one suite's rows: the helpers under test operate on the
- * whole table, so foreign rows are removed first to keep counts meaningful. */
 function isolate(slug: string): void {
   db.prepare("DELETE FROM usage_events WHERE task_slug != ?").run(slug);
 }
-
-/* -------------------------------------------------------------- redaction */
 
 describe("redactPrompt", () => {
   it("redacts vendor-prefixed API keys", () => {
@@ -101,7 +88,6 @@ describe("redactPrompt", () => {
   });
 
   it("redacts credit-card-like digit runs, grouped or not", () => {
-    // Luhn-valid test numbers.
     const spaced = redactPrompt("card 4111 1111 1111 1111 expires soon");
     const solid = redactPrompt("card 5500005555555559 expires soon");
 
@@ -157,8 +143,6 @@ describe("redactPrompt", () => {
     expect(out).toBe("[redacted:email] and [redacted:email]");
   });
 });
-
-/* ------------------------------------------------------------- truncation */
 
 describe("truncateForLog", () => {
   it("returns text shorter than the max unchanged", () => {
@@ -222,8 +206,6 @@ describe("truncateForLog", () => {
   });
 });
 
-/* -------------------------------------------------------------- retention */
-
 describe("RETENTION_DEFAULTS", () => {
   it("ships a bounded age and row policy", () => {
     expect(RETENTION_DEFAULTS.maxAgeDays).toBe(30);
@@ -261,7 +243,6 @@ describe("applyRetention", () => {
     const left = remaining().map((r) => r.id);
 
     expect(result.deletedByCount).toBe(3);
-    // Seeded oldest first, so the two survivors must be the last two inserted.
     expect(left).toEqual(ids.slice(-2));
   });
 
@@ -322,13 +303,8 @@ describe("applyRetention", () => {
   });
 });
 
-
 describe("retention defaults", () => {
   it("recommendation pruning is stricter than usage retention", () => {
-    // The recommendation table stores a full ranked snapshot per row, so its
-    // cap must be well below the usage table's, or snapshots would dominate
-    // the database. Pinning the relationship here stops a default change from
-    // silently inverting it.
     expect(RECOMMENDATION_RETENTION_DEFAULTS.maxRows).toBeLessThan(RETENTION_DEFAULTS.maxRows);
     expect(RECOMMENDATION_RETENTION_DEFAULTS.maxAgeDays).toBeLessThanOrEqual(
       RETENTION_DEFAULTS.maxAgeDays,
@@ -339,7 +315,6 @@ describe("retention defaults", () => {
 describe("pruneRecommendations (#171)", () => {
   let rtag = 0;
 
-  /** Insert a recommendation with an explicit age in days. */
   function seedRec(daysAgo: number): number {
     const info = db
       .prepare(
@@ -373,7 +348,6 @@ describe("pruneRecommendations (#171)", () => {
       (r) => r.id,
     );
 
-    // Newest two survive.
     expect(left).toContain(ids[4]);
     expect(left).toContain(ids[3]);
     expect(left).not.toContain(ids[0]);
@@ -437,8 +411,6 @@ describe("maybeApplyRetention (#165)", () => {
 
 describe("retentionPolicy / setRetentionPolicy (#183)", () => {
   it("falls back to the built-in defaults when nothing is set", () => {
-    // Fresh DB in this suite already has no overrides on first call for keys
-    // this describe block does not touch.
     const policy = retentionPolicy();
 
     expect(policy.usage.maxAgeDays).toBeGreaterThanOrEqual(0);

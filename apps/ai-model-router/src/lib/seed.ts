@@ -42,10 +42,6 @@ const F = (o: Partial<Record<string, boolean>> = {}) => ({
   ...o,
 });
 
-/**
- * Seed catalogue. Everything here is editable in the UI — these are starting
- * points, not a fixed list. Scores are 0-100 subjective priors.
- */
 export const seedProviders: SeedProvider[] = [
   {
     slug: "openai",

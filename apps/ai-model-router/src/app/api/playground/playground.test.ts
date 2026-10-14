@@ -3,12 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ChatStreamCallbacks, ChatStreamResult } from "@/lib/client";
 import type { Provider } from "@/lib/types";
 
-/**
- * Route-level tests: auth, repo lookups, the provider call, and usage
- * persistence are all mocked at their seams so these tests exercise only the
- * playground route: multi-turn request parsing, message forwarding, usage
- * recording, and cumulative totals across the conversation.
- */
 const usageCalls: Record<string, unknown>[] = [];
 
 vi.mock("@/lib/auth", () => ({
@@ -101,7 +95,6 @@ interface Frame {
   streamed?: boolean;
 }
 
-/** The route answers with NDJSON frames; read the whole stream into objects. */
 async function readFrames(res: Response): Promise<Frame[]> {
   const raw = await res.text();
   return raw
@@ -166,8 +159,6 @@ describe("playground route: multi-turn parsing", () => {
   });
 
   it("rejects a history message with an unknown role", async () => {
-    // Only user/assistant turns are meaningful here; passing through a raw
-    // "system" turn would let the caller smuggle a second system prompt in.
     const res = await POST(
       makeRequest({
         modelRowId: 7,
@@ -212,7 +203,6 @@ describe("playground route: cumulative accounting", () => {
 
     expect(res.status).toBe(200);
     const done = await terminalFrame(res);
-    // Model is priced at $1/$2 per Mtok: 100 in + 50 out costs 0.0002.
     expect(done.totals?.turns).toBe(2);
     expect(done.totals?.inputTokens).toBe(300);
     expect(done.totals?.outputTokens).toBe(150);
@@ -221,8 +211,6 @@ describe("playground route: cumulative accounting", () => {
   });
 
   it("records this turn, and only this turn, through recordUsage", async () => {
-    // The event log holds per-turn rows; the running total is a response
-    // field, so doubling the logged tokens would corrupt analytics.
     await POST(
       makeRequest({
         modelRowId: 7,
@@ -287,7 +275,6 @@ describe("playground route: cumulative accounting", () => {
     expect(err.totals?.turns).toBe(2);
     expect(err.totals?.inputTokens).toBe(200);
 
-    // A failed exchange is still logged, with ok: false.
     expect(usageCalls).toHaveLength(1);
     expect(usageCalls[0]).toMatchObject({ ok: false, error: "upstream 500" });
   });

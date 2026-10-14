@@ -1,7 +1,3 @@
-// Google Gemini native shape: POST {base}/models/{model}:generateContent
-// Auth: API key as ?key= query param (per provider.authQueryName).
-// Ref: https://ai.google.dev/api/generate-content
-
 import type { Provider } from "../types";
 import type { ProviderShapeAdapter, ShapeMessage, ShapeUsage } from "./types";
 

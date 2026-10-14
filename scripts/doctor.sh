@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Verify every symlink resolves and every expected tool is installed.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,9 +8,6 @@ ok()   { printf '\033[32m  ok\033[0m   %s\n' "$*"; }
 bad()  { printf '\033[31m  FAIL\033[0m %s\n' "$*"; FAIL=1; }
 section() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
-# CI has no $HOME dotfiles to check, and the installed copies must not
-# gate the repo itself; set DOCTOR_LOCAL=0 (or run on a machine with the
-# install done) to skip this section.
 if [ "${DOCTOR_LOCAL:-1}" = "1" ]; then
 section "Symlinks"
 check_link() {
@@ -38,9 +34,6 @@ for category in "$REPO"/skills/*/; do
   done
 done
 
-# The config/CLAUDE.md links only apply when this repo actually ships those
-# files; when hermes/ or claude/ is absent (machine-local ownership instead)
-# there is nothing to check and demanding a symlink would be wrong.
 for rel in hermes/config.yaml claude/CLAUDE.md; do
   [ -f "$REPO/$rel" ] || continue
   case "$rel" in
@@ -55,10 +48,6 @@ section "Skill frontmatter"
 shopt -s nullglob
 for skill in "$REPO"/skills/*/*/SKILL.md; do
   rel="${skill#"$REPO"/}"
-  # The description contract: frontmatter description starts with "Use when "
-  # and its first sentence (the trigger) fits in 57 chars, so the router
-  # surfaces the right skill on the trigger alone. Goes through metadata.py
-  # (stdlib yaml) rather than regex so quoted multi-word forms parse.
   desc_check="$(python3 - "$skill" <<'PYEOF'
 import re, sys
 t = open(sys.argv[1]).read()
@@ -104,10 +93,8 @@ for skill in "$REPO"/skills/*/*/SKILL.md; do
   if grep -qlm1 '—' "$skill" "$dir/README.md" 2>/dev/null; then
     problems="$problems em-dash"
   fi
-  # the category must be documented in TAXONOMY.md
   cat_name="$(basename "$(dirname "$dir")")"
   grep -qm1 "^| \`$cat_name\`" "$REPO/skills/TAXONOMY.md" || problems="$problems undocumented-category"
-  # every relative SKILL.md link in SKILL.md and README.md must resolve on disk
   for link in $(grep -ohE '\.\./[A-Za-z0-9_./-]+/SKILL\.md' "$skill" "$dir/README.md" 2>/dev/null | sort -u); do
     [ -f "$dir/$link" ] || problems="$problems broken-link:$link"
   done
@@ -126,8 +113,6 @@ else
 fi
 
 section "Tooling"
-# CI validates skill content only; the router app's own job installs pnpm.
-# The local machine check still demands all three since install.sh uses them.
 if [ "${DOCTOR_LOCAL:-1}" != "0" ]; then
   TOOL_BINS="node pnpm git"
 else
@@ -142,10 +127,6 @@ for bin in $TOOL_BINS; do
 done
 
 section "Prose quality"
-# The failure mode for a skill library is not a broken file, it is a file that
-# reads like every SEO post on the topic. Filler phrasing and authority claims
-# with no named source are the two tells, so they fail the build rather than
-# waiting for a human to notice.
 if filler_out="$(python3 "$REPO/scripts/scan-filler.py" 2>&1)"; then
   ok "${filler_out}"
 else

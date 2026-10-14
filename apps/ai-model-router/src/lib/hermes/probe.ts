@@ -7,9 +7,6 @@ import type { ProviderEntry } from "./config-schema";
 
 export interface HermesProviderProbeResult {
   ok: boolean;
-  /** True when this provider's auth type can't be probed with a plain HTTP
-   * call (oauth/aws_sdk/vertex/external_process/copilot device flow) — not
-   * a failure, just not testable from here. */
   notTestable: boolean;
   status: number | null;
   latencyMs: number;
@@ -37,15 +34,6 @@ function extractModelCount(body: string): number | null {
   }
 }
 
-/**
- * Probe one Hermes-managed provider's reachability + credentials by hitting
- * its OpenAI-compatible `/models` (or catalog-declared) endpoint. Only
- * `api_key`/`bearer`/`none` auth types are testable this way — everything
- * else (oauth device/external flows, aws_sdk, vertex, copilot, an external
- * process) needs Hermes's own auth machinery, so this reports
- * `notTestable: true` rather than guessing at a probe that would always
- * fail for the wrong reason.
- */
 export async function probeHermesProvider(
   profileId: string,
   id: string,

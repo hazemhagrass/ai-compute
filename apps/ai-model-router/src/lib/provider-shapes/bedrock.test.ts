@@ -72,7 +72,6 @@ describe("bedrock adapter request construction", () => {
     const headers = createBedrockAdapter(bedrockProvider()).headers();
     expect(headers["Content-Type"]).toBe("application/json");
     expect(headers.Accept).toBe("application/json");
-    // No fake signing: without AWS credentials no Authorization header is set.
     expect(headers.Authorization).toBeUndefined();
   });
 });

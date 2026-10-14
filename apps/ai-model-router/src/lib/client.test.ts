@@ -16,7 +16,6 @@ import {
 } from "./client";
 import type { Provider } from "./types";
 
-// A real database is required for rotation (#166): the key pool lives in it.
 const DIR = mkdtempSync(join(tmpdir(), "amr-rotate-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "rotate.db");
@@ -73,8 +72,6 @@ describe("redactSecrets", () => {
   const KEY = "sk-proj-abcdefghijklmnop1234567890";
 
   it("removes a key echoed verbatim in an upstream error body", () => {
-    // The real leak: several providers include the submitted Authorization
-    // header in their 401 body, which then reaches an error toast.
     const body = `{"error":{"message":"Incorrect API key provided: ${KEY}"}}`;
 
     const safe = redactSecrets(body, KEY);
@@ -104,8 +101,6 @@ describe("redactSecrets", () => {
   });
 
   it("removes a key belonging to a different provider than the one on file", () => {
-    // Generic shape matching covers the case where the echoed key is not the
-    // one currently stored, so the literal-string pass cannot catch it.
     for (const other of [
       "sk-ant-api03-zzzzzzzzzzzzzzzzzzzz",
       "gsk_aaaaaaaaaaaaaaaaaaaaaaaa",
@@ -117,7 +112,6 @@ describe("redactSecrets", () => {
   });
 
   it("leaves a harmless error message readable", () => {
-    // Over-redaction makes errors useless, which is its own failure.
     const msg = "Model gpt-5.2 not found for this account";
 
     expect(redactSecrets(msg, KEY)).toBe(msg);
@@ -173,13 +167,11 @@ describe("readUsage", () => {
   });
 
   it("falls back to estimation and flags it when there is no usage block", () => {
-    // The critical case: if a provider renames a field, cost silently becomes
-    // a guess. The flag is the only thing that surfaces it.
     const u = readUsage({}, false, "x".repeat(400), "y".repeat(200));
 
     expect(u.estimated).toBe(true);
-    expect(u.inputTokens).toBe(100); // 400 chars / 4
-    expect(u.outputTokens).toBe(50); // 200 chars / 4
+    expect(u.inputTokens).toBe(100);
+    expect(u.outputTokens).toBe(50);
   });
 
   it("sums Anthropic cache reads and writes into cachedTokens", () => {
@@ -321,8 +313,8 @@ describe("normalizeShapeUsage", () => {
   });
 
   it("falls back to text-length estimation when no usage arrived", () => {
-    const prompt = "a".repeat(40); // 10 tokens at 4 chars/token
-    const answer = "b".repeat(8); // 2 tokens
+    const prompt = "a".repeat(40);
+    const answer = "b".repeat(8);
     const u = normalizeShapeUsage(null, prompt, answer);
     expect(u).toEqual({
       inputTokens: 10,
@@ -337,8 +329,8 @@ describe("normalizeShapeUsage", () => {
   it("treats an all-zero usage block as absent", () => {
     const u = normalizeShapeUsage(
       { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      "abcd", // 1 token
-      "efgh", // 1 token
+      "abcd",
+      "efgh",
     );
     expect(u.estimated).toBe(true);
     expect(u.inputTokens).toBe(1);
@@ -387,7 +379,6 @@ describe("extractModelIds", () => {
   });
 
   it("returns empty rather than throwing on non-JSON", () => {
-    // A provider returning an HTML error page must not crash discovery.
     expect(extractModelIds("<html>502 Bad Gateway</html>")).toEqual([]);
   });
 
@@ -400,11 +391,9 @@ describe("extractModelIds", () => {
   });
 });
 
-
 describe("rotation on auth failure (#166)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    // Reset the pool to its seeded state between tests.
     keysMod.activateProviderKey(keyIds[0]);
   });
 
@@ -432,7 +421,6 @@ describe("rotation on auth failure (#166)", () => {
     expect(result.ok).toBe(true);
     expect(result.text).toBe("ok after rotate");
     expect(call).toBe(2);
-    // The second key became active.
     const active = keysMod.listProviderKeys(rotateProviderId).find((k) => k.active)!;
     expect(active.id).toBe(keyIds[1]);
   });
@@ -457,11 +445,8 @@ describe("rotation on auth failure (#166)", () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain("all keys exhausted (2 tried: ");
-    // The revoked key preview is named (#175): actionable from a screenshot.
     expect(result.error).toContain("rejected (401)");
-    // Only one retry: fetch was called twice, not three times.
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
-    // The third key was never activated (one rotation per request).
     const active = keysMod.listProviderKeys(rotateProviderId).find((k) => k.active)!;
     expect(active.id).toBe(keyIds[1]);
   });
@@ -522,7 +507,6 @@ describe("rotation on auth failure (#166)", () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).not.toContain("exhausted");
-    // Still the first key.
     const active = keysMod.listProviderKeys(rotateProviderId).find((k) => k.active)!;
     expect(active.id).toBe(keyIds[0]);
   });

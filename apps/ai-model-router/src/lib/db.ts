@@ -8,7 +8,6 @@ import { seedProviders, seedTasks } from "./seed";
 
 let db: Database.Database | null = null;
 
-/** Lazily open (and migrate) the single-file SQLite database. */
 export function getDb(): Database.Database {
   if (db) return db;
 

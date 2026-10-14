@@ -4,11 +4,8 @@ import { join } from "node:path";
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-// Type-only, so it does not load the module before the env vars above are set.
 import type { Budget, BudgetPeriod } from "./budget";
 
-// A scratch data dir per run, set before the db module resolves its paths, so
-// tests never read or write the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-budget-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "budget-test.db");
@@ -21,10 +18,6 @@ const subs = await import("./subscriptions");
 
 const db = getDb();
 
-// The database auto-seeds providers, models and tasks on first open, but never
-// usage_events. Clearing that one table keeps every spend assertion scoped to
-// rows this file inserted. Budgets get a unique id per test so their persisted
-// alert state cannot leak between cases.
 beforeEach(() => {
   db.prepare("DELETE FROM usage_events").run();
 });
@@ -37,7 +30,6 @@ function uniqueId(prefix: string): string {
   return `${prefix}-${seq}`;
 }
 
-/** Insert a usage row at an explicit UTC timestamp with an explicit cost. */
 function spend(isoUtc: string, costUsd: number, _modelId?: string, providerId?: number): void {
   db.prepare(
     "INSERT INTO usage_events (ts, cost_usd, source, model_id, provider_id) VALUES (?,?,?,?,?)",
@@ -45,7 +37,7 @@ function spend(isoUtc: string, costUsd: number, _modelId?: string, providerId?: 
     isoUtc.slice(0, 19).replace("T", " "),
     costUsd,
     "budget-test",
-    "test-model", // NOT NULL column; row id is irrelevant to spend sums
+    "test-model",
     providerId ?? null,
   );
 }
@@ -78,8 +70,6 @@ describe("money handling", () => {
   });
 
   it("accumulates sub-cent calls instead of rounding each one to zero", () => {
-    // 1000 calls at $0.0001 are $0.10. Rounding row by row would report $0.00,
-    // which is how bulk cheap-model workloads silently vanish from a budget.
     const b = makeBudget("monthly", 1000);
     for (let i = 0; i < 1000; i++) spend("2026-09-10T12:00:00", 0.0001);
 
@@ -90,7 +80,6 @@ describe("money handling", () => {
   });
 
   it("keeps a long run of awkward floats exactly on the cent", () => {
-    // 0.1 + 0.2 in floats is famously not 0.3. Summing as integers is.
     const b = makeBudget("monthly", 100_000);
     for (let i = 0; i < 300; i++) spend("2026-09-10T12:00:00", 0.1);
     for (let i = 0; i < 300; i++) spend("2026-09-10T12:00:00", 0.2);
@@ -117,7 +106,6 @@ describe("period boundaries (UTC)", () => {
   });
 
   it("starts a weekly period on the configured weekday", () => {
-    // 2026-09-23 is a Wednesday; the Monday before it is 2026-09-21.
     const w = budget.periodWindow(
       makeBudget("weekly", 1000, 1),
       new Date("2026-09-23T08:00:00Z"),
@@ -187,7 +175,6 @@ describe("evaluateBudget", () => {
     const b = makeBudget("monthly", 10_000);
     spend("2026-09-05T00:00:00", 10);
 
-    // September has 30 days, so 2026-09-16T00:00Z is exactly halfway.
     const e = budget.evaluateBudget(db, b, new Date("2026-09-16T00:00:00Z"));
 
     expect(e.elapsedFraction).toBeCloseTo(0.5, 10);
@@ -366,17 +353,13 @@ describe("threshold alerts", () => {
 });
 
 describe("enforceBudgets", () => {
-  // The gate evaluates EVERY saved budget, and budgets persist in the settings
-  // table for the whole file, so this block starts from an empty budget list.
-  // Without this, a budget created by an earlier describe would leak in and
-  // decide the outcome of these assertions.
   beforeEach(() => {
     for (const b of budget.listBudgets()) budget.deleteBudget(b.id);
   });
 
   it("blocks when a budget is exceeded, reporting the evaluation", async () => {
-    const b = makeBudget("monthly", 1000); // $10 cap
-    spend("2026-09-05T00:00:00", 12); // $12 spent
+    const b = makeBudget("monthly", 1000);
+    spend("2026-09-05T00:00:00", 12);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
 
@@ -388,8 +371,8 @@ describe("enforceBudgets", () => {
   });
 
   it("proceeds at warning level and reports the highest percent", async () => {
-    makeBudget("monthly", 1000); // $10 cap
-    spend("2026-09-05T00:00:00", 9); // 90 percent, under the cap
+    makeBudget("monthly", 1000);
+    spend("2026-09-05T00:00:00", 9);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
 
@@ -400,7 +383,7 @@ describe("enforceBudgets", () => {
 
   it("proceeds clean when under every budget", async () => {
     makeBudget("monthly", 1000);
-    spend("2026-09-05T00:00:00", 1); // 10 percent
+    spend("2026-09-05T00:00:00", 1);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
 
@@ -422,7 +405,7 @@ describe("enforceBudgets", () => {
   it("returns the most severe exceeded budget when several are over", async () => {
     const mild = makeBudget("monthly", 1000);
     const harsh = makeBudget("monthly", 100);
-    spend("2026-09-05T00:00:00", 50); // 5000 percent of the $1 cap, 500 of $10
+    spend("2026-09-05T00:00:00", 50);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
 
@@ -433,7 +416,7 @@ describe("enforceBudgets", () => {
 
   it("does not block on spend outside the current window", async () => {
     makeBudget("daily", 1000);
-    spend("2020-01-01T00:00:00", 999); // long past, different day
+    spend("2020-01-01T00:00:00", 999);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
 
@@ -469,7 +452,6 @@ describe("persistence", () => {
   });
 });
 
-
 describe("implicit subscription caps (#170)", () => {
   beforeEach(() => {
     for (const b of budget.listBudgets()) budget.deleteBudget(b.id);
@@ -477,7 +459,7 @@ describe("implicit subscription caps (#170)", () => {
 
   it("a subscription monthlyBudget blocks when the provider overspends", async () => {
     const p = repo.createProvider({ name: "SubCap", baseUrl: "https://subcap.example", authType: "none" });
-    subs.upsertSubscription({ providerId: p.id, monthlyBudget: 5 }); // $5
+    subs.upsertSubscription({ providerId: p.id, monthlyBudget: 5 });
     spend("2026-09-05T00:00:00", 7, undefined, p.id);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
@@ -490,19 +472,18 @@ describe("implicit subscription caps (#170)", () => {
 
   it("explicit and implicit caps are judged independently; the exceeded one blocks", async () => {
     const p = repo.createProvider({ name: "BothCaps", baseUrl: "https://both.example", authType: "none" });
-    subs.upsertSubscription({ providerId: p.id, monthlyBudget: 100 }); // $100 implicit
-    budget.saveBudget({ id: "hard-stop", label: "hard stop", period: "monthly", limitCents: 30000, weekStartsOn: 1 }); // $300 explicit
-    spend("2026-09-05T00:00:00", 6, undefined, p.id); // 6% of implicit, 2% of explicit
+    subs.upsertSubscription({ providerId: p.id, monthlyBudget: 100 });
+    budget.saveBudget({ id: "hard-stop", label: "hard stop", period: "monthly", limitCents: 30000, weekStartsOn: 1 });
+    spend("2026-09-05T00:00:00", 6, undefined, p.id);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
 
-    expect(gate.ok).toBe(true); // neither cap exceeded
+    expect(gate.ok).toBe(true);
 
-    // Nudge the spend past the IMPLICIT cap while still under the explicit one.
-    spend("2026-09-05T01:00:00", 200, undefined, p.id); // $206 total
+    spend("2026-09-05T01:00:00", 200, undefined, p.id);
     const second = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
     expect(second.ok).toBe(false);
-    expect(second.blocked?.budgetId).toBe(`sub-${p.id}`); // implicit caught it
+    expect(second.blocked?.budgetId).toBe(`sub-${p.id}`);
   });
 
   it("zero-budget subscription imposes no cap", async () => {
@@ -519,7 +500,7 @@ describe("implicit subscription caps (#170)", () => {
     const a = repo.createProvider({ name: "SubA", baseUrl: "https://suba.example", authType: "none" });
     const b = repo.createProvider({ name: "SubB", baseUrl: "https://subb.example", authType: "none" });
     subs.upsertSubscription({ providerId: b.id, monthlyBudget: 5 });
-    spend("2026-09-05T00:00:00", 50, undefined, a.id); // heavy spend, provider A
+    spend("2026-09-05T00:00:00", 50, undefined, a.id);
 
     const gate = await budget.enforceBudgets(db, new Date("2026-09-06T00:00:00Z"));
 

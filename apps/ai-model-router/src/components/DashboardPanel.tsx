@@ -1,19 +1,5 @@
 "use client";
 
-/**
- * Dashboard panel (issue #160): the drill-down view that complements the
- * chart-first AnalyticsPanel.
- *
- * Ported from the Hermes agent dashboard (MIT / Nous Research). The chart
- * layer is already covered by AnalyticsPanel, so this panel adds the piece
- * that page is missing here: sortable Daily / Model / Task tables that let
- * a user click a header and see the same numbers as the chart, ranked and
- * comparable across the window.
- *
- * Data source is the router's own /api/analytics. The Hermes dashboard
- * keeps running untouched at :8477 either way; we only imported a UI
- * pattern and the sort helper, not the data.
- */
 import { useMemo, useState } from "react";
 
 import { api } from "./store";

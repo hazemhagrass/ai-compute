@@ -17,7 +17,6 @@ export const dynamic = "force-dynamic";
 interface RecommendBody {
   taskId?: number;
   taskSlug?: string;
-  /** Free-text use case when no preset matches. */
   text?: string;
   overrideWeights?: Record<string, number>;
   providerIds?: number[];
@@ -26,9 +25,7 @@ interface RecommendBody {
   maxOutputCost?: number;
   minContext?: number;
   limit?: number;
-  /** Ask a real LLM to pick from the shortlist and explain why. */
   useAi?: boolean;
-  /** Which model does the judging (models table row id). */
   judgeModelId?: number;
 }
 
@@ -61,16 +58,10 @@ export async function POST(request: Request) {
     : body.providerIds;
 
   const models = listModels({ enabledOnly: true });
-  // Persisted policy is the baseline; an explicit request field wins over it,
-  // so the UI sliders still work but a saved ceiling applies when the caller
-  // says nothing. Zero in the policy means "no cap" and must not become a
-  // filter of `<= 0`.
   const policy = getRoutingPolicy();
   const providerMap: ReadonlyMap<number, RankProvider> = new Map(
     providers.map((p) => [p.id, { id: p.id, kind: p.kind, enabled: p.enabled }]),
   );
-  // The report must see the same population the ranker filters, including the
-  // disabled rows, or the result would claim exclusions it never considered.
   const criteria = {
     overrideWeights: { ...policy.overrideWeights, ...body.overrideWeights },
     providerIds,
@@ -111,10 +102,6 @@ export async function POST(request: Request) {
     if (ai) result.ai = ai;
   }
 
-  // Persist the recommendation so a choice can be revisited later. The ranked
-  // list is stored as a snapshot, not re-derived, because the point is to see
-  // what the router said at the time. A persistence failure must not fail the
-  // recommendation the user is waiting on.
   let recommendationId: number | null = null;
   try {
     recommendationId = saveRecommendation({
@@ -130,7 +117,6 @@ export async function POST(request: Request) {
   return NextResponse.json({ recommendation: result, recommendationId });
 }
 
-/** Ask a configured LLM to choose among the top candidates, and log the call. */
 async function aiPick(
   task: Task,
   ranked: Scored[],

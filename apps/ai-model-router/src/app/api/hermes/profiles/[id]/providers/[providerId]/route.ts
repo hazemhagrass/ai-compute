@@ -13,8 +13,6 @@ const patchSchema = z.object({
   baseUrl: z.string().trim().optional(),
   defaultModel: z.string().trim().optional(),
   requestTimeoutSeconds: z.coerce.number().int().min(1).optional(),
-  // Tri-state, matching the rest of the app: absent keeps the key, "" clears
-  // it, a value replaces it.
   apiKey: z.string().optional(),
 });
 

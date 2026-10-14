@@ -1,18 +1,5 @@
 "use client";
 
-/**
- * Budget state surfaced next to the conversation (#174).
- *
- * Two states, one component so the wording cannot drift between panels:
- *  - warning: the x-budget-warning header arrived with a successful call.
- *    Persistent inline banner, not a toast -- a toast disappears, a budget
- *    about to refuse calls should stay visible.
- *  - blocked: the call was refused with 402; render which budget, the
- *    spent-of-limit numbers, and the server's hint.
- *
- * No polling: every real call re-evaluates the gate (#163), so the banner
- * derived from a call's own response self-corrects on the next request.
- */
 export interface BudgetBlock {
   id: string;
   period: string;
@@ -42,7 +29,6 @@ export function BudgetBlocked({ budget }: { budget: BudgetBlock }) {
   );
 }
 
-/** Read the header a successful call returned, if any. */
 export function budgetWarningFrom(res: Response): number | null {
   const raw = res.headers.get("x-budget-warning");
   if (!raw) return null;
@@ -50,7 +36,11 @@ export function budgetWarningFrom(res: Response): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Pull the budget block out of a 402 body, if the body is one. */
+export function budgetBlockFromValue(body: unknown): BudgetBlock | null {
+  const j = body as { budget?: BudgetBlock } | null;
+  return j?.budget ?? null;
+}
+
 export async function budgetBlockFrom(res: Response): Promise<BudgetBlock | null> {
   const j = (await res.json().catch(() => null)) as {
     budget?: BudgetBlock;

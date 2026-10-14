@@ -24,8 +24,6 @@ describe("provider schemas", () => {
   });
 
   it("rejects an unknown auth type instead of storing it", () => {
-    // A bad auth type would otherwise reach buildRequest and silently send an
-    // unauthenticated request.
     const r = createProviderSchema.safeParse({
       name: "X",
       baseUrl: "https://x/v1",
@@ -47,8 +45,6 @@ describe("provider schemas", () => {
 });
 
 describe("apiKey tri-state", () => {
-  // The rule that silently destroys data if broken:
-  //   absent -> keep stored key, "" -> clear it, value -> replace it.
   it("leaves apiKey absent when it was not sent", () => {
     const r = updateProviderSchema.parse({ name: "Renamed" });
 
@@ -70,7 +66,6 @@ describe("apiKey tri-state", () => {
   });
 
   it("never substitutes a default for a missing key", () => {
-    // A default here would turn every unrelated update into a key wipe.
     const r = updateProviderSchema.parse({ enabled: false });
 
     expect(r.apiKey).toBeUndefined();
@@ -166,7 +161,6 @@ describe("playground schema", () => {
   });
 
   it("bounds maxTokens so a typo cannot request a fortune", () => {
-    // 8000 is the ceiling; 800000 would be a very expensive slip.
     expect(
       playgroundSchema.safeParse({ modelRowId: 1, prompt: "hi", maxTokens: 800000 })
         .success,

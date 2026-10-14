@@ -7,7 +7,6 @@ import { requireAuth } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** GET: browse the OpenRouter public catalogue (prices per 1M tokens). */
 export async function GET(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -36,12 +35,10 @@ export async function GET(request: Request) {
   }
 }
 
-/** POST: sync stored model prices against OpenRouter. { apply, recalc } */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
 
-  // An empty body is a valid dry run, so a parse failure is not an error here.
   let body: { apply?: boolean; recalcCheapness?: boolean } = {};
   try {
     body = pricingSchema.parse(await request.json());

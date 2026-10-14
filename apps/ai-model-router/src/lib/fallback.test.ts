@@ -16,18 +16,15 @@ interface Candidate extends FallbackCandidate {
 
 const chainOf = (...labels: string[]): Candidate[] => labels.map((label) => ({ label }));
 
-/** An upstream error shaped the way a provider client would throw it. */
 function httpError(status: number, message = `HTTP ${status}`, headers?: Record<string, string>) {
   return Object.assign(new Error(message), { status, headers });
 }
 
-/** Run a chain to completion while fake time is driven forward for the backoffs. */
 async function runAndFlush<T>(promise: Promise<T>): Promise<T> {
   await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
   return promise;
 }
 
-/** Jitter fixed at the midpoint so every backoff in a test is exact. */
 const fixedRandom = () => 0.5;
 
 describe("classifyFailure", () => {
@@ -42,7 +39,6 @@ describe("classifyFailure", () => {
   });
 
   it("treats auth and malformed-request failures as terminal", () => {
-    // These fail identically on every candidate, so a fallback is pure waste.
     for (const status of [400, 401, 403, 404, 422]) {
       expect(classifyFailure(httpError(status)).kind).toBe("terminal");
     }
@@ -115,8 +111,6 @@ describe("backoffDelay", () => {
   });
 
   it("spreads clients across the window instead of synchronising them", () => {
-    // Same attempt number, different random draws, different wake-up times:
-    // this is what stops a thundering herd on a recovering provider.
     expect(backoffDelay(2, 1000, 60000, () => 0)).toBe(1000);
     expect(backoffDelay(2, 1000, 60000, () => 1)).toBe(2000);
   });
@@ -194,20 +188,16 @@ describe("runWithFallback", () => {
     );
 
     expect(res.ok).toBe(true);
-    // Three tries against the first model, then the second succeeds.
     expect(res.trail.map((t) => `${t.candidate}#${t.attempt}`)).toEqual([
       "gpt-5.2#1",
       "gpt-5.2#2",
       "gpt-5.2#3",
       "claude-4.7#1",
     ]);
-    // 750 = half of 1000 plus 0.5 jitter; 1500 = half of 2000 plus 0.5 jitter.
     expect(res.trail.map((t) => t.waitedMs)).toEqual([0, 750, 1500, 0]);
   });
 
   it("stops the chain immediately on a terminal 401", async () => {
-    // A bad key fails the same way on every candidate, so trying the rest
-    // would burn the whole chain to return this exact error.
     const attempt = vi.fn(async () => {
       throw httpError(401, "invalid api key");
     });
@@ -288,7 +278,6 @@ describe("runWithFallback", () => {
     );
 
     expect(res.ok).toBe(true);
-    // 2000 from the header, not the 50ms the local schedule would have picked.
     expect(res.trail[1].waitedMs).toBe(2000);
     expect(res.trail[0].kind).toBe("retriable");
   });
@@ -313,7 +302,6 @@ describe("runWithFallback", () => {
   });
 
   it("stops walking the chain once the deadline has elapsed", async () => {
-    // Each attempt burns 600ms, so a 1000ms budget cannot reach candidate 3.
     const attempt = vi.fn(async () => {
       await new Promise((resolve) => setTimeout(resolve, 600));
       throw httpError(503, "slow failure");
@@ -354,7 +342,6 @@ describe("runWithFallback", () => {
 
     expect(seen[0]).toMatchObject({ candidateIndex: 0, attempt: 1, remainingMs: 30000 });
     expect(seen[1]).toMatchObject({ candidateIndex: 0, attempt: 2 });
-    // The second call sees the backoff already deducted from the budget.
     expect(seen[1].remainingMs).toBe(30000 - 750);
   });
 

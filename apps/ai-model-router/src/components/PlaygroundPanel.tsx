@@ -3,15 +3,14 @@
 import { useState } from "react";
 
 import { BudgetBlocked, BudgetWarning, budgetBlockFrom, budgetWarningFrom } from "./BudgetBanner";
+import { apiWithMeta } from "./store";
 import type { Model, Task } from "@/lib/types";
 
-/** One turn rendered in the conversation thread. */
 interface Turn {
   role: "user" | "assistant";
   content: string;
 }
 
-/** Cumulative usage across the whole conversation, as reported by the API. */
 interface Totals {
   turns: number;
   inputTokens: number;
@@ -27,7 +26,6 @@ interface RunEvent {
   ok: boolean;
 }
 
-/** NDJSON frames streamed back by /api/playground. */
 type StreamFrame =
   | { type: "token"; text: string }
   | { type: "done"; text: string; event: RunEvent; totals: Totals; streamed: boolean }
@@ -41,8 +39,6 @@ interface Props {
 
 export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
   const enabled = models.filter((m) => m.enabled);
-  // The default model is derived at render time rather than stored in state,
-  // so no setState runs inside an effect to pick the first enabled model.
   const [chosenModelRowId, setChosenModelRowId] = useState<number | null>(null);
   const modelRowId =
     chosenModelRowId !== null && enabled.some((m) => m.id === chosenModelRowId)
@@ -61,11 +57,6 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
 
   const modelLabel = enabled.find((m) => m.id === modelRowId)?.label ?? "";
 
-  /**
-   * Start a fresh conversation. Called from user actions (model/task switch,
-   * New chat) rather than an effect, so prior turns are never billed against
-   * a configuration that never saw them and no setState runs inside an effect.
-   */
   function resetThread() {
     setThread([]);
     setTotals(null);
@@ -73,9 +64,6 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
     setError("");
   }
 
-  // Switching model or task starts a fresh conversation from user actions
-  // (not an effect), so prior turns are never billed against a configuration
-  // that never saw them and no setState runs inside an effect body.
   function pickModel(id: number) {
     setChosenModelRowId(id);
     resetThread();
@@ -86,13 +74,11 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
     resetThread();
   }
 
-  /** Surface a failure in the panel and via the shared toast queue. */
   function fail(message: string) {
     setError(message);
     onToast(message, "bad");
   }
 
-  /** Apply one streamed frame to the UI; token frames append to the last assistant turn. */
   function applyFrame(frame: StreamFrame): void {
     if (frame.type === "token") {
       setThread((t) => {
@@ -109,15 +95,12 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
     if (frame.event) setLatencyMs(frame.event.latencyMs);
     if (frame.type === "error") {
       fail(frame.error);
-      // Drop the empty assistant placeholder when nothing arrived.
       setThread((t) => {
         const last = t[t.length - 1];
         return last?.role === "assistant" && !last.content ? t.slice(0, -1) : t;
       });
       return;
     }
-    // done: swap the accumulated partial for the final server text so the
-    // thread matches the recorded usage exactly, even on the fallback path.
     setThread((t) => {
       const next = [...t];
       const last = next[next.length - 1];
@@ -135,37 +118,31 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
     setWarnPercent(null);
     setBudgetBlock(null);
     const userText = prompt.trim();
-    // Append the user turn and an empty assistant turn up front; token frames
-    // grow the assistant bubble live as they stream in.
     setThread((t) => [
       ...t,
       { role: "user", content: userText },
       { role: "assistant", content: "" },
     ]);
     try {
-      const res = await fetch("/api/playground", {
+      const { res } = await apiWithMeta<null>("/api/playground", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        json: {
           modelRowId,
           prompt: userText,
           system: system || undefined,
           taskSlug: taskSlug || undefined,
-          // Prior turns so the model sees the whole conversation, and the
-          // totals measured so far so the API returns a running total.
           messages: thread,
           priorTotals: totals ?? undefined,
-        }),
+        },
+        raw: true,
+        throwOnError: false,
       });
       if (!res.ok) {
-        // Pre-stream failures (404 model, 400 body) still arrive as JSON.
         if (res.status === 402) {
-          // The budget gate refused before any provider request (#163):
-          // show the budget itself, not a generic failure.
           const block = await budgetBlockFrom(res);
           if (block) setBudgetBlock(block);
         }
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        const data = await res.json().catch(() => null) as { error?: string } | null;
         fail(data?.error ?? `HTTP ${res.status}`);
         setThread((t) => t.slice(0, -2));
         return;

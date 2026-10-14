@@ -4,10 +4,6 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Same fresh-HERMES_HOME-per-test approach as hermes-integration.test.ts —
- * see that file for the rationale on vi.resetModules().
- */
 let dir: string;
 let origHome: string | undefined;
 

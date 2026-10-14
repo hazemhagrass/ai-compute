@@ -13,7 +13,6 @@ export default function HealthPanel({
   onToast: (message: string, tone?: Toast["tone"]) => void;
 }) {
   const [report, setReport] = useState<HealthReport | null>(null);
-  // Starts true because the first probe fires on mount via the effect below.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,8 +22,6 @@ export default function HealthPanel({
     setError(null);
   }, []);
 
-  // Probe everything on first open so the panel is never an empty shell.
-  // setState only happens after the fetch resolves, never synchronously here.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -122,9 +119,6 @@ function HealthRow({ row }: { row: ProviderHealth }) {
         </span>
       )}
       {row.keyAudit?.lastVerifiedAt && !row.keyAudit.lastVerifyOk && (
-        // The active key's last DEFINITIVE verification failed -- even if the
-        // provider looks up right now (#175). Relative time, not a clock time:
-        // the question is "was this recent", not "what was the timestamp".
         <span
           className="shrink-0 rounded bg-[var(--bad)]/10 px-2 py-0.5 text-xs text-[var(--bad)]"
           title={`Last verification of ${row.keyAudit.activePreview ?? "the active key"} failed`}
@@ -136,7 +130,6 @@ function HealthRow({ row }: { row: ProviderHealth }) {
   );
 }
 
-/** Coarse relative time for audit fields; precision is not the point. */
 function relativeTime(iso: string): string {
   const ms = Date.now() - Date.parse(iso);
   if (!Number.isFinite(ms)) return "";

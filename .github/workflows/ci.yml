@@ -5,8 +5,6 @@ on:
     branches: [main]
   pull_request:
 
-# A second push to the same branch cancels the first: no point burning
-# minutes on a commit that is already superseded.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -22,37 +20,23 @@ jobs:
         with:
           python-version: '3.12'
 
-      # DOCTOR_LOCAL=0 skips the symlink/install checks: CI checks out the
-      # repo fresh and has no ~/.hermes to verify. Those run on the machine
-      # that runs scripts/install.sh, not here.
       - name: Skill structure (scripts/doctor.sh)
         run: bash scripts/doctor.sh
         env:
           DOCTOR_LOCAL: '0'
 
-      # A skill changed without regenerating the manifest = the version
-      # consumers pin no longer matches the content. Treated as a build break.
       - name: Manifest freshness
         run: python3 scripts/gen-manifest.py --check
 
-      # Every skill must have its own generated robot, and no two may share
-      # one: a duplicate means someone copied a sibling's asset.
       - name: Robot art present and unique
         run: python3 scripts/gen-robot.py --check
 
-      # This repo is published to skill marketplaces, so SKILL.md is
-      # instruction surface for someone else's agent. Block prompt injection
-      # and unsafe bundled scripts before they can be installed downstream.
       - name: Security scan
         run: python3 scripts/scan-skills.py
 
-      # Filler prose and unsourced authority claims are what separate a skill
-      # worth installing from a restated blog post. Blocked at the gate.
       - name: Prose quality scan
         run: python3 scripts/scan-filler.py
 
-      # The marketplace manifest is generated from the tree, so a new skill
-      # that never reached it would be invisible to anyone installing.
       - name: Marketplace manifest freshness
         run: python3 scripts/gen-marketplace.py --check
 
@@ -76,23 +60,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/ai-model-router/pnpm-lock.yaml
 
-      # better-sqlite3 is a native module; --frozen-lockfile keeps the
-      # prebuilt binary resolution deterministic across runs.
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # Must run before tsc: RouteContext is a global Next generates into
-      # .next/types, so a bare `tsc --noEmit` fails on every dynamic route.
-      # Do not "fix" that by hand-declaring the global.
       - name: Generate route types
         run: pnpm exec next typegen
 
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
-      # Zero warnings tolerated: the React 19 compiler rules here catch real
-      # bugs (a mid-render mutation in the donut chart was found this way)
-      # and are worthless if warnings are allowed to accumulate.
       - name: Lint
         run: pnpm exec eslint src --max-warnings 0
 
@@ -105,7 +81,6 @@ jobs:
   plans:
     name: plans in sync
     runs-on: ubuntu-latest
-    # Only meaningful on main: a PR branch legitimately lags the issue state.
     if: github.ref == 'refs/heads/main'
 
     steps:
@@ -114,9 +89,6 @@ jobs:
         with:
           node-version: 22
 
-      # Regenerate the phase trackers and fail if they differ from what is
-      # committed. Hand-typed progress numbers have read 100% complete with
-      # whole sections unbuilt, so drift is treated as a build failure.
       - name: Check derived progress numbers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

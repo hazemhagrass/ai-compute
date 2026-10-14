@@ -20,12 +20,6 @@ function normalizeId(id: string): string {
     .trim();
 }
 
-/**
- * Pull the provider's live model list and import any we don't have yet.
- * Each new model is enriched from the OpenRouter catalogue where a match
- * exists, so context window, price, and capability flags are real numbers
- * instead of zeros the user has to fill in by hand.
- */
 export async function POST(
   _req: Request,
   ctx: RouteContext<"/api/providers/[id]/discover">,
@@ -46,17 +40,14 @@ export async function POST(
     );
   }
 
-  // Best-effort enrichment: discovery must still work fully offline.
   const catalog = new Map<string, CatalogEntry>();
   try {
     const { entries } = await fetchCatalog();
     for (const e of entries) {
       const key = normalizeId(e.id);
-      // Canonical listings (no `:variant` suffix) win over batch/free variants.
       if (!catalog.has(key) || !e.id.includes(":")) catalog.set(key, e);
     }
   } catch {
-    /* offline or rate-limited: fall back to plain defaults */
   }
 
   const isLocal = provider.kind === "local";
@@ -74,7 +65,6 @@ export async function POST(
     const hit = catalog.get(normalizeId(modelId));
     if (hit) enriched++;
 
-    // Local models cost nothing to run, whatever the hosted listing says.
     const inputCost = isLocal ? 0 : (hit?.inputCost ?? 0);
     const outputCost = isLocal ? 0 : (hit?.outputCost ?? 0);
 

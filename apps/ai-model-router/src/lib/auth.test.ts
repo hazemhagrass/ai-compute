@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * The auth module reads and writes settings through db.ts, which opens a real
- * SQLite file. Mocking that one seam keeps these tests about the crypto and the
- * policy rather than about disk state.
- */
 const store = new Map<string, string>();
 
 vi.mock("./db", () => ({
@@ -14,7 +9,6 @@ vi.mock("./db", () => ({
   },
 }));
 
-// cookies() is only used by isAuthenticated, which the route layer exercises.
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined }),
 }));
@@ -50,8 +44,6 @@ describe("password storage", () => {
     await setPassword("same-password-twice");
     const second = store.get("auth_password")!;
 
-    // Without a per-password salt these would be identical, and a single
-    // rainbow table would cover every install of this app.
     expect(first).not.toBe(second);
   });
 
@@ -87,8 +79,6 @@ describe("login", () => {
     const wrong = await login("the-right-passwore");
     const nonsense = await login("zzzzzzzzzzzz");
 
-    // Identical wording both times: a different message for a near-miss would
-    // tell a guesser they are close.
     expect(wrong.error).toBe(nonsense.error);
   });
 
@@ -118,7 +108,6 @@ describe("lockout", () => {
     await login("wrong-2");
     expect(lockoutRemainingMs()).toBe(0);
 
-    // Third failure starts the backoff.
     await login("wrong-3");
     expect(lockoutRemainingMs()).toBeGreaterThan(0);
   });
@@ -129,7 +118,6 @@ describe("lockout", () => {
     for (let i = 0; i < 3; i++) await login(`wrong-${i}`);
     const afterThree = lockoutRemainingMs();
 
-    // Wait out the lock so the next attempt is actually counted.
     vi.useFakeTimers();
     vi.advanceTimersByTime(afterThree + 1000);
     await login("wrong-again");
@@ -145,8 +133,6 @@ describe("lockout", () => {
 
     const result = await login("the-right-password");
 
-    // Otherwise the backoff is trivially bypassed by guessing correctly, which
-    // is exactly what an attacker is trying to do.
     expect(result.ok).toBe(false);
     expect(result.retryAfterMs).toBeGreaterThan(0);
   });
@@ -156,8 +142,6 @@ describe("lockout", () => {
     for (let i = 0; i < 4; i++) await login(`wrong-${i}`);
 
     const locked = lockoutRemainingMs();
-    // The store outlives the module here exactly as the real table outlives a
-    // process restart, so an attacker cannot clear the backoff by crashing it.
     expect(locked).toBeGreaterThan(0);
     expect(store.get("auth_failures")).toBeTruthy();
   });
@@ -168,7 +152,6 @@ describe("session tokens", () => {
     const token = createSessionToken();
     const [nonce, expires, signature] = token.split(".");
 
-    // Extend the expiry by a year and keep the original signature.
     const forged = `${nonce}.${Number(expires) + 31_536_000_000}.${signature}`;
 
     expect(verifySessionToken(forged)).toBe(false);
@@ -179,7 +162,6 @@ describe("session tokens", () => {
 
     store.set("session_secret", "a-completely-different-secret");
 
-    // Rotating the secret must invalidate every existing session.
     expect(verifySessionToken(token)).toBe(false);
   });
 
@@ -188,7 +170,7 @@ describe("session tokens", () => {
     expect(verifySessionToken(token)).toBe(true);
 
     vi.useFakeTimers();
-    vi.advanceTimersByTime(13 * 60 * 60 * 1000); // TTL is 12h
+    vi.advanceTimersByTime(13 * 60 * 60 * 1000);
     expect(verifySessionToken(token)).toBe(false);
     vi.useRealTimers();
   });

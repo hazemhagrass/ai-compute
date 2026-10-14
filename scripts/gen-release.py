@@ -24,17 +24,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "skills" / "MANIFEST.json"
 
-
 def git(*args: str) -> str:
     return subprocess.run(
         ["git", *args], cwd=ROOT, capture_output=True, text=True, check=False
     ).stdout.strip()
 
-
 def last_tag() -> str | None:
     tag = git("describe", "--tags", "--abbrev=0", "--match", "v*")
     return tag if re.fullmatch(r"v\d+\.\d+\.\d+", tag) else None
-
 
 def manifest_at(ref: str | None) -> dict:
     if ref is None:
@@ -50,11 +47,9 @@ def manifest_at(ref: str | None) -> dict:
     except json.JSONDecodeError:
         return {}
     skills = data.get("skills", {})
-    # Tolerate both shapes: {name: {...}} and [{name: ...}, ...]
     if isinstance(skills, list):
         return {s.get("name", ""): s for s in skills if isinstance(s, dict)}
     return skills if isinstance(skills, dict) else {}
-
 
 def content_hash(entry: object) -> str:
     if isinstance(entry, dict):
@@ -64,7 +59,6 @@ def content_hash(entry: object) -> str:
         return json.dumps(entry, sort_keys=True)
     return str(entry)
 
-
 def bump(prev: str, level: str) -> str:
     major, minor, patch = (int(x) for x in prev.lstrip("v").split("."))
     if level == "major":
@@ -72,7 +66,6 @@ def bump(prev: str, level: str) -> str:
     if level == "minor":
         return f"v{major}.{minor + 1}.0"
     return f"v{major}.{minor}.{patch + 1}"
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -144,7 +137,6 @@ def main() -> int:
         with open(args.output, "a", encoding="utf-8") as fh:
             fh.write("\n".join(out) + "\n")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -4,25 +4,14 @@ import { checkBudget, listBudgets } from "./budget";
 import { checkAllProviders } from "./health";
 import { getDb, getSetting, setSetting } from "./db";
 
-/**
- * Merged notification feed (#187): the two signals below are each already
- * computed correctly by their own module -- checkBudget's once-per-threshold
- * alert state and checkAllProviders' per-provider probe -- but neither one
- * had anywhere in the UI that surfaced without the user opening a specific
- * tab. This module only merges and re-shapes what already exists; it does
- * not duplicate any evaluation logic.
- */
-
 export type NotificationKind = "budget" | "provider_down";
 
 export interface NotificationItem {
-  /** Stable across calls for the same underlying event, for read-tracking. */
   id: string;
   kind: NotificationKind;
   severity: "warning" | "bad";
   message: string;
   ts: string;
-  /** Tab the UI should deep-link to when this item is clicked. */
   tab: "settings" | "health";
 }
 
@@ -38,9 +27,6 @@ function readReadIds(): Set<string> {
   }
 }
 
-/** Budget alerts persist their own once-per-threshold state; this only
- * asks each budget "what would fire right now" without re-arming anything
- * (checkBudget itself already dedups across calls in the same period). */
 function budgetNotifications(now: Date): NotificationItem[] {
   const db = getDb();
   const items: NotificationItem[] = [];
@@ -66,10 +52,6 @@ function budgetNotifications(now: Date): NotificationItem[] {
 async function healthNotifications(now: Date): Promise<NotificationItem[]> {
   const report = await checkAllProviders();
   return report.results
-    // A provider with no key yet is an onboarding state, not an outage --
-    // surfacing it here would permanently redden the bell for every seeded
-    // provider nobody has configured. Only a provider that WAS reachable
-    // (has a key) and is now failing is worth a notification.
     .filter((r) => !r.ok && r.error !== "no API key configured")
     .map((r) => ({
       id: `provider_down:${r.id}`,
@@ -87,7 +69,6 @@ export interface NotificationFeed {
   checkedAt: string;
 }
 
-/** The merged, read-annotated feed the UI polls. */
 export async function getNotifications(now: Date = new Date()): Promise<NotificationFeed> {
   const [budgetItems, healthItems] = await Promise.all([
     Promise.resolve(budgetNotifications(now)),
@@ -105,14 +86,9 @@ export async function getNotifications(now: Date = new Date()): Promise<Notifica
   };
 }
 
-/** Mark one or more notification ids read. Unknown ids are accepted silently
- * so a stale client (already-resolved budget/outage) cannot error the call. */
 export function markNotificationsRead(ids: string[]): void {
   const current = readReadIds();
   for (const id of ids) current.add(id);
-  // Cap so a long-lived install's read-set cannot grow the settings row
-  // without bound; oldest-inserted entries are dropped first since Set
-  // iteration order is insertion order.
   const capped = [...current].slice(-READ_ID_CAP);
   setSetting(READ_KEY, JSON.stringify(capped));
 }

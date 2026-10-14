@@ -3,10 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "./db";
 import { reconcile } from "./reconcile";
 
-// Reconcile reads usage_events. Each test seeds only the rows it needs and
-// scopes assertions to a unique provider slug so the auto-seeded catalogue
-// and other tests cannot leak in.
-
 function seedUsage(providerSlug: string, modelId: string, costUsd: number, ts: string) {
   getDb()
     .prepare(
@@ -43,7 +39,7 @@ describe("reconcile", () => {
       end: "2026-09-30",
       lines: [{ modelId: "m", billedUsd: 15 }],
     });
-    expect(r.lines[0].varianceCents).toBe(500); // $5 over
+    expect(r.lines[0].varianceCents).toBe(500);
     expect(r.lines[0].variancePct).toBeCloseTo(500 / 1500, 5);
   });
 
@@ -71,9 +67,9 @@ describe("reconcile", () => {
   });
 
   it("excludes usage outside the period", () => {
-    seedUsage(P, "m", 5, "2026-08-31 23:00:00"); // before start
-    seedUsage(P, "m", 5, "2026-10-01 01:00:00"); // after end
-    seedUsage(P, "m", 5, "2026-09-15 12:00:00"); // inside
+    seedUsage(P, "m", 5, "2026-08-31 23:00:00");
+    seedUsage(P, "m", 5, "2026-10-01 01:00:00");
+    seedUsage(P, "m", 5, "2026-09-15 12:00:00");
     const r = reconcile({
       providerSlug: P,
       start: "2026-09-01",

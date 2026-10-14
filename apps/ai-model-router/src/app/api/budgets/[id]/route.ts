@@ -5,7 +5,6 @@ import { deleteBudget, getBudget } from "@/lib/budget";
 
 export const dynamic = "force-dynamic";
 
-/** Delete one budget definition (#164 UI needs it; lib already had it). */
 export async function DELETE(
   _request: Request,
   ctx: { params: Promise<{ id: string }> },

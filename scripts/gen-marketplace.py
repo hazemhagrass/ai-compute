@@ -25,7 +25,6 @@ OUT = ROOT / ".claude-plugin" / "marketplace.json"
 OWNER = "hazemhagrass"
 REPO = "ai-compute"
 
-# Blurbs describe the category as a unit, since that is what gets installed.
 CATEGORY_BLURB = {
     "ai": "Working with models: prompting, model selection, agent SDKs.",
     "career": "Resumes, portfolios, interviews, and negotiation.",
@@ -48,7 +47,6 @@ CATEGORY_BLURB = {
     "writing": "Prose for a reader: docs, blogs, newsletters, copy.",
 }
 
-
 def read_version() -> str:
     """Semver for the published plugins, from the latest git tag.
 
@@ -68,7 +66,6 @@ def read_version() -> str:
         return tag[1:]
     return "0.1.0"
 
-
 def categories() -> list[tuple[str, list[Path]]]:
     out = []
     for cat in sorted(p for p in SKILLS.iterdir() if p.is_dir()):
@@ -76,7 +73,6 @@ def categories() -> list[tuple[str, list[Path]]]:
         if skills:
             out.append((cat.name, skills))
     return out
-
 
 def build() -> dict:
     version = read_version()
@@ -109,7 +105,6 @@ def build() -> dict:
         "plugins": plugins,
     }
 
-
 def committed_version() -> str | None:
     """Version recorded in the committed manifest, if there is one.
 
@@ -126,7 +121,6 @@ def committed_version() -> str | None:
         return json.loads(OUT.read_text()).get("metadata", {}).get("version")
     except (OSError, ValueError):
         return None
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -157,7 +151,6 @@ def main() -> int:
     total = sum(len(p["skills"]) for p in data["plugins"])
     print(f"wrote {OUT.relative_to(ROOT)}: {len(data['plugins'])} plugins, {total} skills")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

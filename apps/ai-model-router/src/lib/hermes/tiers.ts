@@ -25,9 +25,6 @@ export function setClassifierPool(profileId: string, pool: ModelRef[]): void {
   });
 }
 
-/** `tier_router.classifier.timeout_s` / `.history_turns` — tuning knobs for
- * the classifier call itself, separate from its model pool. `undefined`
- * fields are left untouched so a partial patch doesn't clobber the other. */
 export function setClassifierSettings(
   profileId: string,
   settings: { timeout_s?: number; history_turns?: number; enabled?: boolean },
@@ -43,9 +40,6 @@ export function setClassifierSettings(
   });
 }
 
-/** `tier_router.cooldown_s` (per-entry cooldown after 429/5xx/transport
- * failure) and `.restore_primary` (revert to the profile's primary model at
- * each turn boundary). `undefined` fields are left untouched. */
 export function setRouterBehavior(
   profileId: string,
   settings: { cooldown_s?: number; restore_primary?: boolean },
@@ -59,9 +53,6 @@ export function setRouterBehavior(
   });
 }
 
-/** Merge a patch into `tier_router.classifier.systemone`. Keys the app does
- * not edit (routine/escalation/verdict model) are preserved. Throws without
- * writing when the merged block would be discarded by Hermes. */
 export function setSystemOne(profileId: string, patch: Record<string, unknown>): void {
   updateHermesConfig(profileId, (cfg) => {
     const tr = cfg.tier_router ?? emptyTierRouter();
@@ -74,11 +65,6 @@ export function setSystemOne(profileId: string, patch: Record<string, unknown>):
   });
 }
 
-/** `tier_router.routes`: a task -> subtype -> tier-name override map that
- * bypasses the classifier for a specific (task, subtype) pair. Both levels
- * are plain string keys; setting a route creates missing parent objects,
- * removing one prunes an emptied parent so the map never accumulates `{}`
- * husks. */
 export function setRoute(profileId: string, task: string, subtype: string, tierName: string): void {
   updateHermesConfig(profileId, (cfg) => {
     const tr = cfg.tier_router ?? emptyTierRouter();
@@ -113,8 +99,6 @@ export function upsertTier(profileId: string, name: string, patch: Partial<TierE
 export function removeTier(profileId: string, name: string): void {
   updateHermesConfig(profileId, (cfg) => {
     if (cfg.tier_router?.tiers) delete cfg.tier_router.tiers[name];
-    // A tier used as another tier's escalate_to target would dangle silently;
-    // clear those pointers rather than leaving a reference to nothing.
     if (cfg.tier_router?.tiers) {
       for (const t of Object.values(cfg.tier_router.tiers)) {
         if (t.escalate_to === name) t.escalate_to = null;
@@ -123,8 +107,6 @@ export function removeTier(profileId: string, name: string): void {
     if (cfg.tier_router?.default_tier === name) {
       cfg.tier_router.default_tier = "normal";
     }
-    // Same dangling-reference risk for tier_router.routes[task][subtype] ->
-    // tierName entries; drop any route that pointed at the removed tier.
     if (cfg.tier_router?.routes) {
       for (const [task, subtypes] of Object.entries(cfg.tier_router.routes)) {
         for (const [subtype, target] of Object.entries(subtypes)) {

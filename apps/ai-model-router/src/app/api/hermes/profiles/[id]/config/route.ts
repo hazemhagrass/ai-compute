@@ -20,8 +20,6 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   return NextResponse.json({ config: readHermesConfig(id) });
 }
 
-/** Sets model.default + model.provider — the profile-wide "when nothing else
- * routes, use this" model, same as `hermes model` in the CLI. */
 export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/config">) {
   const denied = await requireAuth();
   if (denied) return denied;

@@ -1,4 +1,3 @@
-/** Tests for lib/routing-policy.ts (issue #155). */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-/**
- * Restore the router database from a backup directory.
- *
- * Usage: node scripts/restore.mjs <backup-dir> [--rekey] [--dry-run]
- *
- * The backup directory must contain router.db (a snapshot made by
- * scripts/backup.mjs or the SQLite backup API). Before anything is
- * swapped, the script checks the snapshot integrity and proves that
- * every stored provider key decrypts under the CURRENT master key.
- * A snapshot whose keys do not decrypt is refused; pass --rekey only
- * when deliberately restoring onto a different master key (rows that
- * do not decrypt are dropped, all-or-nothing). Never point this at a
- * raw copy of a live WAL database.
- */
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -20,7 +6,6 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(here, "..");
 
-// See scripts/backup.mjs for why this re-execs under jiti.
 if (!process.env.AMR_OPS_JITI) {
   const r = spawnSync(
     "pnpm",

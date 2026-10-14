@@ -13,24 +13,9 @@ import { saveBudget } from "./budget";
 import { addProviderKey, activateProviderKey } from "./provider-keys";
 import { updateRoutingPolicy } from "./routing-policy";
 
-/**
- * Config import: the inverse of `GET /api/export`.
- *
- * Reads a `version: 1` config payload (providers, models, tasks, never usage
- * history) and recreates it on a fresh or existing database. Every row is
- * validated with Zod before a single write happens, and the whole import runs
- * inside one SQLite transaction, so a bad file changes nothing.
- */
-
 export type ImportConflictMode = "skip" | "upsert";
 
 export interface ImportOptions {
-  /**
-   * What to do when a row already exists (matched by provider slug, task
-   * slug, or provider slug + model id). Default "skip": existing rows are
-   * left untouched. "upsert" updates them in place. Rows are never silently
-   * duplicated.
-   */
   conflict?: ImportConflictMode;
 }
 
@@ -48,15 +33,9 @@ export interface ImportSummary {
   budgets: SectionStats;
   providerKeys: SectionStats;
   routingPolicy: "imported" | "kept" | "skipped";
-  /**
-   * Providers that referenced a masked or placeholder key. Their key slot is
-   * left empty on purpose: a masked string is not a credential, and storing
-   * it as if it were one fails only when the first real request is made.
-   */
   maskedKeys: string[];
 }
 
-/** One offending row, in a shape a user can act on. */
 export interface ImportRowError {
   section: "providers" | "models" | "tasks" | "subscriptions" | "budgets" | "providerKeys";
   index: number;
@@ -80,17 +59,9 @@ export class ImportValidationError extends Error {
   }
 }
 
-/* --------------------------------------------------------------- schemas */
-
 const score = z.coerce.number().min(0).max(100);
 const nonNegative = z.coerce.number().min(0);
 
-/**
- * Plaintext key, only ever accepted from the clearly marked
- * `plaintextApiKey` field. An empty string is treated as "no key supplied"
- * rather than "clear the key": importing a backup must not be able to wipe
- * credentials that are already stored.
- */
 const plaintextApiKey = z.string().min(1).optional();
 
 const exportedProviderSchema = z.object({
@@ -110,10 +81,6 @@ const exportedProviderSchema = z.object({
 });
 
 const exportedModelSchema = z.object({
-  /**
-   * Models are linked by provider slug, not by row id: ids from the machine
-   * that produced the export are meaningless on the machine importing it.
-   */
   providerSlug: z.string().trim().min(1, "providerSlug is required"),
   modelId: z.string().trim().min(1, "modelId is required"),
   label: z.string().optional(),
@@ -137,23 +104,15 @@ const exportedTaskSchema = z.object({
   description: z.string().optional(),
   weights: z.record(z.string(), z.coerce.number().min(0).max(10)).optional(),
   requires: requiresSchema.optional(),
-  /**
-   * Pins are exported by model row id, which only exists on the source
-   * machine, so they cannot be honoured on import. The field is accepted
-   * (an export carries it) but deliberately ignored.
-   */
   pinnedModelId: z.coerce.number().int().positive().nullable().optional(),
 });
 
 export const configImportSchema = z.object({
-  /** v1 = providers/models/tasks. v2 adds subscriptions, budgets, routing
-   * policy, and key-pool metadata (never the secrets themselves). */
   version: z.union([z.literal(1), z.literal(2)]),
   exportedAt: z.string().optional(),
   providers: z.array(z.unknown()).max(5000).optional(),
   models: z.array(z.unknown()).max(50_000).optional(),
   tasks: z.array(z.unknown()).max(5000).optional(),
-  /* ---- v2 sections ---- */
   subscriptions: z.array(z.unknown()).max(1000).optional(),
   budgets: z.array(z.unknown()).max(1000).optional(),
   routingPolicy: z.unknown().optional(),
@@ -164,7 +123,6 @@ export type ExportedProvider = z.infer<typeof exportedProviderSchema>;
 export type ExportedModel = z.infer<typeof exportedModelSchema>;
 export type ExportedTask = z.infer<typeof exportedTaskSchema>;
 
-/** Provider is linked by slug on import (same rule as models). */
 const exportedSubscriptionSchema = z.object({
   providerSlug: z.string().trim().min(1, "providerSlug is required"),
   tier: z.string().trim().min(1).optional(),
@@ -176,7 +134,6 @@ const exportedSubscriptionSchema = z.object({
   notes: z.string().optional(),
 });
 
-/** Key pool metadata. The secret itself is NOT exportable, ever. */
 const exportedProviderKeySchema = z.object({
   providerSlug: z.string().trim().min(1, "providerSlug is required"),
   label: z.string().trim().min(1).optional(),
@@ -196,12 +153,6 @@ export type ExportedSubscription = z.infer<typeof exportedSubscriptionSchema>;
 export type ExportedProviderKey = z.infer<typeof exportedProviderKeySchema>;
 export type ExportedBudget = z.infer<typeof exportedBudgetSchema>;
 
-/**
- * Routing policy singleton. Typed loosely here on purpose: the server's own
- * zod schema is a moving target as policy fields evolve, and an import that
- * hard-fails on a field it does not know would pin two deployments to the
- * same release. Unknown fields pass through and are ignored on write.
- */
 const routingPolicySection = z
   .object({
     preferLocal: z.boolean().optional(),
@@ -212,15 +163,6 @@ const routingPolicySection = z
   })
   .passthrough();
 
-/* ---------------------------------------------------------- secret guard */
-
-/**
- * True when a string is a masked key preview rather than a usable credential.
- *
- * Exports carry `hasKey` / `keyPreview` hints, and a hand-edited file may
- * contain an already-masked placeholder. Any of these must never reach the
- * encrypted key column.
- */
 export function isMaskedSecret(value: string): boolean {
   const v = value.trim();
   if (!v) return false;
@@ -228,8 +170,6 @@ export function isMaskedSecret(value: string): boolean {
   if (/^(x+|X+)$/.test(v)) return true;
   return /^(masked|redacted|placeholder)/i.test(v);
 }
-
-/* ------------------------------------------------------------------ parse */
 
 interface ParsedConfig {
   providers: ExportedProvider[];
@@ -241,10 +181,6 @@ interface ParsedConfig {
   routingPolicy: Record<string, unknown> | null;
 }
 
-/**
- * Validate the raw payload row by row. Throws ImportValidationError listing
- * every bad row; nothing is written when even one row is wrong.
- */
 export function parseConfigImport(raw: unknown): ParsedConfig {
   const top = configImportSchema.safeParse(raw);
   if (!top.success) {
@@ -298,7 +234,6 @@ export function parseConfigImport(raw: unknown): ParsedConfig {
     providerKeys: isV2
       ? collect(top.data.providerKeys, exportedProviderKeySchema, "providerKeys")
       : [],
-    // The routing policy is a singleton: validate as one object, not rows.
     routingPolicy: isV2 && top.data.routingPolicy !== undefined
       ? (routingPolicySection.parse(top.data.routingPolicy) as Record<string, unknown>)
       : null,
@@ -307,8 +242,6 @@ export function parseConfigImport(raw: unknown): ParsedConfig {
   if (issues.length > 0) throw new ImportValidationError(issues);
   return parsed;
 }
-
-/* ------------------------------------------------------------------ write */
 
 const emptyStats = (): SectionStats => ({ inserted: 0, skipped: 0, updated: 0 });
 
@@ -323,13 +256,6 @@ function slugify(input: string): string {
   );
 }
 
-/**
- * Import a validated (or not yet validated) config payload.
- *
- * Validation happens up front and the writes run inside one transaction, so
- * any failure, malformed row, duplicate slug, dangling provider reference,
- * leaves the database exactly as it was.
- */
 export function importConfig(
   rawPayload: unknown,
   options: ImportOptions = {},
@@ -350,7 +276,6 @@ export function importConfig(
   };
 
   db.transaction(() => {
-    /* Providers, keyed by slug. */
     const providerIdBySlug = new Map<string, number>();
     for (const row of db
       .prepare("SELECT id, slug FROM providers")
@@ -379,9 +304,6 @@ export function importConfig(
       const slug = slugify(p.slug ?? p.name);
       const existingId = providerIdBySlug.get(slug);
 
-      // A masked placeholder is never stored as a credential. Upsert mode
-      // also refuses to touch the key column with one, so a backup made
-      // after keys were entered cannot wipe them on re-import.
       let keyEnc: string | null = null;
       if (p.plaintextApiKey !== undefined) {
         if (isMaskedSecret(p.plaintextApiKey)) {
@@ -418,7 +340,6 @@ export function importConfig(
       }
     }
 
-    /* Models, keyed by provider slug + model id. */
     const insertModel = db.prepare(
       `INSERT INTO models
         (provider_id, model_id, label, quality, speed, cheapness, context_window, max_output,
@@ -479,7 +400,6 @@ export function importConfig(
       }
     }
 
-    /* Tasks, keyed by slug. Pins stay null: model ids do not transfer. */
     const insertTask = db.prepare(
       `INSERT INTO tasks (slug, label, description, weights_json, requires_json, pinned_model_id, builtin)
        VALUES (?,?,?,?,?,NULL,0)`,
@@ -513,7 +433,6 @@ export function importConfig(
       }
     }
 
-    /* ---- v2: subscriptions, keyed by provider slug (mandatory on link). */
     for (const s of data.subscriptions) {
       const providerId = providerIdBySlug.get(s.providerSlug);
       if (providerId === undefined) {
@@ -551,7 +470,6 @@ export function importConfig(
       }
     }
 
-    /* ---- v2: budgets, keyed by id, written through the normal save path. */
     for (const b of data.budgets) {
       const payload = {
         id: b.id,
@@ -564,10 +482,6 @@ export function importConfig(
       summary.budgets.inserted++;
     }
 
-    /* ---- v2: key pool metadata. A placeholder preview is imported so the
-     * pool SHAPE survives a move even though the secret must be re-entered;
-     * active is honoured only when no key exists yet (a fresh machine keeps
-     * its own active choice otherwise). */
     for (const k of data.providerKeys) {
       const providerId = providerIdBySlug.get(k.providerSlug);
       if (providerId === undefined) {
@@ -583,10 +497,7 @@ export function importConfig(
       summary.providerKeys.inserted++;
     }
 
-    /* ---- v2: routing policy, only when absent (singleton, not a rowset). */
     if (data.routingPolicy) {
-      // Existence probe via the same key the module itself reads, so a key
-      // rename cannot make an import silently overwrite a live policy.
       const POLICY_KEY = "routing_policy_v1";
       const current = db
         .prepare("SELECT COUNT(*) AS n FROM settings WHERE key = ?")

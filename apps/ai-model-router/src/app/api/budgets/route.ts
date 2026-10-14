@@ -16,7 +16,6 @@ export async function GET() {
   if (denied) return denied;
 
   const budgets = listBudgets();
-  // Live status alongside the definition, so the UI needs no second call.
   return NextResponse.json({
     budgets: budgets.map((b) => ({
       ...b,

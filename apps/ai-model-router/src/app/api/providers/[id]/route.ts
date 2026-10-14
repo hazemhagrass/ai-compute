@@ -24,8 +24,6 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/providers/
   const parsed = await parseBody(request, updateProviderSchema);
   if (!parsed.ok) return parsed.response;
 
-  // apiKey stays tri-state through the schema: absent keeps the stored key,
-  // "" clears it, a value replaces it. Do not default it anywhere.
   const provider = updateProvider(Number(id), parsed.data);
   if (!provider) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ provider });

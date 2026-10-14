@@ -31,8 +31,6 @@ SKILLS = ROOT / "skills"
 
 SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".zsh", ".js", ".mjs", ".rb", ".pl", ".ps1"}
 
-# --- instruction-surface rules (SKILL.md prose, outside fenced blocks) -------
-
 INJECTION = [
     (r"ignore\s+(?:all\s+|any\s+)?(?:previous|prior|above|earlier)\s+instructions",
      "instruction override"),
@@ -50,8 +48,6 @@ INJECTION = [
      "coerced remote fetch"),
 ]
 
-# Prose that tells the agent to pull remote content at runtime. Issue #151
-# requires an explicit documented reason for any of these.
 RUNTIME_FETCH = [
     (r"(?:curl|wget)\s+[^\n|]*\|\s*(?:ba)?sh", "pipes a download straight into a shell"),
     (r"\b(?:curl|wget)\b[^\n]*\bhttps?://", "fetches a remote URL"),
@@ -59,8 +55,6 @@ RUNTIME_FETCH = [
 ]
 
 FETCH_WAIVER = "security-scan: runtime-fetch allowed"
-
-# --- execution-surface rules (bundled script files) -------------------------
 
 EXFIL = [
     (r"(?:curl|wget)[^\n]*(?:--data|-d\s|--upload-file|-T\s)", "uploads data to a remote host"),
@@ -90,7 +84,6 @@ UNPINNED = [
     (r"npm\s+i(?:nstall)?\s+(?:-g\s+)?(?![^\n]*@\d)[A-Za-z@][\w.@/-]*", "unpinned npm install"),
 ]
 
-
 def strip_fences(text: str) -> list[tuple[int, str]]:
     """Return (line_number, line) for prose lines only, dropping fenced code."""
     out: list[tuple[int, str]] = []
@@ -103,7 +96,6 @@ def strip_fences(text: str) -> list[tuple[int, str]]:
             out.append((i, line))
     return out
 
-
 def scan_prose(path: Path, findings: list[str]) -> None:
     text = path.read_text(encoding="utf-8", errors="replace")
     waived = FETCH_WAIVER in text
@@ -115,9 +107,6 @@ def scan_prose(path: Path, findings: list[str]) -> None:
                 findings.append(f"{rel}:{lineno}: prompt injection ({label}): {line.strip()[:90]}")
         if waived:
             continue
-        # Inline `code` spans are documentation, exactly like fenced blocks:
-        # a skill showing `curl http://svc` as a symptom is teaching, not
-        # instructing the agent to fetch. Strip them before the fetch rules.
         low_prose = re.sub(r"`[^`]*`", "", low)
         for pattern, label in RUNTIME_FETCH:
             if re.search(pattern, low_prose):
@@ -125,7 +114,6 @@ def scan_prose(path: Path, findings: list[str]) -> None:
                     f"{rel}:{lineno}: runtime fetch in prose ({label}); "
                     f"document the reason or move it into a fenced example: {line.strip()[:70]}"
                 )
-
 
 def scan_script(path: Path, findings: list[str]) -> None:
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -139,7 +127,6 @@ def scan_script(path: Path, findings: list[str]) -> None:
             for pattern, label in ruleset:
                 if re.search(pattern, line):
                     findings.append(f"{rel}:{i}: {kind} ({label}): {line.strip()[:90]}")
-
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Scan skills for injection and unsafe scripts.")
@@ -177,7 +164,6 @@ def main() -> int:
 
     print(f"security scan clean: {scanned_md} markdown file(s), {scanned_scripts} script(s)")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

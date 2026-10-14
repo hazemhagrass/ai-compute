@@ -8,7 +8,18 @@ export async function api<T>(
   path: string,
   init?: RequestInit & { json?: unknown },
 ): Promise<T> {
-  const { json, ...rest } = init ?? {};
+  return (await apiWithMeta<T>(path, init)).data;
+}
+
+export async function apiWithMeta<T>(
+  path: string,
+  init?: RequestInit & {
+    json?: unknown;
+    throwOnError?: boolean;
+    raw?: boolean;
+  },
+): Promise<{ data: T; res: Response }> {
+  const { json, throwOnError = true, raw = false, ...rest } = init ?? {};
   const res = await fetch(path, {
     ...rest,
     headers: {
@@ -18,6 +29,13 @@ export async function api<T>(
     body: json !== undefined ? JSON.stringify(json) : rest.body,
     cache: "no-store",
   });
+  if (raw) {
+    if (!res.ok && throwOnError) {
+      const msg = `HTTP ${res.status} ${res.statusText}`;
+      throw new ApiResponseError(msg, null);
+    }
+    return { data: null as T, res };
+  }
   const text = await res.text();
   let parsed: unknown = null;
   try {
@@ -25,12 +43,21 @@ export async function api<T>(
   } catch {
     parsed = { error: text.slice(0, 300) };
   }
-  if (!res.ok) {
+  if (!res.ok && throwOnError) {
     const msg =
       (parsed as { error?: string })?.error ?? `${res.status} ${res.statusText}`;
-    throw new Error(msg);
+    throw new ApiResponseError(msg, parsed);
   }
-  return parsed as T;
+  return { data: parsed as T, res };
+}
+
+export class ApiResponseError extends Error {
+  body: unknown;
+  constructor(message: string, body: unknown) {
+    super(message);
+    this.name = "ApiResponseError";
+    this.body = body;
+  }
 }
 
 export interface Catalog {
@@ -39,14 +66,6 @@ export interface Catalog {
   tasks: Task[];
 }
 
-/**
- * Catalog state seeded from the server render.
- *
- * There is deliberately no fetch-on-mount effect: the initial data arrives as
- * props from a Server Component that read SQLite directly, so the first paint
- * is real content rather than a spinner. `refresh` exists for use after a
- * mutation, and runs from an event handler, where updating state is expected.
- */
 export function useCatalog(initial: Catalog) {
   const [data, setData] = useState<Catalog>(initial);
   const [refreshing, setRefreshing] = useState(false);
@@ -72,7 +91,6 @@ export function useCatalog(initial: Catalog) {
   return { ...data, refreshing, error, refresh };
 }
 
-/** Tiny toast queue — no dependency. */
 export interface Toast {
   id: number;
   message: string;

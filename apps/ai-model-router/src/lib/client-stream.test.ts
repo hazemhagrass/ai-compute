@@ -2,11 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Provider } from "./types";
 
-/**
- * client.ts opens the SQLite database through repo.ts to resolve provider
- * secrets. Mocking that seam keeps these tests about the stream handling,
- * not about disk state.
- */
 vi.mock("./repo", () => ({
   getProviderSecret: () => "",
 }));
@@ -36,7 +31,6 @@ function makeProvider(overrides: Partial<Provider> = {}): Provider {
   };
 }
 
-/** Encode SSE frames the way an OpenAI-compatible provider sends them. */
 function sseBody(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const payload = chunks
@@ -87,13 +81,11 @@ describe("chatStream streaming path", () => {
     });
 
     expect(captured.body?.stream).toBe(true);
-    // stream_options asks OpenAI-compatible servers for the final usage chunk.
     expect(captured.body?.stream_options).toEqual({ include_usage: true });
     expect(tokens).toEqual(["Hello", ", ", "world"]);
     expect(res.text).toBe("Hello, world");
     expect(res.streamed).toBe(true);
     expect(res.ok).toBe(true);
-    // Usage comes from the provider's final usage chunk, not an estimate.
     expect(res.usage).toMatchObject({
       inputTokens: 12,
       outputTokens: 3,
@@ -139,8 +131,6 @@ describe("chatStream streaming path", () => {
     expect(tokens).toEqual(["Part", " two"]);
     expect(res.text).toBe("Part two");
     expect(res.streamed).toBe(true);
-    // Anthropic message_delta carries output tokens; input is estimated from
-    // the transcript when message_start is absent.
     expect(res.usage.outputTokens).toBe(4);
     expect(res.usage.inputTokens).toBeGreaterThan(0);
   });
@@ -168,12 +158,10 @@ describe("chatStream fallback path", () => {
       onToken: (t) => tokens.push(t),
     });
 
-    // The request still asks for streaming; the fallback is on the response.
     expect(captured.body?.stream).toBe(true);
     expect(res.streamed).toBe(false);
     expect(res.ok).toBe(true);
     expect(res.text).toBe("full answer");
-    // The whole answer lands as a single token so the UI still paints it.
     expect(tokens).toEqual(["full answer"]);
     expect(res.usage).toMatchObject({
       inputTokens: 20,

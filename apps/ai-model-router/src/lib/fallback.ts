@@ -1,56 +1,31 @@
-/**
- * Model fallback chain.
- *
- * A single upstream failure should not fail the whole request: providers
- * rate-limit and go down routinely, so one attempt against one model is not
- * enough. This module walks an ordered chain of candidates and returns the
- * first success, together with a trail of everything that was tried.
- *
- * The important rule is that not every failure deserves a fallback. A bad API
- * key or a malformed request body fails identically on every candidate, so
- * advancing the chain after one only burns latency and quota before returning
- * the same error. Those stop the chain immediately.
- */
-
 export type FailureKind = "retriable" | "terminal";
 
-/** Anything the chain can be built from; `label` is what shows in the trail. */
 export interface FallbackCandidate {
-  /** Stable, human-readable id so a cost or a failure is attributable. */
   label: string;
-  /** Per-candidate override of the retry budget. */
   maxAttempts?: number;
 }
 
 export interface AttemptContext {
-  /** Position in the chain, 0-based. */
   candidateIndex: number;
-  /** Try number against THIS candidate, 1-based. */
   attempt: number;
-  /** Milliseconds left before the overall deadline; useful as a call timeout. */
   remainingMs: number;
 }
 
-/** The injected upstream call. Resolves on success, throws on failure. */
 export type AttemptFn<C, T> = (candidate: C, ctx: AttemptContext) => Promise<T>;
 
 export interface Failure {
   message: string;
   status?: number;
   kind: FailureKind;
-  /** Milliseconds the upstream asked us to wait, from Retry-After. */
   retryAfterMs?: number;
 }
 
 export interface AttemptRecord {
   candidate: string;
   candidateIndex: number;
-  /** Try number against this candidate, 1-based. */
   attempt: number;
   ok: boolean;
-  /** Wall time spent inside the attempt itself, backoff excluded. */
   durationMs: number;
-  /** Backoff actually slept BEFORE this attempt, so the cost of waiting is visible. */
   waitedMs: number;
   status?: number;
   kind?: FailureKind;
@@ -61,11 +36,8 @@ export type StopReason = "success" | "terminal" | "exhausted" | "deadline";
 
 export interface FallbackResult<C, T> {
   ok: boolean;
-  /** Present only when `ok`. */
   value?: T;
-  /** The candidate that succeeded, when `ok`. */
   candidate?: C;
-  /** The LAST failure seen, which is what the caller should surface. */
   error?: Failure;
   stoppedBy: StopReason;
   trail: AttemptRecord[];
@@ -73,19 +45,12 @@ export interface FallbackResult<C, T> {
 }
 
 export interface FallbackOptions {
-  /** Tries per candidate before moving on. Default 2. */
   maxAttemptsPerCandidate?: number;
-  /** First backoff step. Default 500ms. */
   baseDelayMs?: number;
-  /** Ceiling for a single computed backoff. Default 8000ms. */
   maxDelayMs?: number;
-  /** Hard cap on total elapsed time so a long chain cannot hang a request. Default 60000ms. */
   deadlineMs?: number;
-  /** Injected jitter source; tests pass a fixed value for determinism. */
   random?: () => number;
-  /** Injected clock, for tests. */
   now?: () => number;
-  /** Injected sleep, for tests. */
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -114,10 +79,6 @@ const RETRIABLE_MESSAGES = [
   "aborted",
 ];
 
-/**
- * Parse a Retry-After value into milliseconds. The header is either a count of
- * seconds or an HTTP date, and both are common in the wild.
- */
 export function parseRetryAfter(value: unknown, now: number = Date.now()): number | undefined {
   if (value === null || value === undefined) return undefined;
   if (typeof value === "number") {
@@ -131,7 +92,6 @@ export function parseRetryAfter(value: unknown, now: number = Date.now()): numbe
 
   const at = Date.parse(trimmed);
   if (Number.isNaN(at)) return undefined;
-  // A date already in the past means "retry now", not "retry in the past".
   return Math.max(0, at - now);
 }
 
@@ -146,13 +106,6 @@ function readHeader(err: Record<string, unknown>, name: string): unknown {
   return hit ? bag[hit] : undefined;
 }
 
-/**
- * Decide whether a failure is worth another model.
- *
- * Unknown shapes are treated as terminal on purpose: an unrecognised error is
- * more often a bug in our own request than a transient upstream blip, and
- * retrying a bug across five models just multiplies the damage.
- */
 export function classifyFailure(err: unknown, now: number = Date.now()): Failure {
   if (err === null || err === undefined) {
     return { message: "unknown failure", kind: "terminal" };
@@ -169,8 +122,6 @@ export function classifyFailure(err: unknown, now: number = Date.now()): Failure
   const retryAfterMs = parseRetryAfter(e.retryAfter ?? readHeader(e, "retry-after"), now);
 
   if (status !== undefined && status >= 100) {
-    // 5xx and the explicit "come back later" family are transient by
-    // definition. Every other 4xx is a statement about the request itself.
     const kind: FailureKind =
       status >= 500 || RETRIABLE_STATUS.has(status) ? "retriable" : "terminal";
     return { message, status, kind, retryAfterMs };
@@ -189,20 +140,6 @@ export function classifyFailure(err: unknown, now: number = Date.now()): Failure
   return { message, kind: transport ? "retriable" : "terminal", retryAfterMs };
 }
 
-/**
- * Exponential backoff with equal jitter.
- *
- * Jitter is not cosmetic. When a provider rate-limits, it rate-limits every
- * client at once, so a pure exponential schedule makes all of them wake up on
- * the same millisecond and hit the recovering endpoint together. That
- * synchronised thundering herd re-triggers the limit and turns a short
- * throttle into a long outage. Spreading each client randomly across the
- * window smooths the load back in.
- *
- * Equal jitter (half fixed, half random) is used rather than full jitter so a
- * retry still respects a meaningful minimum wait instead of occasionally
- * firing again immediately.
- */
 export function backoffDelay(
   attempt: number,
   baseDelayMs: number,
@@ -219,13 +156,6 @@ const defaultSleep = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
-/**
- * Walk `chain` in order until one candidate succeeds.
- *
- * `attempt` is injected rather than imported so the chain logic is testable
- * without a network, and so the same policy can wrap a chat call, an embedding
- * call or anything else.
- */
 export async function runWithFallback<C extends FallbackCandidate, T>(
   chain: readonly C[],
   attempt: AttemptFn<C, T>,
@@ -320,8 +250,6 @@ export async function runWithFallback<C extends FallbackCandidate, T>(
         });
 
         if (failure.kind === "terminal") {
-          // A bad key or a malformed body fails the same way everywhere, so
-          // the rest of the chain would only repeat this error more slowly.
           return {
             ok: false,
             error: failure,
@@ -332,15 +260,11 @@ export async function runWithFallback<C extends FallbackCandidate, T>(
         }
 
         if (tryNo < tries) {
-          // Retry-After is the provider telling us exactly when it will serve
-          // us again; guessing shorter just earns another 429.
           const wait =
             failure.retryAfterMs !== undefined
               ? failure.retryAfterMs
               : backoffDelay(tryNo, baseDelayMs, maxDelayMs, random);
 
-          // Never sleep past the deadline: waiting for a retry we could not
-          // run anyway is pure added latency on an already-failing request.
           if (wait >= remaining()) {
             return {
               ok: false,

@@ -3,35 +3,11 @@ import { z } from "zod";
 
 import { assertSafeProviderUrl } from "./url-guard";
 
-/**
- * Request body schemas.
- *
- * Every route previously did `await request.json() as SomeType`, which is a
- * lie the compiler believes: a malformed body reached the SQLite layer and
- * failed there, producing a 500 and a stack trace instead of a 400 and a
- * usable message.
- */
-
-/* ------------------------------------------------------------- primitives */
-
 const score = z.coerce.number().min(0).max(100);
 const nonNegative = z.coerce.number().min(0);
 const positiveInt = z.coerce.number().int().min(0);
 
-/**
- * Tri-state secret field.
- *
- * absent       -> keep the stored key
- * empty string -> clear it
- * a value      -> replace it
- *
- * A plain `z.string().optional()` collapses the first two cases, which
- * silently wipes stored keys on any update that does not resend them. The
- * distinction is preserved by never defaulting this field.
- */
 const apiKey = z.string();
-
-/* -------------------------------------------------------------- providers */
 
 export const providerKind = z.enum(["cloud", "local", "gateway", "custom"]);
 export const authType = z.enum(["bearer", "header", "query", "basic", "none"]);
@@ -55,7 +31,7 @@ const baseProviderSchema = z
 });
 
 const providerSsrfGuard = (data: { baseUrl?: string; kind?: string }) => {
-  if (!data.baseUrl) return true; // skip validation if baseUrl is absent (update case)
+  if (!data.baseUrl) return true;
   try {
     assertSafeProviderUrl(data.baseUrl, { allowPrivate: data.kind === "local" });
     return true;
@@ -73,8 +49,6 @@ export const updateProviderSchema = baseProviderSchema.partial().refine(provider
   message: 'baseUrl must be a public http(s) address (use kind="local" for Ollama on localhost)',
   path: ["baseUrl"],
 });
-
-/* ----------------------------------------------------------------- models */
 
 export const featuresSchema = z
   .object({
@@ -111,8 +85,6 @@ export const createModelSchema = z.object({
 
 export const updateModelSchema = createModelSchema.partial();
 
-/* ------------------------------------------------------------------ tasks */
-
 export const requiresSchema = z
   .object({
     tools: z.boolean(),
@@ -129,7 +101,6 @@ export const createTaskSchema = z.object({
   label: z.string({ error: "label is required" }).trim().min(1, "label is required"),
   slug: z.string().trim().optional(),
   description: z.string().optional(),
-  // 0-10: the scoring engine treats weight as relative importance, not a score.
   weights: z.record(z.string(), z.coerce.number().min(0).max(10)).optional(),
   requires: requiresSchema.optional(),
   pinnedModelId: z.coerce.number().int().positive().nullable().optional(),
@@ -137,9 +108,6 @@ export const createTaskSchema = z.object({
 
 export const updateTaskSchema = createTaskSchema.partial();
 
-/* -------------------------------------------------------------- endpoints */
-
-/** One prior exchange in a multi-turn playground conversation. */
 export const playgroundMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z
@@ -147,12 +115,6 @@ export const playgroundMessageSchema = z.object({
     .min(1, "message content is required"),
 });
 
-/**
- * Cumulative usage the client has already measured for earlier turns of the
- * conversation, so the response can report a running total across the whole
- * thread rather than only the latest call. Never trusted blindly: every field
- * is coerced to a non-negative finite number and defaults to zero.
- */
 export const playgroundTotalsSchema = z
   .object({
     inputTokens: nonNegative.optional(),
@@ -169,11 +131,6 @@ export const playgroundSchema = z.object({
     .string({ error: "prompt is required" })
     .trim()
     .min(1, "prompt is required"),
-  /**
-   * Prior turns of the conversation, oldest first. The new `prompt` is sent
-   * after them as the latest user turn. Capped so a runaway client cannot
-   * push an unbounded transcript through the endpoint in one call.
-   */
   messages: z.array(playgroundMessageSchema).max(200).optional(),
   priorTotals: playgroundTotalsSchema,
   system: z.string().optional(),
@@ -222,8 +179,6 @@ export const pricingSchema = z.object({
   recalcCheapness: z.boolean().optional(),
 });
 
-/* ------------------------------------------------------------------ parse */
-
 export interface ParseFailure {
   ok: false;
   response: NextResponse;
@@ -234,12 +189,6 @@ export interface ParseSuccess<T> {
   data: T;
 }
 
-/**
- * Parse a JSON request body, returning a ready 400 response on failure.
- *
- * Field-level errors are returned so a client can point at the offending
- * input rather than showing a generic failure.
- */
 export async function parseBody<T>(
   request: Request,
   schema: z.ZodType<T>,
@@ -261,9 +210,6 @@ export async function parseBody<T>(
       fields[issue.path.join(".") || "_"] = issue.message;
     }
 
-    // Zod's default message for a missing field is "expected string, received
-    // undefined", which does not say WHICH field. Prefix the path so the
-    // surfaced error is actionable without opening the schema.
     const first = parsed.error.issues[0];
     const path = first?.path.join(".");
     const error = first
@@ -276,8 +222,6 @@ export async function parseBody<T>(
       ok: false,
       response: NextResponse.json(
         { error, fields },
-        // 422: the JSON parsed fine, the values are wrong. Distinguishing this
-        // from 400 lets a client tell "malformed" from "invalid".
         { status: 422 },
       ),
     };

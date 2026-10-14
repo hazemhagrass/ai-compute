@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// A scratch data dir per run, set before the db module resolves its paths, so
-// tests never read or write the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-latency-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "test.db");
@@ -21,8 +19,6 @@ const {
   MIN_SAMPLES,
 } = await import("./latency");
 
-// Opening the database seeds a starter catalogue of providers and models, so
-// every assertion below is scoped to a model_row_id this file allocated.
 let nextModelRowId = 900_000;
 const allocModelRowId = () => ++nextModelRowId;
 
@@ -70,7 +66,6 @@ describe("percentile", () => {
   it("uses nearest rank, returning an actually observed value", () => {
     const sorted = [100, 200, 300, 400, 500];
 
-    // Never an interpolated midpoint: every figure is a real measurement.
     expect(percentile(sorted, 50)).toBe(300);
     expect(sorted).toContain(percentile(sorted, 95));
   });
@@ -93,8 +88,6 @@ describe("percentile", () => {
 });
 
 describe("observedLatency percentile maths", () => {
-  // 20 samples of 100..2000ms: nearest rank gives exact, hand-checkable
-  // answers (p50 -> rank 10, p95 -> rank 19, p99 -> rank 20).
   const modelRowId = allocModelRowId();
 
   beforeAll(() => {
@@ -194,8 +187,6 @@ describe("minimum sample threshold", () => {
       { latencyMs: 400 },
       { latencyMs: 400 },
       { latencyMs: 400 },
-      // A failed request measures the failure, and a 0 would look like the
-      // fastest call ever recorded. Neither is a speed sample.
       { latencyMs: 400, ok: false },
       { latencyMs: 400, ok: false },
       { latencyMs: 0 },
@@ -209,7 +200,6 @@ describe("minimum sample threshold", () => {
 describe("recency window", () => {
   it("excludes rows older than the window", () => {
     const modelRowId = allocModelRowId();
-    // A provider that used to be slow and has since got faster.
     seedEvents(modelRowId, [
       ...Array.from({ length: 8 }, () => ({ latencyMs: 20_000, daysAgo: 60 })),
       ...Array.from({ length: 6 }, () => ({ latencyMs: 300, daysAgo: 2 })),
@@ -300,8 +290,6 @@ describe("blendedSpeedScore", () => {
   });
 
   it("keeps a brand-new model rankable instead of scoring it zero", () => {
-    // No history at all: scoring 0 would mean never chosen, so never
-    // measured, so never scored.
     expect(blendedSpeedScore(null, 85)).toBeGreaterThan(0);
   });
 
@@ -309,8 +297,6 @@ describe("blendedSpeedScore", () => {
     const declared = 95;
     const slowReality = observation(FULL_CONFIDENCE_SAMPLES * 2, 20_000);
 
-    // The hand-written score claims this model is quick; twenty seconds at p95
-    // says otherwise, and the measurement wins outright.
     expect(blendedSpeedScore(slowReality, declared)).toBeLessThan(20);
     expect(blendedSpeedScore(slowReality, declared)).toBe(
       observedSpeedScore(slowReality),
@@ -329,7 +315,6 @@ describe("blendedSpeedScore", () => {
     const many = observation(FULL_CONFIDENCE_SAMPLES, 20_000);
     const blendedFew = blendedSpeedScore(few, declared);
 
-    // Five samples nudge the score toward reality without owning it.
     expect(blendedFew).toBeLessThan(declared);
     expect(blendedFew).toBeGreaterThan(blendedSpeedScore(many, declared));
   });
@@ -355,7 +340,6 @@ describe("blendedSpeedScore", () => {
 describe("end to end over recorded usage", () => {
   it("replaces a fictional declared score with the measured one", () => {
     const modelRowId = allocModelRowId();
-    // Declared "very fast", actually 8-9 seconds in the field.
     seedEvents(
       modelRowId,
       Array.from({ length: 40 }, (_, i) => ({

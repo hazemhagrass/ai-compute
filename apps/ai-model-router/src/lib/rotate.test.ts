@@ -5,8 +5,6 @@ import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-// A scratch data dir per run, set before the modules under test resolve their
-// paths, so a rotation test never rewrites the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-rotate-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "test.db");
@@ -23,7 +21,6 @@ const db: Database.Database = getDb();
 
 const oldKey = rotate.deriveKey(OLD_SECRET);
 
-/** Insert a provider whose stored key is encrypted under `secret`. */
 function seedSecret(slug: string, plain: string, secret = OLD_SECRET): number {
   const enc = plain ? rotate.encryptWith(rotate.deriveKey(secret), plain) : "";
   const info = db
@@ -32,7 +29,6 @@ function seedSecret(slug: string, plain: string, secret = OLD_SECRET): number {
   return Number(info.lastInsertRowid);
 }
 
-/** Insert a row whose ciphertext no key can ever open. */
 function seedCorrupt(slug: string): number {
   const info = db
     .prepare("INSERT INTO providers (slug, name, api_key_enc) VALUES (?,?,?)")
@@ -47,9 +43,6 @@ function stored(id: number): string {
   return row?.v ?? "";
 }
 
-// Opening the database seeds a starter catalogue, so the table is never empty
-// and global counts would drift. Every test starts from "the only rows holding
-// a secret are the ones this test created".
 beforeEach(() => {
   db.prepare("DELETE FROM providers WHERE api_key_enc != ''").run();
 });
@@ -75,7 +68,6 @@ describe("rotateMasterKey", () => {
     expect(rotate.decryptWith(newKey, stored(secrets.a))).toBe("sk-alpha-1234567890");
     expect(rotate.decryptWith(newKey, stored(secrets.b))).toBe("sk-beta-0987654321");
     expect(rotate.decryptWith(newKey, stored(secrets.c))).toBe("sk-gamma-unicode-\u00e9\u00e0-\u2713");
-    // The ciphertext must actually have changed, otherwise "rotated" is a lie.
     expect(stored(secrets.a)).not.toBe(before.a);
     expect(stored(secrets.b)).not.toBe(before.b);
     expect(stored(secrets.c)).not.toBe(before.c);
@@ -84,8 +76,6 @@ describe("rotateMasterKey", () => {
   });
 
   it("rotates keys written by the app's own encrypt path", () => {
-    // End-to-end guard: rotate.ts re-implements the wire format, so it has to
-    // stay byte-compatible with crypto.ts or rotation destroys real data.
     const p = repo.createProvider({
       name: "Live Crypto",
       baseUrl: "https://api.example.com/v1",
@@ -126,7 +116,6 @@ describe("rotateMasterKey", () => {
     const result = rotate.rotateMasterKey({ oldSecret: OLD_SECRET, newSecret: NEW_SECRET });
 
     expect(result.rotated).toBe(1);
-    // Every seeded provider has an empty key too, so this counts them all.
     expect(result.skipped).toBeGreaterThanOrEqual(1);
     expect(stored(empty)).toBe("");
     expect(rotate.decryptWith(rotate.deriveKey(NEW_SECRET), stored(keyed))).toBe(
@@ -189,8 +178,6 @@ describe("rotateMasterKey", () => {
         rotate.rotateMasterKey({ oldSecret: OLD_SECRET, newSecret: NEW_SECRET }),
       ).toThrow(rotate.RotationAbortedError);
 
-      // A partial rotation is unrecoverable, so the rollback must be total:
-      // rows ordered before AND after the failure stay on the old key.
       expect(stored(a)).toBe(before.a);
       expect(stored(c)).toBe(before.c);
       expect(stored(bad)).toBe(before.bad);
@@ -244,8 +231,6 @@ describe("rotateMasterKey", () => {
 
 describe("decryptWith", () => {
   it("throws on an unreadable value rather than returning an empty string", () => {
-    // decryptSecret swallows failures, which during rotation would look like an
-    // empty secret and overwrite a real key with "".
     expect(() => rotate.decryptWith(oldKey, "not-a-ciphertext")).toThrow(/format/);
     expect(() =>
       rotate.decryptWith(rotate.deriveKey(NEW_SECRET), rotate.encryptWith(oldKey, "x")),

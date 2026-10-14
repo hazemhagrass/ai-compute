@@ -1,10 +1,3 @@
-/**
- * Validation for `tier_router.classifier.systemone`, kept rule-for-rule with
- * hermes-agent `SystemOneConfig.from_config` (agent/systemone_router.py).
- * Hermes turns any invalid enabled block into `None` without a warning, so
- * the app must refuse to write one rather than let SystemOne silently vanish.
- */
-
 const DEFAULTS = { timeout_s: 4, attempt_timeout_s: 1.5, min_confidence: 0.75 };
 const MODEL_KEYS = ["routine_model", "escalation_model", "verdict_model"] as const;
 
@@ -30,8 +23,6 @@ function isFiniteNumber(x: unknown): x is number {
   return typeof x === "number" && Number.isFinite(x);
 }
 
-/** Problems Hermes would hit loading this block; empty means it loads. A
- * block that is not `enabled: true` is ignored by Hermes, so it is valid. */
 export function systemOneProblems(raw: Record<string, unknown>): string[] {
   if (raw.enabled !== true) return [];
   const problems: string[] = [];

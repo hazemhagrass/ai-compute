@@ -1,17 +1,9 @@
-/** Shared domain types for the AI Model Router. */
-
 import type { ExclusionReport } from "./exclusions";
 
 export type ProviderKind = "cloud" | "local" | "gateway" | "custom";
 
 export type AuthType = "bearer" | "header" | "query" | "basic" | "none";
 
-/**
- * Wire shape used when chatting with this provider.
- * "openai" is the default (OpenAI-compatible / Anthropic messages path);
- * "gemini" and "bedrock" route through the native adapters in
- * lib/provider-shapes/ instead.
- */
 export type ProviderShape = "openai" | "gemini" | "bedrock";
 
 export interface Provider {
@@ -20,20 +12,13 @@ export interface Provider {
   name: string;
   kind: ProviderKind;
   baseUrl: string;
-  /** Path appended to baseUrl for chat completions, e.g. /chat/completions */
   chatPath: string;
-  /** Native request shape; omitted on older rows means "openai". */
   shape?: ProviderShape;
-  /** Path used to list models, e.g. /models  (blank = no discovery) */
   modelsPath: string;
   authType: AuthType;
-  /** Header name when authType = header|bearer (default Authorization) */
   authHeaderName: string;
-  /** Query param name when authType = query */
   authQueryName: string;
-  /** Extra static headers, JSON object */
   headers: Record<string, string>;
-  /** Free-form notes / org id / project id etc. */
   meta: Record<string, string>;
   enabled: boolean;
   hasKey: boolean;
@@ -56,7 +41,6 @@ export interface ProviderInput {
   headers?: Record<string, string>;
   meta?: Record<string, string>;
   enabled?: boolean;
-  /** Plain secret; encrypted at rest. Omit to keep existing, "" to clear. */
   apiKey?: string;
 }
 
@@ -67,19 +51,14 @@ export interface Model {
   providerName: string;
   modelId: string;
   label: string;
-  /** 0-100 subjective/benchmark quality */
   quality: number;
-  /** 0-100, higher = faster tokens/sec + lower latency */
   speed: number;
-  /** 0-100, higher = cheaper */
   cheapness: number;
   contextWindow: number;
   maxOutput: number;
-  inputCost: number; // USD per 1M tokens
-  outputCost: number; // USD per 1M tokens
-  /** Per-capability scores 0-100 */
+  inputCost: number;
+  outputCost: number;
   skills: Record<string, number>;
-  /** Boolean feature flags */
   features: {
     tools: boolean;
     vision: boolean;
@@ -114,15 +93,12 @@ export interface ModelInput {
   enabled?: boolean;
 }
 
-/** A use case such as "planning" or "code review". */
 export interface Task {
   id: number;
   slug: string;
   label: string;
   description: string;
-  /** Weight per skill/axis, e.g. { reasoning: 5, coding: 2, cheapness: 1 } */
   weights: Record<string, number>;
-  /** Hard requirements a model must satisfy to be eligible. */
   requires: {
     tools?: boolean;
     vision?: boolean;
@@ -132,7 +108,6 @@ export interface Task {
     embedding?: boolean;
     minContext?: number;
   };
-  /** Manual override — when set, this model always wins for this task. */
   pinnedModelId: number | null;
   builtin: boolean;
   createdAt: string;
@@ -151,7 +126,6 @@ export interface TaskInput {
 export interface Scored {
   model: Model;
   score: number;
-  /** Per-axis contribution for the explanation UI. */
   breakdown: { axis: string; weight: number; value: number; points: number }[];
   reasons: string[];
   pinned?: boolean;
@@ -160,10 +134,8 @@ export interface Scored {
 export interface Recommendation {
   task: Task;
   ranked: Scored[];
-  /** Why the candidates that did NOT rank were thrown out. */
   exclusions?: ExclusionReport;
   generatedAt: string;
-  /** Present when the LLM-assisted picker was used. */
   ai?: {
     modelUsed: string;
     pick: string;
@@ -172,7 +144,6 @@ export interface Recommendation {
   };
 }
 
-/** Canonical skill axes. Users may add their own — these are just the seeds. */
 export const SKILL_AXES = [
   "reasoning",
   "planning",

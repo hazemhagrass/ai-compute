@@ -5,13 +5,6 @@ import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Restore a config produced by `GET /api/export`.
- *
- * Body: { version: 1, providers, models, tasks, conflict?: "skip" | "upsert" }.
- * Usage history is never imported. Plaintext keys are accepted only through
- * each provider's `plaintextApiKey` field and are encrypted before storage.
- */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;

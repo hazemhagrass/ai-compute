@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// A scratch data dir per run, set before the repo module resolves its paths,
-// so tests never read or write the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "test.db");
@@ -69,16 +67,10 @@ describe("queryModels", () => {
   it("searches across label, model id, and provider name", () => {
     expect(repo.queryModels({ search: "Odd Model", limit: 500 }).total).toBe(60);
     expect(repo.queryModels({ search: "scratch-001", limit: 500 }).total).toBe(1);
-    // Provider name is searchable, which is how a user finds "everything on
-    // my Ollama box" without knowing any individual model id.
     expect(repo.queryModels({ search: "Scratch Provider", limit: 500 }).total).toBe(120);
   });
 
   it("applies the enabled filter to the total as well as the page", () => {
-    // Scoped to this suite's provider: opening the database seeds a starter
-    // catalogue, so a global count here would silently include those rows.
-    // A total that ignores the filter produces a pager with empty trailing
-    // pages, which reads as data loss.
     const { models, total } = repo.queryModels({
       providerId,
       enabledOnly: true,
@@ -87,7 +79,7 @@ describe("queryModels", () => {
 
     expect(models.every((m) => m.enabled)).toBe(true);
     expect(total).toBe(models.length);
-    expect(total).toBe(108); // 120 created, every 10th disabled
+    expect(total).toBe(108);
   });
 
   it("clamps an absurd limit rather than returning everything", () => {
@@ -134,7 +126,6 @@ describe("provider secrets", () => {
   });
 
   it("treats an absent apiKey as keep and an empty string as clear", () => {
-    // The tri-state rule. Collapsing these two silently wipes stored keys.
     const p = repo.createProvider({
       name: "Tristate",
       baseUrl: "https://api.example.com/v1",

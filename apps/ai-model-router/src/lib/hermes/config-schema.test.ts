@@ -2,13 +2,6 @@ import { describe, expect, it } from "vitest";
 import { parseHermesConfig } from "@/lib/hermes/config-schema";
 import DEFAULT_PROFILE_TIER_ROUTER from "./default-tier-router.fixture.json";
 
-/**
- * default-tier-router.fixture.json is a verbatim snapshot of the tier_router
- * block in the Hermes default profile (~/.hermes/config.yaml). It holds no
- * credentials: tier_router resolves keys via resolve_runtime_provider, never
- * from the block. Hermes reads these keys in agent/tier_router.py and
- * agent/systemone_router.py; the dashboard schema must round-trip them.
- */
 describe("tier_router schema parity with the default profile", () => {
   it("round-trips the live default-profile block losslessly", () => {
     const parsed = parseHermesConfig({ tier_router: DEFAULT_PROFILE_TIER_ROUTER });

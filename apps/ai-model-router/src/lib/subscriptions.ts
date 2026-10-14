@@ -1,11 +1,3 @@
-/**
- * Subscriptions and entitlements (issue #153).
- *
- * A subscription is the source of truth for what a user is allowed to call at
- * a given provider. Entitlement filtering asks a simple question of every
- * model: is the user allowed to call it right now, and if not, why. The "why"
- * is preserved so the UI can explain, and the ranker can honour it.
- */
 import { z } from "zod";
 
 import { getDb } from "./db";
@@ -35,7 +27,6 @@ export const subscriptionInputSchema = subscriptionSchema.partial({
 });
 
 export type SubscriptionInput = z.infer<typeof subscriptionInputSchema>;
-
 
 interface Row {
   provider_id: number;
@@ -112,10 +103,6 @@ export function deleteSubscription(providerId: number): boolean {
   return res.changes > 0;
 }
 
-/**
- * Reason a specific model is not currently reachable.
- * The set is closed so the UI can render each case distinctly.
- */
 export type EntitlementReason =
   | "no-subscription"
   | "provider-disabled"
@@ -130,11 +117,6 @@ export interface EntitlementCheck {
   explanation?: string;
 }
 
-/**
- * Decide whether a model is reachable given the current subscription for its
- * provider. This is called by the ranker; it must not do IO beyond the two
- * lookups below, or ranking becomes N queries slow.
- */
 export function checkEntitlement(
   providerId: number,
   providerEnabled: boolean,
@@ -173,31 +155,13 @@ export function checkEntitlement(
   return { allowed: true };
 }
 
-/* ------------------------------------------- implicit provider budget (#170) */
-
 export interface ProviderBudgetCheck {
-  /** Null when the provider has no implicit cap to enforce. */
   monthlyBudget: number;
   spentCents: number;
   percentUsed: number;
   status: "ok" | "warning" | "exceeded";
 }
 
-/**
- * The monthly spend cap on a subscription, evaluated against THIS provider's
- * usage_events only (#170).
- *
- * Deliberately an implicit budget, not a row in the budgets table: a
- * subscription's monthlyBudget is what the user signed up for -- capping spend
- * at the provider is a consequence of that, and it should follow the
- * subscription automatically rather than requiring a second definition that
- * can drift out of sync.
- *
- * Exposed through the same evaluation shape as a budgets-table entry
- * (spend, percent, status) so #163's gate can consume it without a
- * special case: the implicit budget id is sub-<providerId>, which cannot
- * collide with a user-defined budget.
- */
 export function evaluateBudgetForProvider(
   providerId: number,
   now: Date = new Date(),
@@ -227,12 +191,6 @@ export function evaluateBudgetForProvider(
   return { monthlyBudget: limitCents, spentCents, percentUsed, status };
 }
 
-/**
- * The implicit budget as a BudgetEvaluation, for the call gate (#170). Built
- * here rather than by evaluateBudget because the periods differ (calendar
- * month, UTC, no weekStartsOn) and there is no stored Budget row to evaluate.
- * 0-limit subscriptions return null upstream: no cap means nothing to enforce.
- */
 export function implicitBudgetEvaluation(
   providerId: number,
   now: Date = new Date(),

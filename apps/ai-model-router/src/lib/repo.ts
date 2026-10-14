@@ -9,8 +9,6 @@ import type {
   TaskInput,
 } from "./types";
 
-/* ------------------------------------------------------------------ utils */
-
 function slugify(input: string): string {
   return (
     input
@@ -49,8 +47,6 @@ const clamp = (n: unknown, lo = 0, hi = 100, dflt = 0): number => {
   if (!Number.isFinite(v)) return dflt;
   return Math.min(hi, Math.max(lo, v));
 };
-
-/* -------------------------------------------------------------- providers */
 
 interface ProviderRow {
   id: number;
@@ -109,7 +105,6 @@ export function getProvider(id: number): Provider | null {
   return r ? mapProvider(r) : null;
 }
 
-/** Returns the decrypted key — server-side only, never serialize this. */
 export function getProviderSecret(id: number): string {
   const r = getDb()
     .prepare("SELECT api_key_enc FROM providers WHERE id = ?")
@@ -169,7 +164,6 @@ export function updateProvider(id: number, input: Partial<ProviderInput>): Provi
   if (input.headers !== undefined) set("headers_json", JSON.stringify(input.headers));
   if (input.meta !== undefined) set("meta_json", JSON.stringify(input.meta));
   if (input.enabled !== undefined) set("enabled", input.enabled ? 1 : 0);
-  // apiKey: undefined = keep, "" = clear, value = replace
   if (input.apiKey !== undefined) {
     set("api_key_enc", input.apiKey ? encryptSecret(input.apiKey) : "");
   }
@@ -184,8 +178,6 @@ export function updateProvider(id: number, input: Partial<ProviderInput>): Provi
 export function deleteProvider(id: number): boolean {
   return getDb().prepare("DELETE FROM providers WHERE id = ?").run(id).changes > 0;
 }
-
-/* ----------------------------------------------------------------- models */
 
 interface ModelRow {
   id: number;
@@ -252,7 +244,6 @@ function mapModel(r: ModelRow): Model {
 export interface ModelQuery {
   enabledOnly?: boolean;
   providerId?: number;
-  /** Matches label, model id, or provider name. */
   search?: string;
   limit?: number;
   offset?: number;
@@ -274,10 +265,6 @@ function modelWhere(q: ModelQuery): { sql: string; params: unknown[] } {
   return { sql: parts.length ? `WHERE ${parts.join(" AND ")}` : "", params };
 }
 
-/**
- * Unpaginated list. Safe for the router, which must score every candidate,
- * but never use it to feed a table: importing OpenRouter alone adds 446 rows.
- */
 export function listModels(opts: { enabledOnly?: boolean } = {}): Model[] {
   const { sql, params } = modelWhere(opts);
   return (
@@ -287,7 +274,6 @@ export function listModels(opts: { enabledOnly?: boolean } = {}): Model[] {
   ).map(mapModel);
 }
 
-/** Paginated list plus the unpaginated total, for table UIs. */
 export function queryModels(q: ModelQuery = {}): { models: Model[]; total: number } {
   const { sql, params } = modelWhere(q);
   const db = getDb();
@@ -406,8 +392,6 @@ export function updateModel(id: number, input: Partial<ModelInput>): Model | nul
 export function deleteModel(id: number): boolean {
   return getDb().prepare("DELETE FROM models WHERE id = ?").run(id).changes > 0;
 }
-
-/* ------------------------------------------------------------------ tasks */
 
 interface TaskRow {
   id: number;

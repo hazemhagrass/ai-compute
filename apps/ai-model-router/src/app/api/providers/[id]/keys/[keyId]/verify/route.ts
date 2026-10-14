@@ -5,13 +5,6 @@ import { verifyAndRecordKey } from "@/lib/provider-keys";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Probe one stored key against its provider and record the outcome (#162).
- *
- * The response deliberately mirrors KeyVerificationOutcome plus the audit
- * timestamp; the key itself never leaves the server, and error text has
- * already passed through redaction inside the verifier.
- */
 export async function POST(
   request: Request,
   ctx: { params: Promise<{ id: string; keyId: string }> },

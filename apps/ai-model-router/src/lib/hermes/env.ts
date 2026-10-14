@@ -1,15 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/**
- * Minimal, format-preserving .env editor.
- *
- * Hermes's own .env files are hand-maintained with comment blocks explaining
- * where to get each key (see `~/.hermes/.env`). A naive
- * `dotenv.parse -> JSON.stringify` round-trip would destroy every comment and
- * reorder every line. This keeps the file's exact line list and only
- * rewrites (or appends) the one line that changed.
- */
 export interface EnvLine {
   raw: string;
   key: string | null;
@@ -44,7 +35,6 @@ export function readEnvFile(envPath: string): EnvLine[] {
     .map(parseLine);
 }
 
-/** Active (non-commented) KEY -> value map, last occurrence wins (matches shell `source` semantics). */
 export function envValues(envPath: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of readEnvFile(envPath)) {
@@ -53,21 +43,11 @@ export function envValues(envPath: string): Record<string, string> {
   return out;
 }
 
-/** True if ANY of the candidate env var names has a non-empty active value. */
 export function hasAnyEnvKey(envPath: string, names: string[]): boolean {
   const values = envValues(envPath);
   return names.some((n) => (values[n] ?? "").length > 0);
 }
 
-/**
- * Set (or clear) a single env var, preserving every other line untouched.
- *  - If an active `KEY=...` line exists, its value is replaced in place.
- *  - Else if a commented `# KEY=...` line exists, it is uncommented and set
- *    (this is exactly the pattern in Hermes's own .env: keys ship commented
- *    out with a doc comment above, ready to be filled in).
- *  - Else the line is appended at the end of the file.
- *  - `value === null` deletes the line entirely (clears the credential).
- */
 export function setEnvValue(envPath: string, key: string, value: string | null): void {
   const lines = readEnvFile(envPath);
   const activeIdx = lines.findIndex((l) => l.key === key && !l.commented);
@@ -98,6 +78,5 @@ function writeLines(envPath: string, lines: EnvLine[]): void {
   try {
     fs.chmodSync(envPath, 0o600);
   } catch {
-    /* best effort on non-posix */
   }
 }

@@ -7,11 +7,6 @@ import { validateModelIdAgainstProvider } from "@/lib/model-validation";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Paginated by default. `all=1` returns every row and exists for the router,
- * which has to score every candidate; a table UI must never use it, because
- * importing the OpenRouter catalogue alone adds 446 rows.
- */
 export async function GET(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;

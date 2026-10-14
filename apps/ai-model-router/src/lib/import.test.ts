@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// A scratch data dir per run, set before any module resolves its paths, so
-// tests never read or write the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-import-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "test.db");
@@ -26,9 +24,6 @@ const policy = await import("./routing-policy");
 
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
-/* ------------------------------------------------------------- helpers */
-
-/** Same shape as `GET /api/export`, built straight from the live database. */
 function exportConfig(): unknown {
   return {
     version: 1,
@@ -75,7 +70,6 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
   return { version: 1, providers: [], models: [], tasks: [], ...overrides };
 }
 
-/** Wipe the config tables so each scenario starts from a clean slate. */
 function resetTables(): void {
   const db = getDb();
   db.exec("DELETE FROM tasks; DELETE FROM models; DELETE FROM providers;");
@@ -84,8 +78,6 @@ function resetTables(): void {
 function providerBySlug(slug: string) {
   return repo.listProviders().find((p) => p.slug === slug);
 }
-
-/* --------------------------------------------------------- secret guard */
 
 describe("isMaskedSecret", () => {
   it("recognises masked placeholders", () => {
@@ -101,8 +93,6 @@ describe("isMaskedSecret", () => {
     expect(isMaskedSecret("")).toBe(false);
   });
 });
-
-/* ------------------------------------------------------------ validation */
 
 describe("parseConfigImport", () => {
   it("accepts an empty config", () => {
@@ -152,8 +142,6 @@ describe("parseConfigImport", () => {
   });
 });
 
-/* ---------------------------------------------------------------- import */
-
 describe("importConfig", () => {
   it("recreates providers, models and tasks on a fresh database", () => {
     resetTables();
@@ -184,7 +172,6 @@ describe("importConfig", () => {
     resetTables();
     importConfig(payload({ providers: [providerRow()], tasks: [taskRow()] }));
 
-    // Default mode: explicit skip, never a silent duplicate.
     const skipped = importConfig(
       payload({
         providers: [providerRow({ name: "Renamed Provider" })],
@@ -199,7 +186,6 @@ describe("importConfig", () => {
     expect(repo.listProviders().filter((p) => p.slug === "imported-provider")).toHaveLength(1);
     expect(repo.getTaskBySlug("imported-task")?.description).toBe("");
 
-    // Upsert mode: existing rows are updated in place, still no duplicates.
     const upserted = importConfig(
       payload({
         providers: [providerRow({ name: "Renamed Provider" })],
@@ -238,8 +224,6 @@ describe("importConfig", () => {
 
   it("rolls back the whole import when a mid-file row fails at write time", () => {
     resetTables();
-    // The first provider and model are valid; the second model references a
-    // provider slug that exists nowhere, which only fails once writes start.
     const bad = payload({
       providers: [providerRow()],
       models: [modelRow(), modelRow({ providerSlug: "does-not-exist", modelId: "ghost" })],
@@ -341,7 +325,6 @@ describe("importConfig", () => {
     expect(m).toMatchObject({ modelId: "rt-model", label: "RT Model", quality: 71, tags: ["roundtrip"] });
     expect(repo.getTaskBySlug("rt-task")?.weights).toEqual({ reasoning: 5 });
 
-    // Importing the same file twice skips every row instead of duplicating it.
     const again = importConfig(snapshot);
     expect(again.providers).toMatchObject({ inserted: 0, skipped: counts.providers, updated: 0 });
     expect(again.models).toMatchObject({ inserted: 0, skipped: counts.models, updated: 0 });
@@ -352,14 +335,11 @@ describe("importConfig", () => {
   });
 });
 
-
 describe("v2 round-trip (#172)", () => {
   let providers: { id: number; slug: string }[];
   let payloadV2: Record<string, unknown>;
 
   beforeAll(() => {
-    // A small but complete machine: providers, keys (metadata), subscription,
-    // budget, policy override -- exactly the state an export must carry.
     const a = repo.createProvider({
       name: "RT Alpha",
       baseUrl: "https://rt-alpha.example",
@@ -388,7 +368,6 @@ describe("v2 round-trip (#172)", () => {
     });
     policy.updateRoutingPolicy({ preferLocal: true, minContext: 8000 });
 
-    // Build the same payload GET /api/export produces (lib calls, no HTTP).
     const exported = {
       version: 2,
       providers: repo.listProviders().map((p) => ({ ...p, keyPreview: undefined })),
@@ -418,9 +397,6 @@ describe("v2 round-trip (#172)", () => {
   });
 
   it("restores subscriptions, budgets, keys metadata, and the policy", () => {
-    // Import into this still-populated DB with skip; every row exists, so the
-    // assertion is that the sections VALIDATE and APPLY (skip) cleanly --
-    // proving the schemas and the transaction handles a fully-stocked payload.
     const summary = importConfig(
       payloadV2 as never,
       {},
@@ -432,9 +408,9 @@ describe("v2 round-trip (#172)", () => {
     };
 
     expect(summary.subscriptions.skipped).toBeGreaterThan(0);
-    expect(summary.budgets.inserted).toBe(1); // saveBudget is idempotent upsert
+    expect(summary.budgets.inserted).toBe(1);
     expect(summary.providerKeys.inserted).toBeGreaterThan(0);
-    expect(summary.routingPolicy).toBe("kept"); // policy exists, not overwritten
+    expect(summary.routingPolicy).toBe("kept");
   });
 
   it("provider keys round-trip as placeholders, never secrets", () => {
@@ -443,10 +419,6 @@ describe("v2 round-trip (#172)", () => {
     };
     expect(summary.providerKeys.inserted).toBeGreaterThan(0);
 
-    // Import must not resurrect the plaintext secrets it never received:
-    // rows created BY the import carry the 'imported' label and a masked
-    // placeholder, while pre-existing rows keep their real (locally stored)
-    // keys. Assert on the imported rows specifically.
     for (const p of providers) {
       const imported = keys.listProviderKeys(p.id).filter(
         (k) => k.label === "primary" && k.keyPreview.includes("impo") === false,
@@ -456,7 +428,6 @@ describe("v2 round-trip (#172)", () => {
       );
       void imported;
       for (const k of placeholders) {
-        // Placeholder previews never echo a real full key shape.
         expect(k.keyPreview).not.toMatch(/sk-roundtrip-alpha-000[12]/);
       }
     }

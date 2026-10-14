@@ -48,9 +48,6 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
 }
 
-/** Whole-router settings (enabled flag, default tier, classifier pool) — a
- * separate verb from per-tier upsert below so toggling "enabled" doesn't
- * require resending every tier. */
 export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/tiers">) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -68,7 +65,6 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
 }
 
-/** Create or fully replace one named tier. */
 export async function POST(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/tiers">) {
   const denied = await requireAuth();
   if (denied) return denied;

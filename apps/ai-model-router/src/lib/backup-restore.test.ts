@@ -9,9 +9,6 @@ import { createBackup } from "./backup";
 import { restoreBackup, RestoreError } from "./restore";
 import { decryptWith, deriveKey, encryptWith } from "./rotate";
 
-// Each test gets a scratch "data dir" (live db + .secret) and a scratch
-// "backup dir". Nothing touches the developer's real router.db: paths are
-// always passed explicitly and the master secret is passed as an option.
 const ROOT = mkdtempSync(join(tmpdir(), "amr-backup-test-"));
 
 const SECRET = "backup-test-master-secret-000000000000";
@@ -83,8 +80,6 @@ describe("createBackup", () => {
     seedProvider(fx.dbPath, "with-key", "sk-live-one");
     seedProvider(fx.dbPath, "without-key", "");
 
-    // A writer still connected in WAL mode: the point of using the SQLite
-    // backup API is that this is exactly the situation a raw cp gets wrong.
     const live = new Database(fx.dbPath);
     live.pragma("journal_mode = WAL");
     live.prepare("INSERT INTO providers (slug, name) VALUES ('late-writer','late-writer')").run();
@@ -98,12 +93,10 @@ describe("createBackup", () => {
     expect(result.providers).toBe(3);
     expect(result.storedKeys).toBe(1);
 
-    // The snapshot is self-contained and its key decrypts under the master.
     const rows = keysIn(result.dbFile);
     expect(rows.map((r) => r.slug)).toEqual(["late-writer", "with-key", "without-key"]);
     const keyed = rows.find((r) => r.slug === "with-key");
     expect(decryptWith(deriveKey(SECRET), keyed?.v ?? "")).toBe("sk-live-one");
-    // The key went along with the database, mode intact.
     expect(readFileSync(result.secretFile ?? "", "utf8")).toBe(SECRET);
   });
 
@@ -132,8 +125,6 @@ describe("restoreBackup", () => {
     seedProvider(fx.dbPath, "rt-b", "sk-roundtrip-two");
     const backup = await createBackup(fx.backupDir, { srcDbPath: fx.dbPath });
 
-    // Live data drifts away from the snapshot: a row is added and the file
-    // is then replaced wholesale by the restore.
     seedProvider(fx.dbPath, "rt-drifted", "sk-drifted");
     const result = restoreBackup(fx.backupDir, {
       currentSecret: SECRET,
@@ -155,7 +146,6 @@ describe("restoreBackup", () => {
       expect(decryptWith(deriveKey(SECRET), row?.v ?? "")).toBe(plain);
     }
 
-    // The replaced database still exists next door for manual rollback.
     expect(keysIn(result.safetyBackup ?? "").map((r) => r.slug)).toContain("rt-drifted");
     expect(backup.dbFile).toBe(join(fx.backupDir, "router.db"));
   });
@@ -166,8 +156,6 @@ describe("restoreBackup", () => {
     const before = keysIn(fx.dbPath);
     await createBackup(fx.backupDir, { srcDbPath: fx.dbPath });
 
-    // The "current" master is no longer the one the snapshot was written
-    // under. Without --rekey this must be a refusal, not a swap.
     const other = "a-different-master-secret-1111111111";
     expect(() =>
       restoreBackup(fx.backupDir, { currentSecret: other, destDbPath: fx.dbPath }),
@@ -176,7 +164,6 @@ describe("restoreBackup", () => {
       restoreBackup(fx.backupDir, { currentSecret: other, destDbPath: fx.dbPath }),
     ).toThrow(/do not decrypt/);
 
-    // The live database is byte-for-byte what it was: no partial restore.
     expect(keysIn(fx.dbPath)).toEqual(before);
     expect(readFileSync(fx.secretPath, "utf8")).toBe(SECRET);
   });
@@ -187,8 +174,6 @@ describe("restoreBackup", () => {
     seedProvider(fx.dbPath, "rk-lost", "sk-rekey-lost", "third-master-secret-2222222222");
     await createBackup(fx.backupDir, { srcDbPath: fx.dbPath });
 
-    // Live database is empty of keys; the backup mixes one row under the
-    // current key with one under a key nobody has anymore.
     const empty = makeFixture("rekey-target");
     const result = restoreBackup(fx.backupDir, {
       currentSecret: SECRET,
@@ -202,7 +187,6 @@ describe("restoreBackup", () => {
     const ok = rows.find((r) => r.slug === "rk-ok");
     expect(decryptWith(deriveKey(SECRET), ok?.v ?? "")).toBe("sk-rekey-ok");
 
-    // The backup itself was not mutated by the rekey.
     const snapRow = keysIn(join(fx.backupDir, "router.db")).find((r) => r.slug === "rk-lost");
     expect(decryptWith(deriveKey("third-master-secret-2222222222"), snapRow?.v ?? "")).toBe(
       "sk-rekey-lost",
@@ -210,9 +194,6 @@ describe("restoreBackup", () => {
   });
 
   it("still refuses with rekey when nothing at all decrypts", async () => {
-    // Sanity guard on the failure path the wrong-key test already pins:
-    // a wrong key with no rekey is an error, with rekey it restores but
-    // reports every key as unreadable.
     const fx = makeFixture("all-wrong");
     seedProvider(fx.dbPath, "aw-a", "sk-original");
     await createBackup(fx.backupDir, { srcDbPath: fx.dbPath });

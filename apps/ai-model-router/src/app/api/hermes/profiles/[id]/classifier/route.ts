@@ -12,8 +12,6 @@ const classifierSettingsSchema = z.object({
   timeout_s: z.number().positive().optional(),
   history_turns: z.number().int().min(0).optional(),
   enabled: z.boolean().optional(),
-  /** Merged into `classifier.systemone`; validated against Hermes's own
-   * loader rules in `setSystemOne`, so only the shape is checked here. */
   systemone: z
     .object({
       enabled: z.boolean().optional(),
@@ -36,12 +34,6 @@ const removeRouteSchema = z.object({
   subtype: z.string().trim().min(1),
 });
 
-
-/** `tier_router.classifier`'s tuning knobs (timeout_s, history_turns,
- * enabled, systemone) — kept as its own PATCH verb, separate from the
- * pool-only one on `tiers/route.ts`, since these are edited from different
- * UI cards. An invalid systemone block is rejected with 400 and nothing is
- * written, because Hermes would silently drop it. */
 export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/classifier">) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -61,7 +53,6 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
 }
 
-/** Task-route overrides (`tier_router.routes.<task>.<subtype> = <tier>`). */
 export async function POST(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/classifier">) {
   const denied = await requireAuth();
   if (denied) return denied;

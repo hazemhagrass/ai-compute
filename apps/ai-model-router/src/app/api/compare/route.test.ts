@@ -4,14 +4,10 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-// A scratch data dir per run, set before the repo module resolves its paths,
-// so tests never read or write the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-compare-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "test.db");
 process.env.AMR_SECRET = "test-secret-not-a-real-key-000000";
-
-// No password is configured in the scratch DB, so requireAuth passes through.
 
 const client = await import("@/lib/client");
 const repo = await import("@/lib/repo");
@@ -105,10 +101,8 @@ describe("POST /api/compare", () => {
     });
     chatSpy.mockImplementation(async (_provider, modelId) => {
       if (modelId === "compare-a") return makeResponse("answer from A", 1000, 500);
-      // B stays pending until the test opens the gate: if the route awaited A
-      // before starting B, this implementation would never be reached.
       if (modelId === "compare-b") {
-        gateB.then(resolveB); // keep the binding referenced
+        gateB.then(resolveB);
         return gateB;
       }
       throw new Error(`unexpected model ${modelId}`);
@@ -117,7 +111,6 @@ describe("POST /api/compare", () => {
     recordSpy.mockClear();
 
     const pending = post({ modelRowIdA: modelAId, modelRowIdB: modelBId, prompt: "hello" });
-    // Let the route start both legs, then release B.
     await new Promise((r) => setTimeout(r, 20));
     resolveB(makeResponse("answer from B", 2000, 100));
     const res = await pending;
@@ -133,15 +126,12 @@ describe("POST /api/compare", () => {
     expect(json.a.text).toBe("answer from A");
     expect(json.a.modelId).toBe("compare-a");
     expect(json.a.latencyMs).toBe(42);
-    // 1000 in @ $3/1M + 500 out @ $15/1M = $0.0105
     expect(json.a.costUsd).toBeCloseTo(0.0105, 10);
     expect(json.b.ok).toBe(true);
     expect(json.b.text).toBe("answer from B");
     expect(json.b.modelId).toBe("compare-b");
-    // 2000 in @ $0.25/1M + 100 out @ $2/1M = $0.0007
     expect(json.b.costUsd).toBeCloseTo(0.0007, 10);
 
-    // Both legs are logged so comparison spend shows up in analytics.
     expect(recordSpy).toHaveBeenCalledTimes(2);
     expect(recordSpy.mock.calls.every(([input]) => input.source === "compare")).toBe(true);
     expect(recordSpy.mock.calls.every(([input]) => input.ok === true)).toBe(true);

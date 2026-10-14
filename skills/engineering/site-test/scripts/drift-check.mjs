@@ -1,22 +1,4 @@
 #!/usr/bin/env node
-// Drift check: compare this run's results against the site and the last run.
-//
-// Fails the build (exit 1) when any of these is true:
-//   - a route in the sitemap has no scenario touching it
-//   - a role appears in the auth event stream that is not in the config
-//   - a scenario passed with a fallback selector match (false green)
-//   - a control was clicked in the recorded trace that no scenario clicks
-//
-// Usage:
-//   node drift-check.mjs <outDir> [--config=<path>] [--last=<previousResultsJson>]
-//
-// Inputs it expects in <outDir>:
-//   crawl-report.json    from crawl.mjs
-//   scenarios.json       from scenarios.mjs (roles, results, observed selectors)
-//   auth-events.json     optional, roles observed at sign-in time
-//   click-trace.json     optional, controls clicked during runs
-//
-// Output: <outDir>/drift.json and a printed report.
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -48,8 +30,6 @@ const last = flags.last ? readJson(flags.last) : null;
 
 const findings = [];
 
-// -- 1. Uncovered routes -----------------------------------------------------
-
 const excluded = new Set(config.excluded_routes ?? []);
 const routesInCrawl = new Set(crawl.pages.map((p) => p.path));
 const scenarioList = scenarios.results ?? scenarios.scenarios ?? [];
@@ -70,8 +50,6 @@ for (const path of routesInCrawl) {
   }
 }
 
-// -- 2. Unknown roles --------------------------------------------------------
-
 const knownRoles = new Set(config.roles ?? ["guest"]);
 for (const role of authEvents.roles ?? []) {
   if (!knownRoles.has(role)) {
@@ -82,8 +60,6 @@ for (const role of authEvents.roles ?? []) {
     });
   }
 }
-
-// -- 3. False greens ---------------------------------------------------------
 
 for (const result of scenarioList) {
   if (result.status !== "pass") continue;
@@ -103,8 +79,6 @@ for (const result of scenarioList) {
   }
 }
 
-// -- 4. Uncovered click paths -----------------------------------------------
-
 const clickedSelectors = new Set(
   scenarioList.flatMap((r) => r.assertions?.map((a) => a.selector) ?? []),
 );
@@ -118,8 +92,6 @@ for (const click of clickTrace.clicks ?? []) {
     });
   }
 }
-
-// -- 5. Regressions against last run ----------------------------------------
 
 if (last) {
   const lastPass = new Map(
@@ -137,8 +109,6 @@ if (last) {
     }
   }
 }
-
-// -- Write drift report -----------------------------------------------------
 
 const drift = {
   outDir,

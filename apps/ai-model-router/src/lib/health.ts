@@ -5,10 +5,8 @@ import { listProviderKeys } from "./provider-keys";
 import { listProviders } from "./repo";
 import type { Provider } from "./types";
 
-/** How many provider probes may run at the same time. */
 export const HEALTH_CONCURRENCY = 5;
 
-/** Per-probe deadline, so one hung endpoint cannot stall the dashboard. */
 export const HEALTH_PROBE_TIMEOUT_MS = 8000;
 
 export interface ProviderHealth {
@@ -19,7 +17,6 @@ export interface ProviderHealth {
   modelCount: number | null;
   status: number | null;
   error: string | null;
-  /** Key-pool audit (#175): what the last DEFINITIVE verification said. */
   keyAudit: {
     activePreview: string | null;
     lastVerifiedAt: string | null;
@@ -36,19 +33,11 @@ export interface HealthReport {
 }
 
 function sanitizeError(raw: string): string {
-  // testConnection already runs redactSecrets with the provider key, so the
-  // key is gone here. This pass just caps a full upstream body (HTML error
-  // pages, stack traces) before it reaches the UI.
   let msg = redactSecrets(raw);
   if (msg.length > 200) msg = `${msg.slice(0, 200)}...`;
   return msg.replace(/\s+/g, " ").trim();
 }
 
-/**
- * Key audit fields snapshotted outside the try, so they ride along on every
- * outcome (up, down, thrown). Reading the pool is one indexed query per
- * provider and the health panel is not hot, so that is acceptable.
- */
 function keyAuditFor(providerId: number): ProviderHealth["keyAudit"] {
   const keys = listProviderKeys(providerId);
   if (keys.length === 0) return null;
@@ -76,17 +65,11 @@ async function probeProvider(p: Provider): Promise<ProviderHealth> {
       error: r.ok ? null : sanitizeError(r.error ?? "connection failed"),
     };
   } catch (err) {
-    // testConnection is not supposed to throw, but a thrown error must still
-    // degrade to a row rather than fail the whole dashboard.
     const raw = err instanceof Error ? err.message : String(err);
     return { ...base, ok: false, latencyMs: 0, modelCount: null, status: null, error: sanitizeError(raw) };
   }
 }
 
-/**
- * Run `probe` over `providers` with at most `limit` in flight. Results keep
- * the input order, and every provider gets a row even when its probe throws.
- */
 export async function runHealthChecks<T>(
   providers: Provider[],
   probe: (p: Provider) => Promise<T>,
@@ -106,7 +89,6 @@ export async function runHealthChecks<T>(
   return results;
 }
 
-/** Test every configured provider and aggregate the per-provider status. */
 export async function checkAllProviders(): Promise<HealthReport> {
   const started = performance.now();
   const providers = listProviders().filter((p) => p.enabled);

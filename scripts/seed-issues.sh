@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Create the ai-compute backlog as GitHub issues.
-# Idempotent: skips any issue whose exact title already exists.
 set -uo pipefail
 
 REPO="hazemhagrass/ai-compute"
@@ -19,7 +17,6 @@ mk() {
   printf '  %s  %s\n' "${url##*/}" "$title"
 }
 
-# ---------------------------------------------------------------- phase 1
 echo "== phase 1: foundation =="
 
 mk "Add a test runner and cover the scoring engine" \
@@ -82,7 +79,6 @@ mk "Paginate and index the models list before it gets slow" \
 - Virtualize or paginate the models table.
 - Verify the existing `idx_models_provider` is actually used by the filtered query (`EXPLAIN QUERY PLAN`).'
 
-# ---------------------------------------------------------------- phase 2
 echo "== phase 2: security =="
 
 mk "Add authentication — the app is currently wide open" \
@@ -143,8 +139,6 @@ mk "Rotate the encryption key without losing stored secrets" \
 
 The ciphertext already carries a `v1.` version prefix, so a future format change is expressible. Use it.'
 
-
-# ---------------------------------------------------------------- phase 3
 echo "== phase 3: router quality =="
 
 mk "Replace hand-written skill scores with a real evaluation harness" \
@@ -207,7 +201,6 @@ mk "Persist recommendations so a choice can be revisited" \
 - Persist each recommendation with its inputs, constraints, and ranked output.
 - A history view, and a diff against what the same query returns today, so a price or score change that flips the answer is visible.'
 
-# ---------------------------------------------------------------- phase 4
 echo "== phase 4: analytics =="
 
 mk "Add budgets with alerts before the bill arrives" \
@@ -257,7 +250,6 @@ mk "Show the true cost of a multi-turn conversation" \
 - Cumulative cost and context growth across a thread.
 - Flag when resent history exceeds fresh input, which is the moment to compact.'
 
-# ---------------------------------------------------------------- phase 5
 echo "== phase 5: providers =="
 
 mk "Stream responses instead of blocking until the last token" \
@@ -306,7 +298,6 @@ mk "Test every provider connection at once with a health dashboard" \
 - Optional scheduled re-check and a history sparkline.
 - Respect a per-provider timeout; a sleeping local box should not hold the whole sweep.'
 
-# ---------------------------------------------------------------- phase 6
 echo "== phase 6: release =="
 
 mk "Ship a Dockerfile and compose file" \
@@ -355,7 +346,6 @@ mk "Add a repo-level agent quickstart for the router app" \
 - `apps/ai-model-router/CLAUDE.md`: the lib layer map, why there is no ORM, the tri-state `apiKey` rule, the React 19 compiler constraints that lint enforces, and the OpenRouter `:batch` variant trap.
 - Keep it short. A long file gets skimmed and the load-bearing warnings get missed.'
 
-# ---------------------------------------------------------------- phase 7
 echo "== phase 7: skills =="
 
 mk "Create a code-refactoring skill" \

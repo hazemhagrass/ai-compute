@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-// Read-only site crawl in headless Chrome: GET only, never clicks or submits.
-//
-// Usage:
-//   node crawl.mjs <baseUrl> <outDir> [--sitemap=<path>] [--config=<path>]
-//
-// Env:
-//   WIDTH        (default 1280)
-//   MAX_PAGES    (default 60)
-//   CHROME       (default: first found on PATH from common locations)
-//
-// Config (optional, JSON):
-//   { "known_routes": ["/", "/pricing"], "excluded_routes": ["/admin"] }
-//
-// Outputs:
-//   <outDir>/crawl-report.json    per-page evidence
-//   <outDir>/<N>_<slug>.png       one screenshot per route
 
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync, existsSync, readFileSync } from "node:fs";
@@ -61,7 +45,6 @@ const config = flags.config
   : { known_routes: ["/"], excluded_routes: [] };
 const excluded = new Set(config.excluded_routes ?? []);
 
-// Page set: known routes + sitemap + one deliberate 404 for regression.
 const pages = new Set(config.known_routes ?? ["/"]);
 pages.add(`/__does-not-exist-${Date.now().toString(36)}`);
 try {
@@ -76,11 +59,8 @@ try {
     } catch {}
   }
 } catch {
-  // No sitemap is fine, we still crawl known_routes.
 }
 const queue = [...pages].filter((p) => !excluded.has(p)).slice(0, MAX_PAGES);
-
-// ---- Chrome over CDP -------------------------------------------------------
 
 const port = 9400 + Math.floor(Math.random() * 400);
 const userDataDir = mkdtempSync(join(tmpdir(), "site-test-crawl-"));
@@ -145,8 +125,6 @@ await send("Emulation.setDeviceMetricsOverride", {
   mobile: WIDTH < 600,
 });
 
-// ---- Per-page probe --------------------------------------------------------
-
 const probe = `(() => {
   const vw = document.documentElement.clientWidth;
   const text = (el) => (el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || "").trim();
@@ -205,8 +183,6 @@ const probe = `(() => {
     overflow: overflow.slice(0, 8).map(({ node, ...rest }) => rest),
   });
 })()`;
-
-// ---- Crawl loop ------------------------------------------------------------
 
 const results = [];
 const linkStatus = new Map();
@@ -289,8 +265,6 @@ for (const path of queue) {
   console.log(`[${idx}/${queue.length}] ${status} ${path} -> ${file}`);
 }
 
-// ---- Link-check pass (internal only) --------------------------------------
-
 const linkResults = [];
 for (const link of linkStatus.keys()) {
   try {
@@ -301,8 +275,6 @@ for (const link of linkStatus.keys()) {
   }
 }
 const brokenLinks = linkResults.filter((l) => l.status === 0 || l.status >= 400);
-
-// ---- Write report ---------------------------------------------------------
 
 const report = {
   base,
@@ -324,7 +296,6 @@ console.log("");
 console.log(`crawled ${results.length} pages, ${brokenLinks.length} broken internal links.`);
 console.log(`report: ${join(outDir, "crawl-report.json")}`);
 
-// Failing exit if anything meaningful is broken.
 const bad =
   results.some((r) => r.consoleErrors.length || r.failedRequests.length || r.exceptions.length) ||
   brokenLinks.length > 0;

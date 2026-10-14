@@ -1,14 +1,3 @@
-// AWS Bedrock Runtime native shape: POST {base}/model/{modelId}/converse
-// (the Converse API). Ref: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html
-//
-// AUTHENTICATION: real requests require AWS SigV4 signing
-// (x-amz-date, Authorization: AWS4-HMAC-SHA256 ...) built from AWS credentials.
-// That signing step is deliberately NOT implemented here; it is isolated in
-// bedrockAuthHeaders() below. To go live, implement that function using AWS
-// credentials (access key id, secret access key, session token, region), or
-// swap this adapter's fetch for the official @aws-sdk/client-bedrock-runtime.
-// Without credentials the request will be rejected by AWS with 403.
-
 import type { Provider } from "../types";
 import type { ProviderShapeAdapter, ShapeMessage, ShapeUsage } from "./types";
 
@@ -22,10 +11,6 @@ function asRecord(v: unknown): Record<string, unknown> | null {
     : null;
 }
 
-// TODO(aws-auth): implement SigV4 signing here. Inputs needed: region, service
-// ("bedrock"), access key id, secret access key, optional session token. Keep
-// this the only auth-aware function in the file so normalization stays
-// testable without credentials.
 export function bedrockAuthHeaders(): Record<string, string> {
   return {};
 }

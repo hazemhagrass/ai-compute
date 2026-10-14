@@ -7,10 +7,6 @@ import { probeHermesProvider } from "@/lib/hermes/probe";
 
 export const dynamic = "force-dynamic";
 
-/** Verify a Hermes-managed provider is reachable + credentialed, without
- * ever returning the key itself. Not every auth type is probeable this way
- * (oauth/aws_sdk/vertex/...) — those come back with `notTestable: true`
- * rather than a false failure. */
 export async function POST(
   _req: Request,
   ctx: RouteContext<"/api/hermes/profiles/[id]/providers/[providerId]/test">,

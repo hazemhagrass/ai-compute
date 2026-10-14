@@ -1,19 +1,11 @@
 import { getDb } from "./db";
 
-/**
- * Persisted recommendations. A recommendation the router produced is stored so
- * a choice can be revisited (and the picked model recorded) without re-running
- * the ranking. The ranked list is stored as JSON because it is a snapshot: the
- * point is to see what the router said at the time, not a live re-derivation.
- */
-
 export interface SavedRecommendation {
   id: number;
   ts: string;
   taskSlug: string;
   taskLabel: string;
   prompt: string;
-  /** The ranked candidates exactly as returned, as a JSON snapshot. */
   ranked: unknown[];
   pickedModelRowId: number | null;
   pickedAt: string | null;
@@ -36,7 +28,6 @@ function toSaved(r: Row): SavedRecommendation {
     const parsed = JSON.parse(r.ranked_json);
     if (Array.isArray(parsed)) ranked = parsed;
   } catch {
-    // A corrupt snapshot must not break listing; surface it as empty.
   }
   return {
     id: r.id,
@@ -85,7 +76,6 @@ export function listRecommendations(limit = 50): SavedRecommendation[] {
   return rows.map(toSaved);
 }
 
-/** Record which model the user picked. Returns the updated row. */
 export function pickRecommendation(
   id: number,
   modelRowId: number,

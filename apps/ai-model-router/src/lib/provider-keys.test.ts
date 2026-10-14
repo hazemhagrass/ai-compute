@@ -1,4 +1,3 @@
-/** Tests for lib/provider-keys.ts (issue #156). */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,12 +31,9 @@ describe("provider keys", () => {
   it("adds a key with a preview and no plaintext leak", () => {
     const k = keys.addProviderKey(providerId, "sk-abcdef123456", "personal", false);
     expect(k.label).toBe("personal");
-    // first key of a provider is auto-activated (see addProviderKey)
     expect(k.active).toBe(true);
-    // preview shows only the first + last few chars of the key
     expect(k.keyPreview).not.toBe("sk-abcdef123456");
     expect(k.keyPreview).toContain("•");
-    // full plaintext must never appear in the preview
     expect(k.keyPreview).not.toContain("abcdef");
   });
 
@@ -48,13 +44,11 @@ describe("provider keys", () => {
     const list = keys.listProviderKeys(providerId);
     expect(list.find((k) => k.id === a.id)?.active).toBe(false);
     expect(list.find((k) => k.id === b.id)?.active).toBe(true);
-    // exactly one active per provider
     expect(list.filter((k) => k.active)).toHaveLength(1);
   });
 
   it("activate rewrites providers.api_key_enc so the chat path sees it", () => {
     const c = keys.addProviderKey(providerId, "sk-ccccccccccccc", "c", true);
-    // repo.getProviderSecret uses the mirror on providers.api_key_enc
     expect(repo.getProviderSecret(providerId)).toBe("sk-ccccccccccccc");
     expect(keys.revealProviderKey(c.id)).toBe("sk-ccccccccccccc");
   });
@@ -67,7 +61,6 @@ describe("provider keys", () => {
     const after = keys.listProviderKeys(providerId);
     expect(after.map((k) => k.id)).not.toContain(active.id);
     expect(after.find((k) => k.id === other.id)?.active).toBe(true);
-    // mirror updated
     expect(repo.getProviderSecret(providerId)).toBe(keys.revealProviderKey(other.id));
   });
 
@@ -100,9 +93,7 @@ describe("provider keys", () => {
     });
     const k1 = keys.addProviderKey(p.id, "sk-first-000001", "first", false);
     expect(k1.active).toBe(true);
-    // the provider row now has a usable key too
     expect(repo.getProviderSecret(p.id)).toBe("sk-first-000001");
-    // a second key stays inactive unless asked
     const k2 = keys.addProviderKey(p.id, "sk-second-00002", "second", false);
     expect(k2.active).toBe(false);
     expect(keys.listProviderKeys(p.id).filter((x) => x.active)).toHaveLength(1);
@@ -224,8 +215,8 @@ describe("verifyProviderKey (#162)", () => {
     await keys.verifyAndRecordKey(id);
 
     const after = keys.getProviderKey(id)!;
-    expect(after.lastVerifyOk).toBe(true); // verdict preserved
-    expect(after.lastVerifyError).toContain("gateway timeout"); // audit kept
+    expect(after.lastVerifyOk).toBe(true);
+    expect(after.lastVerifyError).toContain("gateway timeout");
   });
 
   it("a transient error does not invent a verdict for a never-verified key", async () => {
@@ -235,10 +226,8 @@ describe("verifyProviderKey (#162)", () => {
     await keys.verifyAndRecordKey(id);
 
     const after = keys.getProviderKey(id)!;
-    // "never verified" is lastVerifiedAt === "" (the column is NOT NULL, so
-    // the empty timestamp is the never-judged marker, not a null verdict).
     expect(after.lastVerifiedAt).toBe("");
-    expect(after.lastVerifyOk).toBe(false); // column default, not a verdict
+    expect(after.lastVerifyOk).toBe(false);
     expect(after.lastVerifyError).toContain("boom");
   });
 

@@ -190,13 +190,6 @@ interface NotificationFeedDto {
   checkedAt: string;
 }
 
-/**
- * Notification bell (#187): merges budget-threshold alerts and provider
- * outages -- both were already computed server-side but only visible if the
- * user happened to open Settings or Health at the right moment. Polls
- * because the app has no websocket/SSE transport anywhere else; 60s matches
- * the cost of a live health probe pass without hammering every provider.
- */
 function NotificationBell({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
   const [feed, setFeed] = useState<NotificationFeedDto | null>(null);
   const [open, setOpen] = useState(false);
@@ -209,8 +202,6 @@ function NotificationBell({ onNavigate }: { onNavigate: (tab: TabId) => void }) 
         const res = await api<NotificationFeedDto>("/api/notifications");
         if (!cancelled) setFeed(res);
       } catch {
-        // A failed poll must not crash the shell; the bell just stays stale
-        // until the next tick.
       }
     }
     void load();
@@ -241,7 +232,6 @@ function NotificationBell({ onNavigate }: { onNavigate: (tab: TabId) => void }) 
       });
       setFeed(res);
     } catch {
-      // Read-state is best-effort; a failed mark-read just re-shows next poll.
     }
   }
 

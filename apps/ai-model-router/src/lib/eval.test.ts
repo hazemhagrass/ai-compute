@@ -2,12 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { BASELINE_EVAL_SET, runEval, type EvalRunner, type EvalSet } from "./eval";
 
-/** A runner that always succeeds with a fixed response. */
 function fixedRunner(response: string, latencyMs = 100, costUsd = 0.001): EvalRunner {
   return async () => ({ ok: true, response, latencyMs, tokensPerSec: 50, costUsd });
 }
 
-/** A runner that fails every case. */
 const failingRunner: EvalRunner = async () => ({
   ok: false,
   latencyMs: 0,
@@ -35,7 +33,7 @@ describe("runEval", () => {
   it("marks an ungraded axis as unmeasured rather than inventing a score", async () => {
     const set: EvalSet = {
       version: "t2",
-      cases: [{ id: "a", axis: "quality", prompt: "p" }], // no grade fn
+      cases: [{ id: "a", axis: "quality", prompt: "p" }],
     };
     const result = await runEval(1, set, fixedRunner("anything"));
     const quality = result.axes.find((a) => a.axis === "quality");
@@ -73,7 +71,7 @@ describe("runEval", () => {
       ],
     };
     const result = await runEval(1, set, runner);
-    expect(result.observedTokensPerSec).toBe(100); // median of [10,100,100]
+    expect(result.observedTokensPerSec).toBe(100);
   });
 
   it("sums cost across all cases including failures", async () => {
@@ -92,7 +90,7 @@ describe("runEval", () => {
       ],
     };
     const result = await runEval(1, set, runner);
-    expect(result.observedCostUsd).toBe(1); // both legs counted
+    expect(result.observedCostUsd).toBe(1);
   });
 });
 

@@ -18,8 +18,6 @@ export default function LogsPanel({
   initial: { events: UsageEvent[]; total: number };
   onToast: (m: string, t?: "info" | "good" | "bad") => void;
 }) {
-  // Seeded from the server render: no fetch-on-mount, no first-paint spinner.
-  // Every refetch below is triggered by a user action, never by an effect.
   const [events, setEvents] = useState<UsageEvent[]>(initial.events);
   const [total, setTotal] = useState(initial.total);
   const [offset, setOffset] = useState(0);
@@ -42,14 +40,6 @@ export default function LogsPanel({
 
   const current = (): Query => ({ offset, q, providerId, modelRowId, errorsOnly });
 
-  /**
-   * Fetch for an explicit query rather than reading state.
-   *
-   * Taking the query as an argument is what lets every call site be an event
-   * handler: there is no effect watching state, so no cascading render, and
-   * the request always matches the values the user just chose rather than the
-   * ones from the previous render.
-   */
   const load = useCallback(
     async (query: Query) => {
       setLoading(true);
@@ -79,7 +69,6 @@ export default function LogsPanel({
     [onToast],
   );
 
-  /** A filter changed: reset to the first page and refetch. */
   function applyFilter(patch: Partial<Query>) {
     const next = { ...current(), ...patch, offset: 0 };
     setOffset(0);
@@ -90,8 +79,6 @@ export default function LogsPanel({
     void load(next);
   }
 
-  // Search fires per keystroke, so it is debounced; the other filters are
-  // discrete choices and fire immediately.
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function onSearch(value: string) {
     setQ(value);

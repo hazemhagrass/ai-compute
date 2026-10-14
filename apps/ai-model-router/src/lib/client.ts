@@ -9,32 +9,21 @@ function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
-/** Key shapes used by the major providers, for scrubbing echoed secrets. */
 const KEY_PATTERNS: RegExp[] = [
-  /\bsk-[A-Za-z0-9_-]{16,}/g, // OpenAI, Anthropic, DeepSeek, Mistral
-  /\bgsk_[A-Za-z0-9]{20,}/g, // Groq
-  /\bxai-[A-Za-z0-9]{20,}/g, // xAI
-  /\bAIza[A-Za-z0-9_-]{30,}/g, // Google
-  /\bfw_[A-Za-z0-9]{20,}/g, // Fireworks
+  /\bsk-[A-Za-z0-9_-]{16,}/g,
+  /\bgsk_[A-Za-z0-9]{20,}/g,
+  /\bxai-[A-Za-z0-9]{20,}/g,
+  /\bAIza[A-Za-z0-9_-]{30,}/g,
+  /\bfw_[A-Za-z0-9]{20,}/g,
   /\bBearer\s+[A-Za-z0-9._-]{16,}/gi,
 ];
 
-/**
- * Scrub secrets out of anything shown to the user.
- *
- * Several providers echo the submitted Authorization header, or a fragment of
- * the key, in their 401 body. That text reaches an error toast and any
- * screenshot of it, so the literal stored key is removed first, then generic
- * key shapes catch the case where the echo is mangled or a different key was
- * sent than the one on file.
- */
 export function redactSecrets(text: string, secret?: string): string {
   if (!text) return text;
   let out = text;
 
   if (secret && secret.length >= 8) {
     out = out.split(secret).join("[REDACTED]");
-    // Providers commonly echo only a prefix or suffix of the key.
     const head = secret.slice(0, 12);
     const tail = secret.slice(-8);
     if (head.length >= 8) out = out.split(head).join("[REDACTED]");
@@ -45,7 +34,6 @@ export function redactSecrets(text: string, secret?: string): string {
   return out;
 }
 
-/** Build URL + headers for a provider call, injecting the decrypted secret. */
 export function buildRequest(
   provider: Provider,
   path: string,
@@ -83,17 +71,6 @@ export function buildRequest(
   return { url, headers };
 }
 
-/**
- * Fetch the provider's model catalogue through the same SSRF-guarded path as
- * every other provider call: the URL is rebuilt from the stored provider row
- * (baseUrl + modelsPath), credentials are injected by buildRequest, and the
- * body is parsed by extractModelIds, never a raw fetch of a user URL.
- *
- * Returns [{ id, label }] entries. Throws ProviderHttpError on non-2xx and
- * on body shapes that do not parse to an id list; callers that cannot
- * distinguish "empty catalogue" from "unparseable" should treat the throw as
- * "unverifiable" rather than as a mismatch.
- */
 export async function fetchModelsFromProvider(
   provider: Provider,
   timeoutMs = 12000,
@@ -126,7 +103,6 @@ export interface ConnectionResult {
   error?: string;
 }
 
-/** Hit the provider's models endpoint to verify base URL + credentials. */
 export async function testConnection(
   provider: Provider,
   timeoutMs = 12000,
@@ -155,8 +131,6 @@ export async function testConnection(
     const models = extractModelIds(text);
     return { ok: true, status: res.status, latencyMs, modelCount: models.length, models };
   } catch (err) {
-    // A fetch failure message can contain the full URL, which carries the key
-    // for query-auth providers such as Google.
     return {
       ok: false,
       status: 0,
@@ -168,7 +142,6 @@ export async function testConnection(
   }
 }
 
-/** Handles OpenAI (`data[]`), Anthropic (`data[]`), Ollama (`models[]`) shapes. */
 export function extractModelIds(body: string): string[] {
   let json: unknown;
   try {
@@ -200,7 +173,6 @@ export interface ChatUsage {
   totalTokens: number;
   cachedTokens: number;
   reasoningTokens: number;
-  /** true when the provider gave no usage block and we approximated from text length */
   estimated: boolean;
 }
 
@@ -211,22 +183,14 @@ export interface ChatResult {
   error?: string;
   usage: ChatUsage;
   latencyMs: number;
-  /** HTTP status of the failed call, used to decide whether to rotate (#166). */
   status?: number;
 }
 
-/** ~4 chars per token is the standard rough approximation across tokenizers. */
 export function estimateTokens(text: string): number {
   if (!text) return 0;
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-/**
- * Normalize a provider's usage block. Exported for tests: this is the path
- * most likely to break silently, because a renamed field downgrades cost
- * reporting to a ~4 chars/token guess with nothing but the `estimated`
- * flag to signal it.
- */
 export function readUsage(
   json: Record<string, unknown>,
   isAnthropic: boolean,
@@ -267,17 +231,11 @@ export function readUsage(
   };
 }
 
-/** One turn of a chat conversation, as sent in an OpenAI-style messages array. */
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
 
-/**
- * Merge an adapter-normalized usage block into the shared ChatUsage shape so
- * cost accounting sees the same fields regardless of provider shape. Falls
- * back to text-length estimation when the adapter found no usage block.
- */
 export function normalizeShapeUsage(
   partial: ShapeUsage | null,
   promptText: string,
@@ -303,18 +261,6 @@ export function normalizeShapeUsage(
   };
 }
 
-/**
- * Resolve the native-shape adapter for a provider. Returns null when the
- * provider uses the default OpenAI-compatible (or Anthropic Messages) path.
- * Detection: an explicit shape wins and "openai" short-circuits. The shape
- * can be set as provider.shape (typed field) or provider.meta.shape (string,
- * persisted through the existing providers.meta_json column). With no
- * explicit shape, fall back to heuristics so existing rows keep working:
- * Bedrock when the chat path is the Converse endpoint or the provider is
- * hosted on the Bedrock runtime domain, Gemini when the Google
- * generativelanguage base URL is not pointing at the OpenAI-compat shim
- * (a chatPath starting with /openai keeps the OpenAI path).
- */
 export function resolveShapeAdapter(
   provider: Provider,
   secret: string,
@@ -328,13 +274,12 @@ export function resolveShapeAdapter(
     return createBedrockAdapter(provider);
   }
   if (provider.baseUrl.includes("generativelanguage.googleapis.com")) {
-    if (path.startsWith("/openai")) return null; // explicit OpenAI-compat shim
+    if (path.startsWith("/openai")) return null;
     return createGeminiAdapter(provider, secret);
   }
   return null;
 }
 
-/** Chat call through a native-shape adapter (Gemini generateContent, Bedrock converse). */
 async function chatViaShape(
   adapter: ProviderShapeAdapter,
   modelId: string,
@@ -393,11 +338,6 @@ async function chatViaShape(
   }
 }
 
-/**
- * Minimal chat call used by the AI-assisted recommender and the playground.
- * Supports OpenAI-compatible and Anthropic Messages shapes, and always
- * reports token usage (measured when the provider returns it, estimated otherwise).
- */
 export async function chat(
   provider: Provider,
   modelId: string,
@@ -416,25 +356,6 @@ export async function chat(
   );
 }
 
-/**
- * Multi-turn variant of `chat`: sends the full conversation history, with
- * `system` prepended (OpenAI) or passed as the dedicated field (Anthropic).
- * Usage is estimated against the whole transcript so multi-turn cost stays
- * honest even when a provider omits the usage block.
- */
-
-/**
- * On a 401/403, rotate to the next stored key and retry ONCE (#166). Retrying
- * more than once risks looping through every key in the pool on a single
- * user-facing call; one retry catches the common case (the active key was
- * revoked, a spare exists) without turning a slow provider outage into a
- * multi-key stampede.
- *
- * The rotation decision and the audit write both live in provider-keys.ts's
- * handleAuthFailure so the record of "this key failed" cannot happen without
- * the rotation attempt that follows it. Imported lazily to avoid a circular
- * static import: provider-keys.ts imports buildRequest from this module.
- */
 async function maybeRotateAndRetry<T extends ChatResult>(
   result: T,
   provider: Provider,
@@ -448,11 +369,6 @@ async function maybeRotateAndRetry<T extends ChatResult>(
   const pk = await import("./provider-keys");
 
   if (!allowRotation) {
-    // This call IS the retry: its 401/403 proves the rotated-to key is also
-    // dead. Record that, and report exhaustion with both keys counted --
-    // without rotating again, which would silently walk the whole pool on a
-    // single user-facing request. The trail names every revoked key preview
-    // (#175) so the error is actionable from a screenshot.
     const revoked = pk.identityOfActiveKey(provider.id);
     pk.recordAuthFailure(provider.id, result.error ?? "");
     trail.push(
@@ -503,8 +419,6 @@ export async function chatMessages(
     estimated: true,
   };
 
-  // Native request shapes (Gemini generateContent, Bedrock converse) bypass
-  // the OpenAI-compatible/Anthropic path entirely, including its URL-guard.
   if (!isAnthropic) {
     const secret = provider.authType === "none" ? "" : (getProviderSecret(provider.id) ?? "");
     const adapter = resolveShapeAdapter(provider, secret);
@@ -606,16 +520,13 @@ export async function chatMessages(
 }
 
 export interface ChatStreamResult extends ChatResult {
-  /** True when the provider delivered a real token stream (SSE). */
   streamed: boolean;
 }
 
 export interface ChatStreamCallbacks {
-  /** Called with each text delta as it arrives from the provider. */
   onToken?: (text: string) => void;
 }
 
-/** Pull the answer text out of a non-streaming JSON body (OpenAI or Anthropic shape). */
 function extractTextFromJson(json: Record<string, unknown>, isAnthropic: boolean): string {
   if (isAnthropic) {
     const blocks = json.content as { type?: string; text?: string }[] | undefined;
@@ -627,21 +538,6 @@ function extractTextFromJson(json: Record<string, unknown>, isAnthropic: boolean
   return (choices?.[0]?.message?.content ?? choices?.[0]?.text ?? "").trim();
 }
 
-/**
- * Streaming chat call used by the playground: asks the provider for a streamed
- * response and forwards each delta to `cb.onToken` as it arrives, so callers
- * can render partial text with a low time-to-first-token.
- *
- * Providers that ignore the stream request and answer with a plain JSON body
- * are detected via content-type and parsed through the non-streaming shape,
- * returning `streamed: false`. That fallback keeps providers with no SSE
- * support working unchanged.
- *
- * Usage accounting is preserved: OpenAI-compatible streams carry a final usage
- * chunk when asked (`stream_options.include_usage`), and Anthropic streams
- * report usage in message_start / message_delta events. When no usage arrives,
- * totals are estimated from the full accumulated text exactly as in chat().
- */
 export async function chatStream(
   provider: Provider,
   modelId: string,
@@ -662,12 +558,6 @@ export async function chatStream(
   );
 }
 
-/**
- * Multi-turn variant of `chatStream`: sends the full conversation history,
- * with `system` prepended (OpenAI) or passed as the dedicated field
- * (Anthropic). Usage is estimated against the whole transcript when the
- * provider omits it, so multi-turn cost stays honest on the stream path too.
- */
 export async function chatStreamMessages(
   provider: Provider,
   modelId: string,
@@ -737,9 +627,6 @@ export async function chatStreamMessages(
         usage: { ...emptyUsage, inputTokens: estimateTokens(transcript) },
         latencyMs: Date.now() - started,
       };
-      // No byte has been forwarded to cb yet -- the status check happens
-      // before the body is read -- so a rotation-retry here cannot produce a
-      // half-delivered stream.
       return maybeRotateAndRetry(failed, provider, _allowRotation, () =>
         chatStreamMessages(provider, modelId, system, messages, timeoutMs, maxTokens, cb, false, trail),
       );
@@ -747,8 +634,6 @@ export async function chatStreamMessages(
 
     const ctype = res.headers.get("content-type") ?? "";
 
-    // Fallback path: the provider ignored stream:true and answered with a
-    // plain JSON body. Parse it like a normal completion.
     if (!res.body || !ctype.includes("text/event-stream")) {
       const text = await res.text();
       let content = "";
@@ -771,7 +656,6 @@ export async function chatStreamMessages(
       };
     }
 
-    // SSE path: accumulate text, forward deltas, keep the latest usage.
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -792,7 +676,7 @@ export async function chatStreamMessages(
       try {
         chunk = JSON.parse(payload) as Record<string, unknown>;
       } catch {
-        return; // keep-alives and partial fragments
+        return;
       }
 
       if (isAnthropic) {
@@ -851,8 +735,6 @@ export async function chatStreamMessages(
     if (sawUsage) {
       usage = readUsage({ usage: usageRaw }, isAnthropic, transcript, full);
       if (usage.inputTokens === 0) {
-        // Anthropic message_delta reports only output tokens; when no
-        // message_start arrived first, input is estimated from the prompt.
         usage.inputTokens = estimateTokens(transcript);
         usage.totalTokens = usage.inputTokens + usage.outputTokens;
       }

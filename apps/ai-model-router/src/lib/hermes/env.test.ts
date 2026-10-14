@@ -4,11 +4,6 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-/**
- * env.ts is a plain file editor with no other module dependency, so these
- * tests hit a real temp file rather than mocking fs — the whole point is
- * verifying exact byte-level round-tripping (comments, ordering) survives.
- */
 import { envValues, hasAnyEnvKey, readEnvFile, setEnvValue } from "./env";
 
 let dir: string;

@@ -33,9 +33,6 @@ export default function AnalyticsPanel({
   initial: Analytics;
   onToast: (m: string, t?: "info" | "good" | "bad") => void;
 }) {
-  // Seeded from the server render, so there is no fetch-on-mount effect and
-  // no spinner on first paint. Refetching happens only when the user picks a
-  // different range, from an event handler.
   const [days, setDays] = useState(initial.range.days);
   const [data, setData] = useState<Analytics>(initial);
   const [loading, setLoading] = useState(false);
@@ -266,8 +263,6 @@ function RangePicker({
   );
 }
 
-/* --------------------------------------------------------- Reconciliation */
-
 interface ReconcileLineResult {
   modelId: string;
   billedCents: number;
@@ -288,13 +283,6 @@ interface ReconcileResult {
   totalVarianceCents: number;
 }
 
-/**
- * Reconcile a pasted provider invoice against computed cost (#184). The
- * backend (`src/lib/reconcile.ts`) already does the comparison; this is the
- * first UI for it — one textarea of `modelId,billedUsd` lines rather than a
- * bespoke line-item editor, since a pasted CSV/invoice export is the
- * realistic input shape.
- */
 function ReconciliationSection({
   onToast,
 }: {
@@ -449,8 +437,6 @@ function ReconciliationSection({
   );
 }
 
-/* --------------------------------------------------------- Recommendations */
-
 interface SavedRecommendation {
   id: number;
   ts: string;
@@ -462,11 +448,6 @@ interface SavedRecommendation {
   pickedAt: string | null;
 }
 
-/**
- * Saved recommendation history (#185): `/api/recommendations` already lists
- * and lets a pick be recorded; RouterPanel only ever produces a fresh one.
- * This is the missing "what did the router say last time" view.
- */
 function RecommendationHistory({
   onToast,
 }: {

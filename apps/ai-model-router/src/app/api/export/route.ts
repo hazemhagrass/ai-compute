@@ -9,18 +9,6 @@ import { listSubscriptions } from "@/lib/subscriptions";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Full config backup.
- *
- * API keys are NEVER included -- not the provider key and not key-pool
- * entries' secrets either. Key-pool rows export their METADATA only (label,
- * active flag) so a new machine recreates the pool shape and the user
- * re-enters secrets into it; a masked string is not a credential, and
- * storing it as if it were one fails only when the first real request is
- * made. Subscriptions, budgets, and the routing policy export in full:
- * they contain no secrets and an import without them leaves a router
- * that refuses every call (no subscription = blocked by entitlement).
- */
 export async function GET() {
   const denied = await requireAuth();
   if (denied) return denied;

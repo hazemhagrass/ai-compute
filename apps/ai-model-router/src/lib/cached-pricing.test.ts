@@ -53,7 +53,6 @@ describe("computeDetailedCost", () => {
   });
 
   it("makes the first cached call cost more than the naive maths predicts", () => {
-    // Populating the cache is the easily missed line item.
     const first = computeDetailedCost(
       { inputTokens: 10_000, cacheWriteTokens: 10_000, outputTokens: 1_000 },
       SONNET,
@@ -199,7 +198,6 @@ describe("savingsFromCache", () => {
     );
     const s = savingsFromCache(c);
 
-    // 8k cached tokens cost $0.0024 instead of $0.024.
     expect(s.uncachedCostUsd).toBeCloseTo(0.045, 12);
     expect(s.actualCostUsd).toBeCloseTo(0.0234, 12);
     expect(s.savedUsd).toBeCloseTo(0.0216, 12);

@@ -6,8 +6,6 @@ import { api } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
 import { Field, inputCls } from "./ProvidersPanel";
 
-/* -------------------------------------------------------------- API types */
-
 interface HermesProfileSummary {
   id: string;
   label: string;
@@ -328,8 +326,6 @@ export default function HermesPanel({
   );
 }
 
-/* -------------------------------------------------------- Profile lifecycle */
-
 function NewProfileForm({
   onCancel,
   onCreated,
@@ -432,8 +428,6 @@ function DeleteProfileButton({
     </button>
   );
 }
-
-/* ------------------------------------------------------------ Providers */
 
 interface ProbeResult {
   ok: boolean;
@@ -862,8 +856,6 @@ function ProviderForm({
   );
 }
 
-/* -------------------------------------------------------------- Router */
-
 function RouterTab({
   profileId,
   providers,
@@ -1136,7 +1128,6 @@ function TierCard({
             </span>
           )}
           <span className="rounded-md bg-[var(--panel-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--fg-dim)]">
-            {/* Hermes treats a missing mode as priority (agent/tier_router.py). */}
             {tier.mode ?? "priority"}
           </span>
         </div>
@@ -1194,7 +1185,6 @@ function RefList({ label, refs }: { label: string; refs: ModelRef[] }) {
   );
 }
 
-/** Shared editor for a list of {provider, model} refs, backed by two <select>+add-row UI. */
 function ModelRefListEditor({
   providers,
   refs,
@@ -1281,9 +1271,6 @@ function ClassifierPoolEditor({
   const dirty = JSON.stringify(local) !== JSON.stringify(pool);
   const [lastPool, setLastPool] = useState(pool);
   if (pool !== lastPool) {
-    // Re-derive local state from a changed prop during render (React's
-    // documented pattern for "adjusting state when a prop changes")
-    // instead of useEffect, which would setState after an extra render.
     setLastPool(pool);
     setLocal(pool);
   }
@@ -1874,8 +1861,6 @@ function TierForm({
   );
 }
 
-/* ---------------------------------------------------- Fallback & aliases */
-
 function FallbackAliasesTab({
   profileId,
   providers,
@@ -2138,8 +2123,6 @@ function AliasesEditor({
     </div>
   );
 }
-
-/* --------------------------------------------------------------- Usage */
 
 function UsageTab({ usage }: { usage: ProfileUsageSummary | null }) {
   if (!usage) {

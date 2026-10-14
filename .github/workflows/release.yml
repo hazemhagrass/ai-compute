@@ -1,15 +1,5 @@
 name: release
 
-# Auto-publish (#150). Any change under skills/ on main cuts a release:
-# validate first, then tag, then publish. The marketplace is consumed
-# straight from the tagged git ref, so "publishing" means moving a tag
-# consumers can pin, plus a GitHub Release carrying the changelog.
-#
-# Rollback story: releases are immutable tags. To undo a bad release,
-# revert the offending commit on main and let this workflow cut the next
-# patch version. Consumers pinned to the previous tag are unaffected;
-# consumers tracking main get the revert on their next update.
-
 on:
   push:
     branches: [main]
@@ -42,9 +32,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      # The gate runs again here even though CI ran it on the same commit:
-      # a release is the last point where a bad skill can still be stopped,
-      # and re-running costs seconds.
       - name: Validate skills
         run: bash scripts/doctor.sh
         env:

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Field, inputCls } from "./ProvidersPanel";
-import { api } from "./store";
+import { api, apiWithMeta } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
 import type { Model, Provider } from "@/lib/types";
 
@@ -62,12 +62,6 @@ export default function ModelsPanel({
 
   const PAGE_SIZE = 50;
 
-  /**
-   * Filtering happens in the browser against the catalog the parent already
-   * holds, which the router needs in full anyway, so filtering server-side
-   * would add a request without removing any work. Pagination is still
-   * required: rendering 446 rows into one table is what actually hurts.
-   */
   const matched = useMemo(() => {
     const q = filter.trim().toLowerCase();
     return models.filter((m) => {
@@ -83,8 +77,6 @@ export default function ModelsPanel({
   }, [models, filter, providerFilter]);
 
   const pageCount = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
-  // Clamp rather than reset: a filter change can shrink the list below the
-  // current page, and snapping to page 1 on every keystroke is worse.
   const safePage = Math.min(page, pageCount - 1);
   const shown = matched.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
@@ -133,7 +125,6 @@ export default function ModelsPanel({
     onRefresh();
   }
 
-  /** Run eval as a dry run (#173): show what WOULD change, apply nothing. */
   async function runEval(m: Model) {
     setEvaluating(m.id);
     try {
@@ -168,24 +159,25 @@ export default function ModelsPanel({
     }
   }
 
-  /** Commit the previewed write, passing the stamped version for the guard. */
   async function applyEval() {
     if (!evalPreview) return;
     setEvaluating(evalPreview.modelId);
     try {
-      const res = await fetch("/api/eval", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          modelId: evalPreview.modelId,
-          apply: true,
-          ...(evalPreview.version ? { evalVersion: evalPreview.version } : {}),
-        }),
-      });
+      const { data, res } = await apiWithMeta<{ currentVersion?: number; requestedVersion?: number }>(
+        "/api/eval",
+        {
+          method: "POST",
+          json: {
+            modelId: evalPreview.modelId,
+            apply: true,
+            ...(evalPreview.version ? { evalVersion: evalPreview.version } : {}),
+          },
+          throwOnError: false,
+        },
+      );
       if (res.status === 409) {
-        const j = await res.json();
         onToast(
-          `version mismatch: model stamped ${j.currentVersion}, you reviewed ${j.requestedVersion} -- run another dry run`,
+          `version mismatch: model stamped ${(data as { currentVersion?: number })?.currentVersion}, you reviewed ${(data as { requestedVersion?: number })?.requestedVersion} -- run another dry run`,
           "bad",
         );
       } else if (res.ok) {

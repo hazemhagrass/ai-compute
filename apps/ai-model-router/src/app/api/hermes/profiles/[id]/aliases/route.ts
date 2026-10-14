@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 const upsertSchema = z.object({ name: aliasNameSchema, ref: modelRefSchema });
 const deleteSchema = z.object({ name: aliasNameSchema });
 
-/** `model_aliases`: friendly name -> real provider/model. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/aliases">) {
   const denied = await requireAuth();
   if (denied) return denied;

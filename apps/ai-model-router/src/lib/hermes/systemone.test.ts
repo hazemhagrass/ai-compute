@@ -2,10 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { systemOneProblems } from "./systemone";
 
-/**
- * Mirrors hermes-agent `SystemOneConfig.from_config`: any block it would
- * silently turn into `None` must surface a problem here instead.
- */
 const ok = { enabled: true, endpoints: ["http://10.0.0.5:8000/v1/systemone"] };
 
 describe("systemOneProblems", () => {
@@ -52,7 +48,6 @@ describe("systemOneProblems", () => {
   });
 
   it("checks the default timeout against an explicit attempt timeout", () => {
-    // Hermes default timeout_s is 4, so attempt_timeout_s 5 is invalid.
     expect(systemOneProblems({ ...ok, attempt_timeout_s: 5 })).not.toEqual([]);
   });
 

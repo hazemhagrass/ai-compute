@@ -1,246 +1,22 @@
 "use client";
 
-/**
- * Settings panel (issue #158): one screen where the user actually owns their
- * router. Three sections in one place, because they only make sense together:
- *
- *   Subscriptions  what the user is entitled to call at each provider (#153)
- *   Routing policy the knobs that shape ranking, in a typed shape (#155)
- *   Keys per provider - stored, activated, verified (#156)
- *
- * The panel deliberately does not try to be the sole surface for providers or
- * models. Those live on their own tabs. This panel is the *policy* view.
- */
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { Provider } from "@/lib/types";
-
-interface Subscription {
-  providerId: number;
-  tier: string;
-  allowModels: string[];
-  denyModels: string[];
-  monthlyInput: number;
-  monthlyOutput: number;
-  monthlyBudget: number;
-  notes: string;
-}
-
-interface RoutingPolicy {
-  preferLocal: boolean;
-  fallbackToLocal: boolean;
-  maxOutputCostPer1M: number;
-  minContext: number;
-  enforceEntitlements: boolean;
-  strictEmpty: boolean;
-  overrideWeights: Record<string, number>;
-}
-
-interface BudgetCheck {
-  evaluation: {
-    budgetId: string;
-    period: string;
-    limitCents: number;
-    spentCents: number;
-    remainingCents: number;
-    percentUsed: number;
-    projectedCents: number;
-    status: string;
-  };
-}
-
-interface BudgetRow {
-  id: string;
-  label: string;
-  period: string;
-  limitCents: number;
-  check: BudgetCheck;
-}
-
-interface ProviderKey {
-  id: number;
-  providerId: number;
-  label: string;
-  keyPreview: string;
-  active: boolean;
-  lastVerifiedAt: string;
-  lastVerifyOk: boolean;
-  lastVerifyError: string;
-}
+import { money, parseModelList, budgetStatusTone } from "./settings.rules";
+import {
+  useRetentionViewModel,
+  useSettingsViewModel,
+  type BudgetRow,
+  type ProviderKey,
+  type Subscription,
+} from "./use-settings-view-model";
 
 export default function SettingsPanel({ providers }: { providers: Provider[] }) {
-  const [selectedProvider, setSelectedProvider] = useState<number | null>(
-    providers[0]?.id ?? null,
-  );
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [policy, setPolicy] = useState<RoutingPolicy | null>(null);
-  const [keys, setKeys] = useState<ProviderKey[]>([]);
-  const [budgets, setBudgets] = useState<BudgetRow[]>([]);
-  const [verifyingId, setVerifyingId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState("");
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setStatus("");
-    try {
-      const [subsRes, polRes, budRes] = await Promise.all([
-        fetch("/api/subscriptions"),
-        fetch("/api/routing-policy"),
-        fetch("/api/budgets"),
-      ]);
-      const subsJson = await subsRes.json();
-      const polJson = await polRes.json();
-      const budJson = await budRes.json();
-      setSubscriptions(subsJson.subscriptions ?? []);
-      setPolicy(polJson.policy);
-      setBudgets(budJson.budgets ?? []);
-      if (selectedProvider) {
-        const kRes = await fetch(`/api/providers/${selectedProvider}/keys`);
-        const kJson = await kRes.json();
-        setKeys(kJson.keys ?? []);
-      } else {
-        setKeys([]);
-      }
-    } catch (err) {
-      setStatus(String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedProvider]);
-
-  // Load subscriptions/policy on mount and when the selected provider changes.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refresh();
-  }, [refresh]);
-
-  async function saveSubscription(sub: Partial<Subscription>) {
-    setStatus("saving subscription...");
-    const res = await fetch("/api/subscriptions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(sub),
-    });
-    if (res.ok) {
-      setStatus("subscription saved");
-      refresh();
-    } else {
-      setStatus(`error: ${res.status}`);
-    }
-  }
-
-  async function updatePolicy(patch: Partial<RoutingPolicy>) {
-    setStatus("saving policy...");
-    const res = await fetch("/api/routing-policy", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setPolicy(data.policy);
-      setStatus("policy saved");
-    } else {
-      setStatus(`error: ${res.status}`);
-    }
-  }
-
-  async function addKey(label: string, key: string, activate: boolean) {
-    if (!selectedProvider) return;
-    setStatus("adding key...");
-    const res = await fetch(`/api/providers/${selectedProvider}/keys`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ label, key, activate }),
-    });
-    if (res.ok) {
-      setStatus("key added");
-      refresh();
-    } else {
-      setStatus(`error: ${res.status}`);
-    }
-  }
-
-  async function activateKey(keyId: number) {
-    if (!selectedProvider) return;
-    const res = await fetch(
-      `/api/providers/${selectedProvider}/keys/${keyId}/activate`,
-      { method: "POST" },
-    );
-    if (res.ok) {
-      setStatus("activated");
-      refresh();
-    }
-  }
-
-  /** Probe the stored key against the provider (#169); result lands in refresh. */
-  async function verifyKey(keyId: number) {
-    if (!selectedProvider) return;
-    setVerifyingId(keyId);
-    try {
-      const res = await fetch(
-        `/api/providers/${selectedProvider}/keys/${keyId}/verify`,
-        { method: "POST" },
-      );
-      if (res.ok) {
-        const j = await res.json();
-        setStatus(
-          j.certainty === "unknown"
-            ? `unverified: ${j.error ?? "transient error"}`
-            : j.ok
-              ? "verified ok"
-              : `failed: ${j.error ?? res.status}`,
-        );
-      } else {
-        setStatus(`error: ${res.status}`);
-      }
-      refresh();
-    } finally {
-      setVerifyingId(null);
-    }
-  }
-
-  async function deleteKey(keyId: number) {
-    if (!selectedProvider) return;
-    if (!confirm("Delete this key? This cannot be undone.")) return;
-    const res = await fetch(
-      `/api/providers/${selectedProvider}/keys/${keyId}`,
-      { method: "DELETE" },
-    );
-    if (res.ok) {
-      setStatus("deleted");
-      refresh();
-    }
-  }
-
-  async function saveBudget(label: string, period: string, limitCents: number) {
-    setStatus("saving budget...");
-    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || period;
-    const res = await fetch("/api/budgets", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id, label, period, limitCents }),
-    });
-    if (res.ok) {
-      setStatus("budget saved");
-      refresh();
-    } else {
-      const j = await res.json().catch(() => ({ error: res.status }));
-      setStatus(`error: ${j.error ?? res.status}`);
-    }
-  }
-
-  async function deleteBudget(id: string) {
-    if (!confirm("Delete this budget?")) return;
-    const res = await fetch(`/api/budgets/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (res.ok) {
-      setStatus("budget deleted");
-      refresh();
-    }
-  }
-
-  const currentSub = subscriptions.find((s) => s.providerId === selectedProvider);
+  const vm = useSettingsViewModel({
+    providers: providers.map((p) => ({ id: p.id })),
+  });
+  const { view } = vm;
 
   return (
     <div className="space-y-6">
@@ -251,8 +27,8 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
             Subscriptions, routing policy, and per-provider keys.
           </p>
         </div>
-        {status && (
-          <span className="text-xs text-[var(--fg-dim)]">{status}</span>
+        {view.status && (
+          <span className="text-xs text-[var(--fg-dim)]">{view.status}</span>
         )}
       </div>
 
@@ -260,31 +36,33 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
           Routing policy
         </h3>
-        {policy && (
+        {view.policy && (
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex items-center justify-between gap-2 text-sm">
               Prefer local models
               <input
                 type="checkbox"
-                checked={policy.preferLocal}
-                onChange={(e) => updatePolicy({ preferLocal: e.target.checked })}
+                checked={view.policy.preferLocal}
+                onChange={(e) => vm.updatePolicy({ preferLocal: e.target.checked })}
               />
             </label>
             <label className="flex items-center justify-between gap-2 text-sm">
               Fallback to local when unreachable
               <input
                 type="checkbox"
-                checked={policy.fallbackToLocal}
-                onChange={(e) => updatePolicy({ fallbackToLocal: e.target.checked })}
+                checked={view.policy.fallbackToLocal}
+                onChange={(e) =>
+                  vm.updatePolicy({ fallbackToLocal: e.target.checked })
+                }
               />
             </label>
             <label className="flex items-center justify-between gap-2 text-sm">
               Enforce entitlements
               <input
                 type="checkbox"
-                checked={policy.enforceEntitlements}
+                checked={view.policy.enforceEntitlements}
                 onChange={(e) =>
-                  updatePolicy({ enforceEntitlements: e.target.checked })
+                  vm.updatePolicy({ enforceEntitlements: e.target.checked })
                 }
               />
             </label>
@@ -292,8 +70,8 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
               Fail loudly on empty result
               <input
                 type="checkbox"
-                checked={policy.strictEmpty}
-                onChange={(e) => updatePolicy({ strictEmpty: e.target.checked })}
+                checked={view.policy.strictEmpty}
+                onChange={(e) => vm.updatePolicy({ strictEmpty: e.target.checked })}
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
@@ -302,9 +80,9 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
                 type="number"
                 min={0}
                 step={0.5}
-                value={policy.maxOutputCostPer1M}
+                value={view.policy.maxOutputCostPer1M}
                 onChange={(e) =>
-                  updatePolicy({ maxOutputCostPer1M: Number(e.target.value) })
+                  vm.updatePolicy({ maxOutputCostPer1M: Number(e.target.value) })
                 }
                 className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
               />
@@ -315,10 +93,8 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
                 type="number"
                 min={0}
                 step={1000}
-                value={policy.minContext}
-                onChange={(e) =>
-                  updatePolicy({ minContext: Number(e.target.value) })
-                }
+                value={view.policy.minContext}
+                onChange={(e) => vm.updatePolicy({ minContext: Number(e.target.value) })}
                 className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
               />
             </label>
@@ -326,7 +102,11 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
         )}
       </section>
 
-      <BudgetsSection budgets={budgets} onSave={saveBudget} onDelete={deleteBudget} />
+      <BudgetsSection
+        budgets={view.budgets}
+        onSave={vm.saveBudget}
+        onDelete={vm.deleteBudget}
+      />
 
       <RetentionSection />
 
@@ -336,8 +116,8 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
             Per-provider settings
           </h3>
           <select
-            value={selectedProvider ?? ""}
-            onChange={(e) => setSelectedProvider(Number(e.target.value))}
+            value={view.selectedProvider ?? ""}
+            onChange={(e) => vm.setSelectedProvider(Number(e.target.value))}
             className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm"
           >
             {providers.map((p) => (
@@ -348,23 +128,23 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
           </select>
         </div>
 
-        {loading && <p className="text-sm text-[var(--fg-dim)]">loading...</p>}
+        {view.loading && <p className="text-sm text-[var(--fg-dim)]">loading...</p>}
 
-        {selectedProvider && !loading && (
+        {view.selectedProvider && !view.loading && (
           <div className="space-y-6">
             <SubscriptionForm
-              key={`sub-${selectedProvider}-${currentSub?.tier ?? "none"}-${currentSub?.monthlyBudget ?? 0}`}
-              providerId={selectedProvider}
-              value={currentSub}
-              onSave={saveSubscription}
+              key={`sub-${view.selectedProvider}-${view.currentSub?.tier ?? "none"}-${view.currentSub?.monthlyBudget ?? 0}`}
+              providerId={view.selectedProvider}
+              value={view.currentSub}
+              onSave={vm.saveSubscription}
             />
             <KeysList
-              keys={keys}
-              onAdd={addKey}
-              onActivate={activateKey}
-              onVerify={verifyKey}
-              onDelete={deleteKey}
-              verifyingId={verifyingId}
+              keys={view.keys}
+              onAdd={vm.addKey}
+              onActivate={vm.activateKey}
+              onVerify={vm.verifyKey}
+              onDelete={vm.deleteKey}
+              verifyingId={view.verifyingId}
             />
           </div>
         )}
@@ -395,14 +175,8 @@ function SubscriptionForm({
           providerId,
           tier,
           monthlyBudget: budget,
-          allowModels: allow
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          denyModels: deny
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
+          allowModels: parseModelList(allow),
+          denyModels: parseModelList(deny),
         });
       }}
       className="space-y-3"
@@ -502,9 +276,7 @@ function KeysList({
                 {k.lastVerifiedAt ? (
                   <span
                     className={
-                      k.lastVerifyOk
-                        ? "text-green-500"
-                        : "text-red-500"
+                      k.lastVerifyOk ? "text-green-500" : "text-red-500"
                     }
                   >
                     {k.lastVerifyOk ? "ok" : k.lastVerifyError.slice(0, 40)}
@@ -515,10 +287,10 @@ function KeysList({
               </td>
               <td className="py-2">
                 {k.active && k.lastVerifiedAt && !k.lastVerifyOk && (
-                  // The sneaky case: the models-endpoint probe passes but the
-                  // key is revoked -- the provider health dot cannot see this,
-                  // only a real key verification can.
-                  <span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" aria-label="active key failed verification" />
+                  <span
+                    className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400"
+                    aria-label="active key failed verification"
+                  />
                 )}
                 <button
                   onClick={() => onVerify(k.id)}
@@ -597,18 +369,6 @@ function KeysList({
   );
 }
 
-
-function money(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
-/**
- * Budgets with live status (issues #158/#164): definition + usage strip in one
- * line each, so the state that refuses a call is visible in the same place it
- * is configured. A strip turns warning (>= 80 percent) amber and exceeded red;
- * the same thresholds the call gate (#163) enforces, so what the user sees
- * here is exactly what governs the next request.
- */
 function BudgetsSection({
   budgets,
   onSave,
@@ -646,7 +406,9 @@ function BudgetsSection({
           <tbody>
             {budgets.map((b) => {
               const ev = b.check.evaluation;
-              const warn = ev.status === "warning" || ev.status === "exceeded";
+              const tone = budgetStatusTone(
+                ev.status === "ok" && ev.percentUsed >= 80 ? "warning" : ev.status,
+              );
               return (
                 <tr key={b.id} className="border-t border-[var(--border)]">
                   <td className="py-2">
@@ -658,17 +420,7 @@ function BudgetsSection({
                   <td className="py-2 text-xs">{ev.period}</td>
                   <td className="py-2 text-xs">{Math.round(ev.percentUsed)}%</td>
                   <td className="py-2">
-                    <span
-                      className={
-                        ev.status === "exceeded"
-                          ? "rounded bg-red-500/20 px-2 py-0.5 text-xs text-red-400"
-                          : warn
-                            ? "rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400"
-                            : "rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-500"
-                      }
-                    >
-                      {ev.status}
-                    </span>
+                    <span className={tone.cls}>{tone.label}</span>
                   </td>
                   <td className="py-2 text-right">
                     <button
@@ -727,84 +479,10 @@ function BudgetsSection({
   );
 }
 
-/**
- * Log/recommendation retention policy (#183): view the current caps, edit
- * them, and trigger a prune immediately rather than waiting for the hourly
- * automatic pass. Self-contained (own fetch-on-mount) so it drops into the
- * settings page without threading more state through the parent.
- */
-interface RetentionPolicy {
-  usage: { maxAgeDays?: number; maxRows?: number };
-  recommendations: { maxAgeDays?: number; maxRows?: number };
-}
-
 function RetentionSection() {
-  const [policy, setPolicy] = useState<RetentionPolicy | null>(null);
-  const [autoRunIntervalMs, setAutoRunIntervalMs] = useState<number | null>(null);
-  const [form, setForm] = useState({
-    usageMaxAgeDays: 30,
-    usageMaxRows: 10000,
-    recommendationMaxAgeDays: 30,
-    recommendationMaxRows: 1000,
-  });
-  const [saving, setSaving] = useState(false);
-  const [pruning, setPruning] = useState(false);
-  const [lastResult, setLastResult] = useState<string>("");
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/retention");
-        const json = await res.json();
-        if (cancelled) return;
-        setPolicy(json.policy);
-        setAutoRunIntervalMs(json.autoRunIntervalMs ?? null);
-        setForm({
-          usageMaxAgeDays: json.policy.usage.maxAgeDays ?? 30,
-          usageMaxRows: json.policy.usage.maxRows ?? 10000,
-          recommendationMaxAgeDays: json.policy.recommendations.maxAgeDays ?? 30,
-          recommendationMaxRows: json.policy.recommendations.maxRows ?? 1000,
-        });
-      } catch {
-        // Settings page tolerates a failed section — the rest still renders.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function savePolicy() {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/retention", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const json = await res.json();
-      setPolicy(json.policy);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function pruneNow() {
-    setPruning(true);
-    setLastResult("");
-    try {
-      const res = await fetch("/api/retention", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-      const json = await res.json();
-      setLastResult(
-        `Deleted ${json.deleted ?? 0} usage row(s), ${json.recommendations?.deleted ?? 0} recommendation(s).`,
-      );
-    } catch (err) {
-      setLastResult(err instanceof Error ? err.message : "Prune failed");
-    } finally {
-      setPruning(false);
-    }
-  }
+  const vm = useRetentionViewModel();
+  const { view } = vm;
+  const { form } = view;
 
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/60 p-5">
@@ -812,14 +490,14 @@ function RetentionSection() {
         <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
           Retention
         </h3>
-        {autoRunIntervalMs !== null && (
+        {view.autoRunIntervalMs !== null && (
           <span className="text-xs text-[var(--fg-dim)]">
-            auto-runs every {Math.round(autoRunIntervalMs / 60000)}min
+            auto-runs every {Math.round(view.autoRunIntervalMs / 60000)}min
           </span>
         )}
       </div>
 
-      {policy && (
+      {view.policy && (
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
             <span>Usage log max age (days)</span>
@@ -827,7 +505,9 @@ function RetentionSection() {
               type="number"
               min={1}
               value={form.usageMaxAgeDays}
-              onChange={(e) => setForm((f) => ({ ...f, usageMaxAgeDays: Number(e.target.value) }))}
+              onChange={(e) =>
+                vm.setForm((f) => ({ ...f, usageMaxAgeDays: Number(e.target.value) }))
+              }
               className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
             />
           </label>
@@ -837,7 +517,9 @@ function RetentionSection() {
               type="number"
               min={1}
               value={form.usageMaxRows}
-              onChange={(e) => setForm((f) => ({ ...f, usageMaxRows: Number(e.target.value) }))}
+              onChange={(e) =>
+                vm.setForm((f) => ({ ...f, usageMaxRows: Number(e.target.value) }))
+              }
               className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
             />
           </label>
@@ -848,7 +530,10 @@ function RetentionSection() {
               min={1}
               value={form.recommendationMaxAgeDays}
               onChange={(e) =>
-                setForm((f) => ({ ...f, recommendationMaxAgeDays: Number(e.target.value) }))
+                vm.setForm((f) => ({
+                  ...f,
+                  recommendationMaxAgeDays: Number(e.target.value),
+                }))
               }
               className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
             />
@@ -860,7 +545,10 @@ function RetentionSection() {
               min={1}
               value={form.recommendationMaxRows}
               onChange={(e) =>
-                setForm((f) => ({ ...f, recommendationMaxRows: Number(e.target.value) }))
+                vm.setForm((f) => ({
+                  ...f,
+                  recommendationMaxRows: Number(e.target.value),
+                }))
               }
               className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
             />
@@ -870,20 +558,22 @@ function RetentionSection() {
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
-          onClick={savePolicy}
-          disabled={saving}
+          onClick={vm.savePolicy}
+          disabled={view.saving}
           className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c] disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Save policy"}
+          {view.saving ? "Saving..." : "Save policy"}
         </button>
         <button
-          onClick={pruneNow}
-          disabled={pruning}
+          onClick={vm.pruneNow}
+          disabled={view.pruning}
           className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm hover:bg-[var(--panel-2)] disabled:opacity-50"
         >
-          {pruning ? "Pruning…" : "Prune now"}
+          {view.pruning ? "Pruning..." : "Prune now"}
         </button>
-        {lastResult && <span className="text-xs text-[var(--fg-dim)]">{lastResult}</span>}
+        {view.lastResult && (
+          <span className="text-xs text-[var(--fg-dim)]">{view.lastResult}</span>
+        )}
       </div>
     </section>
   );

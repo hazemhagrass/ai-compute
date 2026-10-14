@@ -24,7 +24,6 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 SKILLS = ROOT / "skills"
 
-# Hollow phrasing. Each carries no information a reader could act on.
 FILLER = [
     (r"\bdelve[sd]? into\b", "delve into"),
     (r"\bgame[- ]chang(er|ing)\b", "game-changer"),
@@ -40,8 +39,6 @@ FILLER = [
     (r"\bwhen it comes to\b", "when it comes to"),
 ]
 
-# Authority with no source attached. The pattern is the claim shape, not the
-# topic: a number or a "studies show" with nothing a reader could check.
 AUTHORITY = [
     (r"\bstudies (show|have shown|suggest|indicate)\b", "studies show (no study named)"),
     (r"\bresearch (shows|has shown|suggests|indicates)\b", "research shows (no source)"),
@@ -52,7 +49,6 @@ AUTHORITY = [
      "percentage claim about a population (no source)"),
 ]
 
-
 def strip_context(text: str) -> str:
     """Remove spans where filler is legitimate.
 
@@ -60,16 +56,11 @@ def strip_context(text: str) -> str:
     example, and a citation may quote a doc titled "Best Practices" verbatim.
     Neither is the skill's own prose, so neither should fail the build.
     """
-    # fenced code blocks
     text = re.sub(r"```.*?```", "", text, flags=re.S)
-    # inline code spans
     text = re.sub(r"`[^`]*`", "", text)
-    # link targets and link text (cited titles)
     text = re.sub(r"\[[^\]]*\]\([^)]*\)", "", text)
-    # bare URLs
     text = re.sub(r"<?https?://\S+>?", "", text)
     return text
-
 
 def scan(path: pathlib.Path):
     raw = path.read_text(encoding="utf-8")
@@ -82,7 +73,6 @@ def scan(path: pathlib.Path):
         for m in re.finditer(pattern, body, re.I):
             hits.append(("authority", label, m.group(0)))
     return hits
-
 
 def main() -> int:
     files = sorted(SKILLS.rglob("*.md"))
@@ -106,7 +96,6 @@ def main() -> int:
     print("Legitimate uses inside code fences, inline spans, or cited link")
     print("titles are already ignored by the scanner.")
     return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

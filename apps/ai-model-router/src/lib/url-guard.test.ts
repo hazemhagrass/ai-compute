@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { assertSafeProviderUrl, isPrivateHost } from "./url-guard";
 
-/** Private hosts are allowed by default in dev, so pin the flag in each test. */
 const STRICT = { allowPrivate: false } as const;
 const LOOSE = { allowPrivate: true } as const;
 
@@ -68,8 +67,6 @@ describe("assertSafeProviderUrl: private ranges", () => {
   });
 
   it("does not mistake a public neighbour of a private range for private", () => {
-    // 172.32/12 and 100.128/9 sit just outside the blocked blocks. Getting the
-    // boundary wrong the other way would silently break real providers.
     expect(isPrivateHost("172.32.0.1")).toBe(false);
     expect(isPrivateHost("172.15.255.255")).toBe(false);
     expect(isPrivateHost("100.63.255.255")).toBe(false);
@@ -78,8 +75,6 @@ describe("assertSafeProviderUrl: private ranges", () => {
 });
 
 describe("assertSafeProviderUrl: IPv4-mapped IPv6 bypass", () => {
-  // The WHATWG parser rewrites ::ffff:127.0.0.1 to ::ffff:7f00:1, so any guard
-  // that greps the hostname for "127." is bypassed by this form.
   it("rejects ::ffff:127.0.0.1 under strict policy", () => {
     expect(() => assertSafeProviderUrl("http://[::ffff:127.0.0.1]/v1", STRICT)).toThrow(
       /private or loopback/i,
@@ -107,7 +102,6 @@ describe("assertSafeProviderUrl: IPv4-mapped IPv6 bypass", () => {
   });
 
   it("rejects decimal and hex encodings of loopback, which the URL parser normalizes", () => {
-    // http://2130706433/ and http://0x7f.1/ both parse to 127.0.0.1.
     expect(assertSafeProviderUrl("http://2130706433/v1", LOOSE).hostname).toBe("127.0.0.1");
     expect(() => assertSafeProviderUrl("http://2130706433/v1", STRICT)).toThrow(
       /private or loopback/i,

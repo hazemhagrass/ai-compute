@@ -14,9 +14,6 @@ export { SESSION_COOKIE };
 const PASSWORD_KEY = "auth_password";
 const FAILURES_KEY = "auth_failures";
 
-/* ----------------------------------------------------------- password ops */
-
-/** `scrypt.<salt>.<hash>`, both base64url. */
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const derived = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -31,8 +28,6 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
   const expected = Buffer.from(hashB64, "base64url");
   const actual = (await scryptAsync(password, salt, expected.length)) as Buffer;
 
-  // Constant-time: a length-dependent or short-circuiting compare leaks the
-  // hash one byte at a time through response timing.
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
@@ -44,8 +39,6 @@ export async function setPassword(password: string): Promise<void> {
   setSetting(PASSWORD_KEY, await hashPassword(password));
   setSetting(FAILURES_KEY, "");
 }
-
-/* --------------------------------------------------------- lockout policy */
 
 interface FailureState {
   count: number;
@@ -61,13 +54,6 @@ function readFailures(): FailureState {
   }
 }
 
-/**
- * Exponential backoff after repeated failures.
- *
- * There is one password and it is the only thing between the internet and a
- * set of live API keys, so unlimited guessing is not acceptable. Backoff is
- * stored in the database rather than in memory so a restart cannot clear it.
- */
 export function lockoutRemainingMs(): number {
   const { until } = readFailures();
   return Math.max(0, until - Date.now());
@@ -76,8 +62,6 @@ export function lockoutRemainingMs(): number {
 function recordFailure(): void {
   const { count } = readFailures();
   const next = count + 1;
-  // No delay for the first two attempts (genuine typos), then 2s, 4s, 8s…
-  // capped at five minutes.
   const delay = next <= 2 ? 0 : Math.min(300_000, 2 ** (next - 2) * 1000);
   setSetting(FAILURES_KEY, JSON.stringify({ count: next, until: Date.now() + delay }));
 }
@@ -86,13 +70,6 @@ function clearFailures(): void {
   setSetting(FAILURES_KEY, "");
 }
 
-/* ------------------------------------------------------------- session ops */
-
-/**
- * Session secret, reused from the vault master key so there is one secret to
- * back up rather than two. Rotating it invalidates every session, which is the
- * correct behaviour for a key rotation.
- */
 function sessionSecret(): string {
   return getSetting("session_secret", "") || bootstrapSessionSecret();
 }
@@ -130,8 +107,6 @@ export function verifySessionToken(token: string | undefined): boolean {
   return Number.isFinite(expires) && expires > Date.now();
 }
 
-/* ------------------------------------------------------------- public API */
-
 export interface LoginResult {
   ok: boolean;
   token?: string;
@@ -154,8 +129,6 @@ export async function login(password: string): Promise<LoginResult> {
 
   if (!(await verifyPassword(password, stored))) {
     recordFailure();
-    // Deliberately vague: distinguishing "wrong password" from anything else
-    // gives a guesser information.
     return { ok: false, error: "Incorrect password." };
   }
 
@@ -163,21 +136,12 @@ export async function login(password: string): Promise<LoginResult> {
   return { ok: true, token: createSessionToken() };
 }
 
-/** Whether the current request carries a valid session. */
 export async function isAuthenticated(): Promise<boolean> {
-  if (!isAuthConfigured()) return true; // first-run: nothing to protect yet
+  if (!isAuthConfigured()) return true;
   const jar = await cookies();
   return verifySessionToken(jar.get(SESSION_COOKIE)?.value);
 }
 
-/**
- * Guard for route handlers. Returns a 401 response when unauthenticated.
- *
- * Middleware only checks that a cookie is PRESENT, because the Edge runtime
- * cannot run scrypt or open SQLite. This is where the signature and expiry are
- * actually verified, so every mutating route must call it: a forged cookie
- * passes middleware and must not pass here.
- */
 export async function requireAuth(): Promise<Response | null> {
   if (await isAuthenticated()) return null;
   return new Response(JSON.stringify({ error: "authentication required" }), {
@@ -187,10 +151,9 @@ export async function requireAuth(): Promise<Response | null> {
 }
 
 export const sessionCookieOptions = {
-  httpOnly: true, // unreadable from JS, so XSS cannot exfiltrate it
-  sameSite: "lax" as const, // blocks cross-site form posts
+  httpOnly: true,
+  sameSite: "lax" as const,
   path: "/",
   maxAge: SESSION_TTL_MS / 1000,
-  // Set only over TLS in production; forcing it in dev breaks plain http.
   secure: process.env.NODE_ENV === "production",
 };

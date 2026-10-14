@@ -4,12 +4,6 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * All of config-io / profiles / providers / tiers key off HERMES_HOME (see
- * paths.ts), so pointing it at a fresh temp dir per test gives full
- * read/write coverage against real files without ever touching the actual
- * ~/.hermes install these modules are designed to manage.
- */
 let dir: string;
 let origHome: string | undefined;
 
@@ -26,10 +20,6 @@ afterEach(() => {
 });
 
 async function fresh() {
-  // Re-import so every module re-reads HERMES_HOME from the just-set env var
-  // (paths.ts captures it once at module-eval time) — vi.resetModules()
-  // forces a fresh module instance per test instead of the cached one from
-  // a previous test's HERMES_HOME.
   vi.resetModules();
   return {
     configIo: await import("./config-io"),

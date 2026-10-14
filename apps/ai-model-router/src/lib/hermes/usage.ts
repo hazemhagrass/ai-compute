@@ -34,18 +34,6 @@ const EMPTY: ProfileUsageSummary = {
   byProvider: [],
 };
 
-/**
- * Aggregate `session_model_usage` across every session for one profile,
- * grouped by model. Opened readonly so this dashboard can never corrupt a
- * live Hermes session's WAL/journal state — Hermes itself is the only
- * writer.
- *
- * Cost here is best-effort: Hermes only fills `actual_cost_usd` for
- * providers with a billing API (falls back to `estimated_cost_usd`, which
- * itself can be 0 for providers with no known per-token pricing, e.g. most
- * local Ollama runs). Never presented as an exact bill — see the "estimated"
- * label the UI must keep next to it.
- */
 export function readProfileUsage(profileId: string): ProfileUsageSummary {
   const { stateDbPath } = profilePaths(profileId);
   if (!fs.existsSync(stateDbPath)) return EMPTY;

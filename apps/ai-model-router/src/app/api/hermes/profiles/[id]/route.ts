@@ -9,10 +9,6 @@ export const dynamic = "force-dynamic";
 
 const deleteSchema = z.object({ confirm: z.literal(true) });
 
-/** Delete a named profile — moves its directory to `.deleted-<id>-<ts>`
- * rather than rm -rf'ing it. Requires an explicit `{ confirm: true }` body
- * so a bare DELETE from a stray script/curl can't nuke a profile by
- * accident; the "default" profile is always rejected. */
 export async function DELETE(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]">) {
   const denied = await requireAuth();
   if (denied) return denied;

@@ -24,8 +24,6 @@ describe("computeCost", () => {
   });
 
   it("keeps sub-cent calls non-zero instead of rounding them away", () => {
-    // A cheap model over many calls still adds up; truncating here would make
-    // the whole analytics surface under-report bulk workloads.
     const c = computeCost(100, 50, 0.25, 2);
 
     expect(c.costUsd).toBeGreaterThan(0);
@@ -41,8 +39,6 @@ describe("computeCost", () => {
   });
 
   it("treats a missing price as free rather than NaN", () => {
-    // A freshly discovered model has no price yet. NaN would poison every
-    // downstream SUM() in the analytics queries.
     const c = computeCost(1000, 1000, Number.NaN, undefined as unknown as number);
 
     expect(Number.isFinite(c.costUsd)).toBe(true);

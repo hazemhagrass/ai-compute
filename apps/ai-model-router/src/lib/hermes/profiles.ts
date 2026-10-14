@@ -6,7 +6,6 @@ import { PROFILES_DIR, defaultProfilePaths, namedProfilePaths } from "./paths";
 
 export interface HermesProfileSummary {
   id: string;
-  /** Human label; "default" doesn't have one of its own in Hermes, so the dir name is shown. */
   label: string;
   isDefault: boolean;
   hasConfig: boolean;
@@ -47,9 +46,6 @@ function summarize(id: string, label: string, isDefault: boolean): HermesProfile
   };
 }
 
-/** Every profile this Hermes install knows about: the default (root) profile
- * plus every directory under profiles/. Order: default first, then
- * alphabetical. */
 export function listHermesProfiles(): HermesProfileSummary[] {
   const named = fs.existsSync(PROFILES_DIR)
     ? fs
@@ -72,13 +68,6 @@ export function isValidProfileName(name: string): boolean {
   return PROFILE_NAME_RE.test(name);
 }
 
-/**
- * Create a new named profile: `profiles/<id>/` with a minimal valid
- * config.yaml and an empty .env, matching what `hermes profile create`
- * produces on the CLI closely enough that Hermes's own profile discovery
- * picks it up with no restart (it only requires the directory + a readable
- * config.yaml).
- */
 export function createProfile(id: string): HermesProfileSummary {
   if (id === "default") throw new Error("the default profile always exists");
   if (!isValidProfileName(id)) throw new Error("profile name must look like an identifier");
@@ -93,14 +82,6 @@ export function createProfile(id: string): HermesProfileSummary {
   return getHermesProfile(id);
 }
 
-/**
- * Delete a named profile. Never `rm -rf`s: the directory is renamed to a
- * `.deleted-<timestamp>` sibling under profiles/, matching the existing
- * `.deleted*` convention `listHermesProfiles` already filters out — so the
- * data survives a mistaken delete and a manual restore is a plain `mv`.
- * Refuses outright for "default" (that IS the Hermes install; there's
- * nothing to move it to).
- */
 export function deleteProfile(id: string): void {
   if (id === "default") throw new Error("the default profile cannot be deleted");
   const { root } = namedProfilePaths(id);

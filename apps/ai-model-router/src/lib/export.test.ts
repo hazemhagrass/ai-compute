@@ -15,7 +15,6 @@ import {
 
 const CRLF = "\r\n";
 
-/** Minimal RFC 4180 reader, used to prove the writer round-trips. */
 function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -294,7 +293,6 @@ describe("streamExport", () => {
       chunks.push(c);
     }
 
-    // header + ceil(250 / 25) row chunks
     expect(chunks).toHaveLength(11);
     expect(chunks[0]).toBe(`id,prompt,costUsd${CRLF}`);
   });

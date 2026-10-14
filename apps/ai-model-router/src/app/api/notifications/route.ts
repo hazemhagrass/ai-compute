@@ -6,11 +6,6 @@ import { getNotifications, markNotificationsRead } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
-/** Merged budget-alert + provider-outage feed (#187), polled by the bell in
- * AppShell. Both signals are recomputed live on every call rather than
- * cached: budgets and provider health already do their own persistence
- * (once-per-threshold alert state, provider probe results), so this route
- * has nothing of its own to cache. */
 export async function GET() {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -22,7 +17,6 @@ const readSchema = z.object({
   ids: z.array(z.string()).min(1),
 });
 
-/** Mark one or more notification ids read. */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;

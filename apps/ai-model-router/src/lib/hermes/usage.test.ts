@@ -12,9 +12,6 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "amr-usage-test-"));
   origHome = process.env.HERMES_HOME;
   process.env.HERMES_HOME = dir;
-  // paths.ts reads HERMES_HOME once at module-eval time; force a fresh
-  // module graph so usage.ts's import of paths.ts sees THIS test's dir
-  // rather than a value cached from an earlier test file/run.
   vi.resetModules();
 });
 

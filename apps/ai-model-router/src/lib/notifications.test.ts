@@ -6,8 +6,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HealthReport } from "./health";
 
-// A scratch data dir per run, so notification state (read ids) and budget
-// state never touch the developer's real router.db.
 const DIR = mkdtempSync(join(tmpdir(), "amr-notifications-test-"));
 process.env.AMR_DATA_DIR = DIR;
 process.env.AMR_DB_PATH = join(DIR, "notifications-test.db");

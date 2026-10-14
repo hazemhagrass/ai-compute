@@ -1,21 +1,10 @@
 import { z } from "zod";
 
-/**
- * Typed slice of Hermes's `config.yaml` this dashboard reads/writes.
- *
- * Only the keys we actually touch are typed strictly; everything else in the
- * file is kept as `unknown` passthrough (`z.record` catch-all via
- * `.passthrough()`) so a round-trip through this schema never drops a
- * section we don't know about (mcp_servers, terminal, compression, ...).
- */
-
 export const modelRefSchema = z.object({
   provider: z.string(),
   model: z.string(),
   base_url: z.string().optional(),
   timeout: z.number().optional(),
-  // Not read by agent/tier_router.py (it resolves credentials via
-  // resolve_runtime_provider); typed so other entry consumers round-trip them.
   api_key: z.string().optional(),
   api_mode: z.string().optional(),
 });
@@ -84,10 +73,6 @@ const tierRouterSchema = z
   .passthrough();
 export type TierRouterConfig = z.infer<typeof tierRouterSchema>;
 
-/**
- * The subset of config.yaml this app understands strictly; every other
- * top-level key round-trips untouched via the index signature.
- */
 export const hermesConfigSchema = z
   .object({
     model: modelSectionSchema.default({}),
@@ -129,8 +114,6 @@ export function emptyTierRouter(): TierRouterConfig {
   };
 }
 
-/** A brand-new profile's config.yaml — valid against the schema, empty of
- * providers/tiers, ready for the dashboard to populate. */
 export function emptyHermesConfig(): HermesConfig {
   return parseHermesConfig({});
 }

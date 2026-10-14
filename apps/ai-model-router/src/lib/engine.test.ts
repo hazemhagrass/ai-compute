@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 import { rankModels, taskFromText } from "./engine";
 import type { Model, Task } from "./types";
 
-/* ------------------------------------------------------------- fixtures */
-
 function model(over: Partial<Model> = {}): Model {
   return {
     id: 1,
@@ -55,8 +53,6 @@ function task(over: Partial<Task> = {}): Task {
   };
 }
 
-/* ------------------------------------------------------- hard filtering */
-
 describe("rankModels — hard requirements", () => {
   it("drops a model that lacks a required capability", () => {
     const withVision = model({ id: 1, features: { ...model().features, vision: true } });
@@ -68,8 +64,6 @@ describe("rankModels — hard requirements", () => {
   });
 
   it("excludes embedding models from non-embedding tasks", () => {
-    // The non-obvious half of the rule: an embedding model would otherwise
-    // score well on a text task it physically cannot perform.
     const embedding = model({
       id: 2,
       features: { ...model().features, embedding: true },
@@ -104,8 +98,6 @@ describe("rankModels — hard requirements", () => {
   });
 
   it("keeps a model whose context window is unknown rather than guessing", () => {
-    // 0 means "not recorded". Treating it as 0 tokens would silently hide every
-    // freshly imported model from every long-context task.
     const unknown = model({ id: 1, contextWindow: 0 });
 
     const ranked = rankModels(task({ requires: { minContext: 100_000 } }), [unknown]);
@@ -119,16 +111,13 @@ describe("rankModels — hard requirements", () => {
   });
 });
 
-/* -------------------------------------------------------------- scoring */
-
 describe("rankModels — scoring", () => {
   it("falls back to discounted quality for an axis the model does not score", () => {
-    // Must not be 0, or a sparsely-scored model is silently disqualified.
     const sparse = model({ quality: 100, skills: {} });
 
     const [scored] = rankModels(task({ weights: { coding: 1 } }), [sparse]);
 
-    expect(scored.score).toBeCloseTo(70, 5); // 100 * 0.7
+    expect(scored.score).toBeCloseTo(70, 5);
   });
 
   it("prefers an explicit skill score over the quality fallback", () => {
@@ -140,8 +129,6 @@ describe("rankModels — scoring", () => {
   });
 
   it("computes a weighted mean, not a weighted sum", () => {
-    // A sum would exceed 100 as weights grow and make scores incomparable
-    // between tasks that happen to use different weight totals.
     const m = model({ skills: { coding: 90, creative: 30 } });
 
     const [scored] = rankModels(task({ weights: { coding: 3, creative: 1 } }), [m]);
@@ -189,8 +176,6 @@ describe("rankModels — scoring", () => {
     expect(summed).toBeCloseTo(scored.score, 10);
   });
 });
-
-/* ------------------------------------------------------------ overrides */
 
 describe("rankModels — pins and constraints", () => {
   it("surfaces a pinned model first even when it scores lower", () => {
@@ -258,8 +243,6 @@ describe("rankModels — pins and constraints", () => {
   });
 });
 
-/* ------------------------------------------------------ text inference */
-
 describe("taskFromText", () => {
   it("maps a debugging request onto debugging, context, and cost axes", () => {
     const t = taskFromText("debug a huge Rust stack trace cheaply");
@@ -288,8 +271,6 @@ describe("taskFromText", () => {
   });
 
   it("falls back to general-purpose weights for unmatched text", () => {
-    // Must never return an empty weight set: that would make every model
-    // score identically and the ranking meaningless.
     const t = taskFromText("zzzzz qqqqq");
 
     expect(Object.keys(t.weights).length).toBeGreaterThan(0);

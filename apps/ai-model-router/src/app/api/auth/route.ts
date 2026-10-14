@@ -21,12 +21,9 @@ const loginSchema = z.object({
 const setupSchema = z.object({
   password: z
     .string({ error: "password is required" })
-    // 12 is a meaningful floor for a single shared password that guards live
-    // API keys, and this is set once so the friction is paid once.
     .min(12, "use at least 12 characters"),
 });
 
-/** Whether a password exists yet, so the client knows to show setup or login. */
 export async function GET() {
   return NextResponse.json({
     configured: isAuthConfigured(),
@@ -34,7 +31,6 @@ export async function GET() {
   });
 }
 
-/** First-run password setup. Refused once a password exists. */
 export async function PUT(request: Request) {
   if (isAuthConfigured()) {
     return NextResponse.json(
@@ -75,7 +71,6 @@ export async function POST(request: Request) {
   return res;
 }
 
-/** Log out. */
 export async function DELETE() {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, "", { ...sessionCookieOptions, maxAge: 0 });

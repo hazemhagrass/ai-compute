@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-/**
- * Regenerate docs/plans/*.md from live GitHub issue state.
- *
- * Progress numbers are derived, never typed: a closed issue flips its box.
- * Hand-counting has produced plans reading 100% complete with whole sections
- * unbuilt, so the generator is the only thing allowed to write the numbers.
- *
- *   node scripts/sync-plans.mjs            # dry run, prints the table
- *   node scripts/sync-plans.mjs --write    # rewrite the phase files
- */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -45,13 +35,11 @@ const issues = gh([
   "--json", "number,title,state,labels,body",
 ]);
 
-/** 20-cell bar that floors the done count, so 1/41 never renders as progress. */
 function bar(done, partial, total) {
   const cells = 20;
   if (!total) return "⬜".repeat(cells);
   let filled = Math.floor((done / total) * cells);
   let amber = Math.floor((partial / total) * cells);
-  // Partial work always gets at least one cell, or honesty becomes invisible.
   if (partial > 0 && amber === 0) amber = 1;
   if (filled + amber > cells) filled = cells - amber;
   return "🟩".repeat(filled) + "🟧".repeat(amber) + "⬜".repeat(cells - filled - amber);
@@ -71,8 +59,6 @@ for (const phase of PHASES) {
     });
 
   const done = mine.filter((i) => i.state === "CLOSED").length;
-  // "waiting-approval" means the agent finished but a human has not reviewed:
-  // real work landed, so it counts as in-progress, never as done.
   const partial = mine.filter(
     (i) => i.state === "OPEN" && i.labels.some((l) => l.name === "waiting-approval"),
   ).length;
@@ -85,7 +71,6 @@ for (const phase of PHASES) {
       : i.labels.some((l) => l.name === "waiting-approval") ? "~" : " ";
     const size = i.labels.find((l) => l.name.startsWith("size:"))?.name.slice(5) ?? "?";
     const blocked = i.labels.some((l) => l.name === "blocked") ? " 🔴 **blocked**" : "";
-    // First non-empty body line: the reasoning, not just the label.
     const why = (i.body ?? "")
       .split("\n")
       .map((l) => l.trim())
@@ -140,8 +125,6 @@ ${rows.join("\n") || "_No tickets yet._"}
   console.log(`phase ${phase.n} ${phase.label.padEnd(15)} ${done}/${total} done, ${partial} in progress`);
 }
 
-// Mirror the totals into the all-plans table. Its numbers have gone stale
-// before, reading "0 / 156" while the plan was past halfway.
 const readme = join(PLANS, "README.md");
 const src = readFileSync(readme, "utf8");
 const next = src.replace(

@@ -28,7 +28,6 @@ const policySchema = z.object({
   recommendationMaxRows: z.number().int().positive().optional(),
 });
 
-/** Current policy, so the UI can show what will be pruned and when. */
 export async function GET() {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -40,13 +39,6 @@ export async function GET() {
   });
 }
 
-/**
- * Prune old usage rows.
- *
- * Exposed as an endpoint rather than a background timer so it can be driven by
- * whatever scheduler the deployment already has (cron, a platform job, a
- * manual click) instead of this process needing to stay alive to be correct.
- */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -59,15 +51,11 @@ export async function POST(request: Request) {
     maxAgeDays: parsed.data.maxAgeDays ?? policy.usage.maxAgeDays,
     maxRows: parsed.data.maxRows ?? policy.usage.maxRows,
   });
-  // The same pass prunes recommendations (#171): both are retention on data
-  // this process owns, and reporting them together keeps one entry point.
   const recommendations = pruneRecommendations(getDb(), policy.recommendations);
 
   return NextResponse.json({ ...result, recommendations });
 }
 
-/** Update the stored retention policy (does not itself delete anything — the
- * next manual or automatic pass picks the new numbers up). */
 export async function PATCH(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;

@@ -7,9 +7,6 @@ import {
   saveRecommendation,
 } from "./recommendations";
 
-// Save + pick + list round-trip against the real (auto-seeded) test database.
-// Assertions are scoped to rows this test creates, since the DB seeds data.
-
 describe("recommendations", () => {
   let id = 0;
   beforeEach(() => {
@@ -39,7 +36,7 @@ describe("recommendations", () => {
     const b = saveRecommendation({ taskSlug: "b", ranked: [] }).id;
     const list = listRecommendations(10);
     const ids = list.map((r) => r.id);
-    expect(ids.indexOf(b)).toBeLessThan(ids.indexOf(a)); // newest first
+    expect(ids.indexOf(b)).toBeLessThan(ids.indexOf(a));
   });
 
   it("returns null for an unknown id and for picking an unknown id", () => {

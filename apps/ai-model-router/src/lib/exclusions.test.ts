@@ -4,8 +4,6 @@ import { rankModels } from "./engine";
 import { explainExclusions } from "./exclusions";
 import type { Model, Task } from "./types";
 
-/* ------------------------------------------------------------- fixtures */
-
 function model(over: Partial<Model> = {}): Model {
   return {
     id: 1,
@@ -55,8 +53,6 @@ function task(over: Partial<Task> = {}): Task {
     ...over,
   };
 }
-
-/* ----------------------------------------------------- individual codes */
 
 describe("explainExclusions — codes", () => {
   it("says nothing about a model that is eligible", () => {
@@ -129,7 +125,6 @@ describe("explainExclusions — codes", () => {
   });
 
   it("keeps a model whose context window is unrecorded rather than guessing", () => {
-    // Mirrors rankModels: 0 means "unknown", not "zero tokens".
     const unknown = model({ contextWindow: 0 });
 
     const report = explainExclusions([unknown], {
@@ -173,12 +168,8 @@ describe("explainExclusions — codes", () => {
   });
 });
 
-/* -------------------------------------------------------- many reasons */
-
 describe("explainExclusions — multiple reasons", () => {
   it("reports every failure, not just the first", () => {
-    // Deliberate: fixing only the first reason would leave the user re-running
-    // the router to discover the next one.
     const bad = model({
       enabled: false,
       outputCost: 90,
@@ -220,8 +211,6 @@ describe("explainExclusions — multiple reasons", () => {
     expect(report.groups.reduce((s, g) => s + g.count, 0)).toBe(1);
   });
 });
-
-/* ------------------------------------------------------------ grouping */
 
 describe("explainExclusions — grouping", () => {
   it("produces the headline sentence with correct counts", () => {
@@ -277,8 +266,6 @@ describe("explainExclusions — grouping", () => {
   });
 });
 
-/* --------------------------------------------------------- edge cases */
-
 describe("explainExclusions — edges", () => {
   it("handles an empty candidate list", () => {
     const report = explainExclusions([], { task: task() });
@@ -314,8 +301,6 @@ describe("explainExclusions — edges", () => {
     );
   });
 });
-
-/* -------------------------------------------- agreement with the ranker */
 
 describe("explainExclusions — agrees with rankModels", () => {
   it("explains exactly the models the ranker dropped", () => {

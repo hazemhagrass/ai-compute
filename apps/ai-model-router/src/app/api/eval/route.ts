@@ -11,24 +11,11 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   modelId: z.number().int().positive(),
-  /** Persist the measured scores onto the model. Default false: a dry run. */
   apply: z.boolean().optional(),
-  /**
-   * Preview the write (#167): same computation as apply, nothing persisted.
-   * A dryRun and an apply are mutually exclusive on purpose -- one request
-   * should not both preview and commit.
-   */
   dryRun: z.boolean().optional(),
-  /**
-   * Refuse the write if the model's skills were last stamped by a different
-   * eval version (#167). Prevents a newer harness version from silently
-   * blending its numbers with an older version's; re-apply after reviewing.
-   * Only consulted when the model actually carries an older stamp.
-   */
   evalVersion: z.string().optional(),
 });
 
-/** Speed/cheapness axes measured on every run (not graded cases, real calls). */
 function measuredPerformanceAxes(result: { observedTokensPerSec: number; observedCostUsd: number }): Record<string, number> {
   const updates: Record<string, number> = {};
   if (result.observedTokensPerSec > 0) {
@@ -40,11 +27,6 @@ function measuredPerformanceAxes(result: { observedTokensPerSec: number; observe
   return updates;
 }
 
-/**
- * Compute the full write-back payload (#167): measured skill axes plus the
- * observed speed/cheapness axes, each stamped with its provenance so a
- * hand-tuned number is never silently overwritten by a machine number.
- */
 function computeWriteBack(
   model: { skills: Record<string, number> },
   result: Awaited<ReturnType<typeof runEval>>,
@@ -65,8 +47,6 @@ function computeWriteBack(
     stamps[`${axis}Source`] = `eval:${result.evalSetVersion}`;
   }
 
-  // Read the currently stamped eval version, if any: the newest stamp among
-  // the axes just written, or a previously stored stamp on the model.
   let currentVersion: string | null = null;
   for (const key of Object.keys(stamps)) {
     const stored = model.skills[key];
@@ -84,17 +64,6 @@ function computeWriteBack(
   return { updates, currentVersion };
 }
 
-/**
- * Run the baseline eval set against one model and report measured per-axis
- * scores. This is the replacement for the hand-written `quality`/`skills`
- * numbers the router otherwise ranks on.
- *
- * With `apply: true` the measured axes (skills + observed speed/cheapness)
- * are written back. With `dryRun: true` the same computation runs and the
- * response reports exactly WHAT would change, persisting nothing. Axes the
- * harness did not measure (quality, latency) are left untouched, so a guess
- * is never overwritten by another guess.
- */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -115,12 +84,6 @@ export async function POST(request: Request) {
   const provider = getProvider(model.providerId);
   if (!provider) return NextResponse.json({ error: "provider not found" }, { status: 404 });
 
-  // The harness is runner-agnostic; here the runner is the app's real chat
-  // path, so the eval goes through the same provider call the router would
-  // make. A failure to reach the model surfaces as an empty run, which the
-  // harness already treats as unmeasured rather than as a zero score. Latency,
-  // tokens/sec, and cost are measured per case so the speed and cheapness
-  // axes reflect real calls.
   const runner: EvalRunner = async (evalCase) => {
     const r = await chat(provider, model.modelId, "", evalCase.prompt, 60000, 64);
     const cost = computeCost(
@@ -143,9 +106,6 @@ export async function POST(request: Request) {
   const result = await runEval(model.id, BASELINE_EVAL_SET, runner);
   const { updates, currentVersion } = computeWriteBack(model, result);
 
-  // Version-stamp refusal (#167): if the model's skills carry a stamp from a
-  // DIFFERENT eval version, applying would blend numbers from two harnesses.
-  // Refuse rather than blend; the caller re-applies only after reviewing.
   if (parsed.data.apply && currentVersion !== null && parsed.data.evalVersion !== undefined && parsed.data.evalVersion !== currentVersion) {
     return NextResponse.json(
       {

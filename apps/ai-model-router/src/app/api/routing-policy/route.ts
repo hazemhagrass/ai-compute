@@ -11,7 +11,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Any subset of the policy fields is a valid PATCH body. */
 const patchSchema = routingPolicySchema.partial();
 
 export async function GET() {
@@ -34,12 +33,10 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ policy: updateRoutingPolicy(parsed.data) });
 }
 
-/** DELETE resets to default; safer than exposing a magic "reset=true" flag. */
 export async function DELETE() {
   const denied = await requireAuth();
   if (denied) return denied;
   return NextResponse.json({ policy: resetRoutingPolicy() });
 }
 
-// z is imported to keep zod as a peer dep of this file's compilation graph.
 void z;

@@ -4,14 +4,13 @@ import { listModels, updateModel } from "./repo";
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const CACHE_KEY = "openrouter_catalog";
 const CACHE_TS_KEY = "openrouter_catalog_ts";
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export interface CatalogEntry {
   id: string;
   name: string;
   contextLength: number;
   maxOutput: number;
-  /** USD per 1M tokens */
   inputCost: number;
   outputCost: number;
   modalities: string[];
@@ -61,7 +60,6 @@ function mapEntry(m: OrModel): CatalogEntry {
   };
 }
 
-/** Fetch OpenRouter's public model catalogue (no API key needed). Cached in SQLite. */
 export async function fetchCatalog(force = false): Promise<{
   entries: CatalogEntry[];
   cachedAt: string;
@@ -79,7 +77,6 @@ export async function fetchCatalog(force = false): Promise<{
           fromCache: true,
         };
       } catch {
-        /* fall through to refetch */
       }
     }
   }
@@ -103,7 +100,6 @@ export async function fetchCatalog(force = false): Promise<{
   }
 }
 
-/** Strip vendor prefix / suffixes so `anthropic/claude-sonnet-4.6` ≈ `claude-sonnet-4-6`. */
 function normalizeId(id: string): string {
   return id
     .toLowerCase()
@@ -116,18 +112,11 @@ function normalizeId(id: string): string {
     .trim();
 }
 
-/**
- * OpenRouter exposes pricing variants as `id:variant`. `:batch` is roughly half
- * price but only applies to async batch jobs, and `:free` is rate-limited to
- * nothing — matching either would badly understate real interactive cost.
- * Canonical (suffix-free) listings always win; a variant is used only when no
- * canonical listing exists for that model.
- */
 function variantRank(id: string): number {
   const variant = id.includes(":") ? id.split(":").pop()! : "";
-  if (!variant) return 0; // canonical, best
+  if (!variant) return 0;
   if (variant === "beta" || variant === "thinking") return 1;
-  return 2; // batch, free, extended, floor, nitro…
+  return 2;
 }
 
 export interface PriceMatch {
@@ -142,10 +131,6 @@ export interface PriceMatch {
   changed: boolean;
 }
 
-/**
- * Match every stored model against the OpenRouter catalogue and refresh
- * pricing + context window. `apply=false` returns a dry-run preview.
- */
 export async function syncPricing(apply: boolean): Promise<{
   matches: PriceMatch[];
   unmatched: string[];
@@ -163,7 +148,6 @@ export async function syncPricing(apply: boolean): Promise<{
     }
     const rank = variantRank(e.id);
     const prevRank = variantRank(prev.id);
-    // Better variant wins outright; within the same variant tier, cheapest wins.
     if (rank < prevRank || (rank === prevRank && e.outputCost < prev.outputCost)) {
       index.set(key, e);
     }
@@ -174,7 +158,6 @@ export async function syncPricing(apply: boolean): Promise<{
   let applied = 0;
 
   for (const m of listModels()) {
-    // Local/free models have no market price — never overwrite them.
     if (m.inputCost === 0 && m.outputCost === 0 && m.tags.includes("local")) continue;
 
     const hit = index.get(normalizeId(m.modelId));
@@ -213,17 +196,12 @@ export async function syncPricing(apply: boolean): Promise<{
   return { matches, unmatched, applied, catalogSize: entries.length };
 }
 
-/**
- * Cheapness is a 0-100 score derived from output price, log-scaled because
- * prices span 4 orders of magnitude ($0.02 → $75 per 1M).
- */
 export function cheapnessFromPrice(outputCostPer1M: number): number {
   if (outputCostPer1M <= 0) return 100;
   const score = 100 - (Math.log10(outputCostPer1M) + 1.7) * 28;
   return Math.max(1, Math.min(100, Math.round(score)));
 }
 
-/** Recompute every model's `cheapness` score from its current price. */
 export function recalcCheapness(): number {
   let n = 0;
   for (const m of listModels()) {

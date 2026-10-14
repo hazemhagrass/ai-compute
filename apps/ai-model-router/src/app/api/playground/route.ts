@@ -11,17 +11,11 @@ import { requireAuth } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-/**
- * NDJSON frames sent down the response body while a playground run streams.
- * `token` frames arrive zero or more times; exactly one terminal frame
- * (`done` or `error`) closes the stream after usage has been recorded.
- */
 export type PlaygroundStreamFrame =
   | { type: "token"; text: string }
   | { type: "done"; text: string; event: unknown; totals: unknown; streamed: boolean }
   | { type: "error"; error: string; event: unknown; totals: unknown };
 
-/** Run a real prompt against a chosen model, streaming tokens back as NDJSON. */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -30,9 +24,6 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
 
-  // Budget gate (#163): refuse before any upstream call, and before the NDJSON
-  // stream is constructed, so a blocked run cannot emit half a stream. A
-  // rejected call must not appear in usage_events as spend.
   const gate = await enforceBudgets(getDb(), new Date());
   if (!gate.ok && gate.blocked) {
     return NextResponse.json(
@@ -59,8 +50,6 @@ export async function POST(request: Request) {
   const task = body.taskSlug ? getTaskBySlug(body.taskSlug) : null;
   const system = body.system ?? "";
 
-  // Prior turns ride along so the model sees the whole conversation; the new
-  // prompt is the latest user turn at the end of the list.
   const history: { role: "user" | "assistant"; content: string }[] =
     body.messages ?? [];
   const messages = [...history, { role: "user" as const, content: body.prompt }];
@@ -76,7 +65,6 @@ export async function POST(request: Request) {
         try {
           controller.close();
         } catch {
-          // Client disconnected mid-stream; nothing left to do.
         }
       };
 
@@ -98,9 +86,6 @@ export async function POST(request: Request) {
           model.outputCost,
         );
 
-        // Usage is recorded after the stream ends, from the final accumulated
-        // text and the provider-reported (or estimated) totals, so the event
-        // carries full token/cost figures even though the response streamed.
         const event = recordUsage({
           providerId: provider.id,
           providerSlug: provider.slug,
@@ -127,8 +112,6 @@ export async function POST(request: Request) {
           ...cost,
         });
 
-        // Running totals across the whole conversation: the client reports what
-        // it has already measured for earlier turns and we add this turn on top.
         const prior = body.priorTotals ?? {};
         const totals = {
           turns: (prior.turns ?? 0) + 1,
@@ -161,8 +144,6 @@ export async function POST(request: Request) {
       "content-type": "application/x-ndjson; charset=utf-8",
       "cache-control": "no-store",
       "x-accel-buffering": "no",
-      // Present only when a budget is between the warning threshold and the
-      // cap, so the client can surface it without polling /api/budgets.
       ...(gate.warningPercent !== null
         ? { "x-budget-warning": String(Math.round(gate.warningPercent)) }
         : {}),

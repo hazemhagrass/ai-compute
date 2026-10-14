@@ -9,7 +9,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** List saved recommendations, newest first. */
 export async function GET(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -25,7 +24,6 @@ const pickSchema = z.object({
   modelRowId: z.number().int().positive(),
 });
 
-/** Record which model was picked for a saved recommendation. */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;

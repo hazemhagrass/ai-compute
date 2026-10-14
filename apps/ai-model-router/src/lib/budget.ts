@@ -5,34 +5,12 @@ import { getSetting, setSetting } from "./db";
 
 type Db = BetterSqlite3.Database;
 
-/*
- * TIMEZONE ASSUMPTION
- * -------------------
- * usage_events.ts is written by SQLite's datetime('now'), which is always UTC
- * in the "YYYY-MM-DD HH:MM:SS" form. Every period boundary here is therefore
- * computed in UTC too. Mixing a local-time boundary with UTC-stamped rows
- * would shift the reset by the host's offset and silently misattribute up to a
- * full day of spend to the wrong period, which is exactly the failure mode a
- * budget alert is supposed to prevent.
- */
-
-/*
- * MONEY
- * -----
- * All arithmetic is on integers. Limits are integer cents. Spend is summed
- * inside SQLite as integer MILLICENTS (1/1000 of a cent) so that sub-cent
- * calls, which are the common case for cheap models, are not rounded away one
- * row at a time. Integer addition is exact, so the only rounding happens once,
- * when millicents are converted to cents for the caller.
- */
 const MILLICENTS_PER_CENT = 1000;
 const MILLICENTS_PER_USD = 100 * MILLICENTS_PER_CENT;
 
-/** Thresholds, in percent, that raise an alert. Ascending order matters. */
 export const ALERT_THRESHOLDS = [50, 80, 100] as const;
 export type AlertThreshold = (typeof ALERT_THRESHOLDS)[number];
 
-/** Percent at which a budget is called a warning even without a projection. */
 const WARNING_PERCENT = 80;
 
 export type BudgetPeriod = "daily" | "weekly" | "monthly";
@@ -42,20 +20,15 @@ export const budgetSchema = z.object({
   id: z.string().min(1),
   label: z.string().default(""),
   period: z.enum(["daily", "weekly", "monthly"]),
-  /** Integer cents. Floats are refused at the boundary so none can get in. */
   limitCents: z.number().int().nonnegative(),
-  /** 0 = Sunday ... 6 = Saturday. Only meaningful for a weekly period. */
   weekStartsOn: z.number().int().min(0).max(6).default(1),
 });
 
 export type Budget = z.infer<typeof budgetSchema>;
 
 export interface BudgetPeriodWindow {
-  /** Inclusive lower bound, "YYYY-MM-DD HH:MM:SS" UTC. */
   start: string;
-  /** Exclusive upper bound, "YYYY-MM-DD HH:MM:SS" UTC. */
   end: string;
-  /** Stable identity of this period. A change here re-arms every alert. */
   key: string;
 }
 
@@ -66,11 +39,8 @@ export interface BudgetEvaluation {
   limitCents: number;
   spentCents: number;
   remainingCents: number;
-  /** 0-100+, not clamped: knowing you are at 140 percent is useful. */
   percentUsed: number;
-  /** Spend extrapolated to the end of the period at the current burn rate. */
   projectedCents: number;
-  /** Fraction of the period already elapsed, 0-1. */
   elapsedFraction: number;
   status: BudgetStatus;
 }
@@ -85,20 +55,14 @@ export interface BudgetAlert {
   message: string;
 }
 
-/* ------------------------------------------------------------------ money */
-
-/** Convert a USD float to integer cents. Used only at the input boundary. */
 export function usdToCents(usd: number): number {
   if (!Number.isFinite(usd)) return 0;
   return Math.round(usd * 100);
 }
 
-/** Integer cents back to USD, for display only. Never feed this back in. */
 export function centsToUsd(cents: number): number {
   return cents / 100;
 }
-
-/* ----------------------------------------------------------- period maths */
 
 function toSqlTs(d: Date): string {
   return d.toISOString().slice(0, 19).replace("T", " ");
@@ -112,7 +76,6 @@ function addUtcDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * 86_400_000);
 }
 
-/** The period containing `now`, in UTC. See the timezone note at the top. */
 export function periodWindow(budget: Budget, now: Date): BudgetPeriodWindow {
   if (budget.period === "daily") {
     const start = startOfUtcDay(now);
@@ -122,22 +85,16 @@ export function periodWindow(budget: Budget, now: Date): BudgetPeriodWindow {
 
   if (budget.period === "weekly") {
     const day = startOfUtcDay(now);
-    // Walk back to the configured start weekday. The modulo keeps the result
-    // non-negative when today is before weekStartsOn in the week.
     const backwards = (day.getUTCDay() - budget.weekStartsOn + 7) % 7;
     const start = addUtcDays(day, -backwards);
     const end = addUtcDays(start, 7);
     return { start: toSqlTs(start), end: toSqlTs(end), key: `w:${toSqlTs(start).slice(0, 10)}` };
   }
 
-  // Monthly resets on the 1st at 00:00:00 UTC. Date.UTC normalises month 12
-  // into January of the next year, so December needs no special case.
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
   return { start: toSqlTs(start), end: toSqlTs(end), key: `m:${toSqlTs(start).slice(0, 7)}` };
 }
-
-/* ------------------------------------------------------------ persistence */
 
 const BUDGET_KEY = (id: string) => `budget:${id}`;
 const ALERT_KEY = (id: string) => `budget:${id}:alerts`;
@@ -166,7 +123,6 @@ export function getBudget(id: string): Budget | null {
   try {
     return budgetSchema.parse(JSON.parse(raw));
   } catch {
-    // A hand-edited or older settings row must not take the whole page down.
     return null;
   }
 }
@@ -193,9 +149,6 @@ function readAlertState(id: string, periodKey: string): AlertState {
   if (!raw) return { periodKey, fired: [] };
   try {
     const parsed = JSON.parse(raw) as Partial<AlertState>;
-    // A different period key means a rollover happened, so every threshold
-    // re-arms. This is what makes alerts once-per-threshold-per-period rather
-    // than once ever.
     if (parsed.periodKey !== periodKey) return { periodKey, fired: [] };
     return {
       periodKey,
@@ -210,19 +163,14 @@ function writeAlertState(id: string, state: AlertState): void {
   setSetting(ALERT_KEY(id), JSON.stringify(state));
 }
 
-/** Thresholds already alerted on in the current period. */
 export function firedThresholds(budget: Budget, now: Date): number[] {
   return readAlertState(budget.id, periodWindow(budget, now).key).fired;
 }
 
-/** Drop the fired record so alerts re-arm. Exposed for manual "snooze off". */
 export function resetBudgetAlerts(id: string): void {
   setSetting(ALERT_KEY(id), "");
 }
 
-/* -------------------------------------------------------------- evaluation */
-
-/** Integer millicents spent in [start, end). Summed as integers inside SQL. */
 function spentMillicents(db: Db, window: BudgetPeriodWindow, providerId?: number): number {
   const row = db
     .prepare(
@@ -248,9 +196,6 @@ export function evaluateBudget(db: Db, budget: Budget, now: Date): BudgetEvaluat
   const elapsedRaw = (now.getTime() - startMs) / span;
   const elapsedFraction = Math.min(1, Math.max(0, elapsedRaw));
 
-  // Extrapolating from a near-zero slice of the period produces an absurd
-  // number, so the first moments of a period project flat instead. Once past
-  // that floor the projection is a straight linear burn rate.
   const MIN_ELAPSED_FOR_PROJECTION = 0.01;
   const projectedCents =
     elapsedFraction >= MIN_ELAPSED_FOR_PROJECTION
@@ -283,15 +228,9 @@ export function evaluateBudget(db: Db, budget: Budget, now: Date): BudgetEvaluat
 
 export interface BudgetCheck {
   evaluation: BudgetEvaluation;
-  /** Thresholds crossed for the FIRST time in this period, ascending. */
   alerts: BudgetAlert[];
 }
 
-/**
- * Evaluate and fire any not-yet-fired threshold alerts, recording them so the
- * next call in the same period stays silent. Re-alerting on every request
- * trains the user to ignore the alert, which defeats the whole feature.
- */
 export function checkBudget(db: Db, budget: Budget, now: Date): BudgetCheck {
   const evaluation = evaluateBudget(db, budget, now);
   const state = readAlertState(budget.id, evaluation.window.key);
@@ -317,35 +256,17 @@ export function checkBudget(db: Db, budget: Budget, now: Date): BudgetCheck {
     }
   }
 
-  // Always persist, even with no new alerts, so a rollover-cleared state is
-  // written back rather than re-read and re-cleared on every call.
   writeAlertState(budget.id, state);
 
   return { evaluation, alerts };
 }
 
-/* ------------------------------------------------------------- enforcement */
-
 export interface BudgetGateResult {
   ok: boolean;
-  /** The blocking evaluation when ok is false. */
   blocked: BudgetEvaluation | null;
-  /** Highest percent among warning-or-worse budgets that did NOT block. */
   warningPercent: number | null;
 }
 
-/**
- * Pre-call gate for enforcing budgets (#163): every enabled budget is
- * evaluated against current spend, and an exceeded one refuses the call
- * before any upstream request happens. A budget that only reports after
- * money is spent is a report, not a budget.
- *
- * Returns the single most-severe blocking evaluation (a 402 body only has
- * room for one) and, when the call proceeds, the highest warning percent so
- * the route can raise an X-Budget-Warning header. Alert firing is NOT done
- * here: checkBudget handles once-per-period alert state, and a gate must
- * stay silent to avoid training the user to dismiss it before every call.
- */
 export async function enforceBudgets(db: Db, now: Date): Promise<BudgetGateResult> {
   let blocked: BudgetEvaluation | null = null;
   let warningPercent: number | null = null;
@@ -359,19 +280,11 @@ export async function enforceBudgets(db: Db, now: Date): Promise<BudgetGateResul
   };
 
   for (const budget of listBudgets()) {
-    if (budget.limitCents <= 0) continue; // 0 = disabled/no cap
+    if (budget.limitCents <= 0) continue;
     consider(evaluateBudget(db, budget, now));
   }
 
-  // Implicit per-subscription caps (#170): each provider with a subscription
-  // monthly cap contributes its own evaluation even with no budgets row.
-  // Explicit budgets win naturally: the implicit id (sub-<providerId>) is
-  // distinct, and the most-severe-exceeded rule picks whichever is stricter.
   try {
-    // Dynamic import: subscriptions imports this module's evaluation types, so
-    // a static top-level import would be a cycle. Both modules are plain
-    // server code with no side effects, so the import is cheap after the
-    // first resolution.
     const { listProviders } = await import("./repo");
     const { implicitBudgetEvaluation } = await import("./subscriptions");
     for (const p of listProviders()) {
@@ -379,8 +292,6 @@ export async function enforceBudgets(db: Db, now: Date): Promise<BudgetGateResul
       if (evaluation) consider(evaluation);
     }
   } catch {
-    // Subscription caps are additive hardening; a lookup failure must not
-    // disable the explicit budgets that were already evaluated.
   }
 
   return { ok: blocked === null, blocked, warningPercent };

@@ -11,8 +11,6 @@ export async function GET(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
 
-  // Retention before aggregation (#165): pruned rows cannot inflate a window
-  // that no longer needs them. Guarded internally to one pass per hour.
   maybeApplyRetention(getDb());
 
   const days = Number(new URL(request.url).searchParams.get("days"));

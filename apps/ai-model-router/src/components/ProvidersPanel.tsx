@@ -549,8 +549,6 @@ export function Field({
   );
 }
 
-/* --------------------------------------------------------------- Import */
-
 interface ImportSectionStats {
   inserted: number;
   skipped: number;

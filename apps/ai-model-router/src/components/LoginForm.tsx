@@ -34,8 +34,6 @@ export default function LoginForm({ configured }: { configured: boolean }) {
         return;
       }
 
-      // Full reload rather than router.push: the layout and every server
-      // component must re-render now that a session exists.
       window.location.href = new URLSearchParams(window.location.search).get("next") ?? "/";
     } catch {
       setError("Could not reach the server.");

@@ -68,8 +68,6 @@ describe("checkAllProviders", () => {
       status: 200,
       error: null,
     });
-    // The per-probe timeout must be passed down so a hung endpoint cannot
-    // stall the dashboard.
     expect(mockTest).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), HEALTH_PROBE_TIMEOUT_MS);
   });
 
@@ -117,8 +115,6 @@ describe("checkAllProviders", () => {
       mockTest.mockImplementation((p, timeoutMs) => {
         const deadline = timeoutMs ?? HEALTH_PROBE_TIMEOUT_MS;
         if (p.id === 1) {
-          // Simulates what the real testConnection does when its AbortController
-          // fires: the fetch rejects and it returns an error result.
           return new Promise((resolve) =>
             setTimeout(
               () => resolve({ ok: false, status: 0, latencyMs: deadline, error: "aborted" }),
@@ -183,7 +179,6 @@ describe("runHealthChecks", () => {
     const providers = Array.from({ length: 8 }, (_, i) => provider(i + 1));
 
     const out = await runHealthChecks(providers, async (p) => {
-      // Later providers resolve first, so order must come from the array.
       await sleep((8 - p.id) * 2);
       return p.id;
     });

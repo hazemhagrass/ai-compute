@@ -1,17 +1,6 @@
-/**
- * Structured explanations for candidates the ranker threw away.
- *
- * `rankModels` drops ineligible models with a bare `continue`, so the UI can
- * only ever show what survived. This module replays the same hard filters over
- * the same inputs and reports, per model, why it did not make the list. It is
- * deliberately a pure function over data the caller already has: no database,
- * no repo lookups, so it can be unit tested and also run client-side.
- */
-
 import type { RankOptions } from "./engine";
 import type { Model, Task } from "./types";
 
-/** Stable, machine-readable exclusion codes. Safe to switch on in the UI. */
 export type ExclusionCode =
   | "disabled"
   | "provider_disabled"
@@ -22,15 +11,8 @@ export type ExclusionCode =
 
 export interface ExclusionReason {
   code: ExclusionCode;
-  /**
-   * Sub-key that makes a code renderable as its own bucket, e.g. the specific
-   * capability for `missing_capability`. Two models missing different features
-   * should not be grouped under one vague "missing capability" heading.
-   */
   subject?: string;
-  /** Human sentence that always names the real numbers involved. */
   message: string;
-  /** The same facts as raw values, for callers that format their own copy. */
   detail: Record<string, string | number | boolean>;
 }
 
@@ -38,25 +20,13 @@ export interface ExcludedCandidate {
   modelId: number;
   label: string;
   providerSlug: string;
-  /**
-   * Every reason the model failed, in filter order. We report all of them
-   * rather than the first because the actionable question is "what would I
-   * have to change to get this model back", and fixing only the first reason
-   * leaves the user re-running the router to discover the next one.
-   */
   reasons: ExclusionReason[];
-  /**
-   * The first reason in filter order. Grouping keys off this one so the group
-   * counts sum exactly to the number of excluded models, which is what makes
-   * the headline sentence honest.
-   */
   primary: ExclusionReason;
 }
 
 export interface ExclusionGroup {
   code: ExclusionCode;
   subject?: string;
-  /** Short human label for the bucket, e.g. "over budget", "missing vision". */
   label: string;
   count: number;
   modelIds: number[];
@@ -64,10 +34,8 @@ export interface ExclusionGroup {
 
 export interface ExclusionReport {
   excluded: ExcludedCandidate[];
-  /** Grouped by primary reason, largest bucket first. */
   groups: ExclusionGroup[];
   totalExcluded: number;
-  /** e.g. "excluded 12 models: 8 over budget, 4 missing vision" */
   summary: string;
 }
 
@@ -75,7 +43,6 @@ export interface ExclusionCriteria extends RankOptions {
   task: Task;
 }
 
-/** 128000 -> "128k". Small windows stay exact so "512" never reads as "1k". */
 function formatTokens(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
 }
@@ -84,7 +51,6 @@ function formatUsd(n: number): string {
   return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
 }
 
-/** Feature requirements, in the same order `meetsRequirements` checks them. */
 const CAPABILITY_CHECKS: {
   key: keyof Task["requires"];
   feature: keyof Model["features"];
@@ -115,10 +81,6 @@ function groupLabel(reason: ExclusionReason): string {
   }
 }
 
-/**
- * Collect every hard-filter failure for one model. Empty result means the model
- * is eligible and therefore appears in the ranking instead of this report.
- */
 function reasonsFor(model: Model, criteria: ExclusionCriteria): ExclusionReason[] {
   const { task } = criteria;
   const requires = task.requires ?? {};
@@ -153,11 +115,7 @@ function reasonsFor(model: Model, criteria: ExclusionCriteria): ExclusionReason[
     });
   }
 
-  // The option ceiling and the task requirement are the same constraint from
-  // two sources, so report the binding one once instead of twice.
   const minContext = Math.max(criteria.minContext ?? 0, requires.minContext ?? 0);
-  // A contextWindow of 0 means "not recorded"; the ranker keeps those rather
-  // than guessing, so they are not excluded here either.
   if (minContext > 0 && model.contextWindow > 0 && model.contextWindow < minContext) {
     reasons.push({
       code: "context_too_small",
@@ -227,8 +185,6 @@ export function explainExclusions(
     group.modelIds.push(candidate.modelId);
   }
 
-  // Largest bucket first is what a reader wants: the dominant reason is the one
-  // worth acting on. Ties fall back to label so the output stays deterministic.
   const groups = [...byKey.values()].sort(
     (a, b) => b.count - a.count || a.label.localeCompare(b.label),
   );

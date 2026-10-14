@@ -55,11 +55,9 @@ CATEGORY_HUE = {
 }
 DEFAULT_HUE = 210
 
-
 def _hex(h: float, s: float, v: float) -> str:
     r, g, b = colorsys.hsv_to_rgb((h % 360) / 360.0, s, v)
     return "#%02x%02x%02x" % (int(r * 255), int(g * 255), int(b * 255))
-
 
 def palette(name: str, category: str) -> dict:
     """Colours for one skill: category sets the family, name sets the variation."""
@@ -75,19 +73,14 @@ def palette(name: str, category: str) -> dict:
         "body_lo": _hex(hue, 0.34, 0.15),
     }
 
-
-# Head outlines. Each takes the body fill and accent stroke.
 def head_rounded(body: str, accent: str) -> str:
     return f'<rect x="46" y="30" width="68" height="56" rx="18" fill="{body}" stroke="{accent}" stroke-width="3.5"/>'
-
 
 def head_oval(body: str, accent: str) -> str:
     return f'<ellipse cx="80" cy="58" rx="35" ry="29" fill="{body}" stroke="{accent}" stroke-width="3.5"/>'
 
-
 def head_hex(body: str, accent: str) -> str:
     return f'<path d="M80 28 L112 46 v30 L80 94 L48 76 V46 Z" fill="{body}" stroke="{accent}" stroke-width="3.5" stroke-linejoin="round"/>'
-
 
 def head_visor(body: str, accent: str) -> str:
     return (
@@ -95,11 +88,8 @@ def head_visor(body: str, accent: str) -> str:
         f'<path d="M52 58 h56" stroke="{accent}" stroke-width="2" opacity="0.45"/>'
     )
 
-
 HEADS = [head_rounded, head_oval, head_hex, head_visor]
 
-
-# Eye styles. Each takes the glow colour.
 def eyes_round(glow: str) -> str:
     return (
         f'<circle cx="66" cy="58" r="7" fill="{glow}">'
@@ -107,7 +97,6 @@ def eyes_round(glow: str) -> str:
         f'<circle cx="94" cy="58" r="7" fill="{glow}">'
         f'<animate attributeName="opacity" values="1;0.45;1" dur="3.1s" repeatCount="indefinite"/></circle>'
     )
-
 
 def eyes_blink(glow: str) -> str:
     return (
@@ -117,14 +106,12 @@ def eyes_blink(glow: str) -> str:
         f'<animate attributeName="ry" values="7;7;1;7;7" dur="4.6s" repeatCount="indefinite"/></ellipse>'
     )
 
-
 def eyes_bar(glow: str) -> str:
     return (
         f'<rect x="58" y="54" width="16" height="8" rx="4" fill="{glow}"/>'
         f'<rect x="86" y="54" width="16" height="8" rx="4" fill="{glow}">'
         f'<animate attributeName="width" values="16;9;16" dur="3.8s" repeatCount="indefinite"/></rect>'
     )
-
 
 def eyes_square(glow: str) -> str:
     return (
@@ -133,18 +120,14 @@ def eyes_square(glow: str) -> str:
         f'<animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite"/></rect>'
     )
 
-
 EYES = [eyes_round, eyes_blink, eyes_bar, eyes_square]
 
-
-# Antennae. Each takes accent and glow.
 def ant_ball(accent: str, glow: str) -> str:
     return (
         f'<path d="M80 30 V16" stroke="{accent}" stroke-width="3.5" stroke-linecap="round"/>'
         f'<circle cx="80" cy="12" r="6" fill="{glow}">'
         f'<animate attributeName="r" values="6;8;6" dur="2.2s" repeatCount="indefinite"/></circle>'
     )
-
 
 def ant_twin(accent: str, glow: str) -> str:
     return (
@@ -153,14 +136,12 @@ def ant_twin(accent: str, glow: str) -> str:
         f'<circle cx="56" cy="15" r="4.5" fill="{glow}"/><circle cx="104" cy="15" r="4.5" fill="{glow}"/>'
     )
 
-
 def ant_coil(accent: str, glow: str) -> str:
     return (
         f'<path d="M80 30 C80 20 92 22 90 14" fill="none" stroke="{accent}" stroke-width="3" stroke-linecap="round"/>'
         f'<circle cx="90" cy="11" r="5" fill="{glow}">'
         f'<animate attributeName="opacity" values="1;0.4;1" dur="2.6s" repeatCount="indefinite"/></circle>'
     )
-
 
 def ant_dish(accent: str, glow: str) -> str:
     return (
@@ -169,12 +150,8 @@ def ant_dish(accent: str, glow: str) -> str:
         f'<circle cx="80" cy="18" r="3.5" fill="{glow}"/>'
     )
 
-
 ANTENNAE = [ant_ball, ant_twin, ant_coil, ant_dish]
 
-
-# Torso glyphs, one per skill. `{g}` is substituted with the glow colour.
-# Keep every path inside x 48..112, y 112..160 so it stays on the body panel.
 GLYPHS = {
     "meeting-facilitation": '<path d="M62 128 h30 M62 138 h30 M62 148 h18" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M92 146 l4 4 8 -10" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     "copywriting-formulas": '<circle cx="80" cy="136" r="18" fill="none" stroke="{g}" stroke-width="3"/><circle cx="80" cy="136" r="10" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="80" cy="136" r="3" fill="{g}"/><path d="M64 118 l32 12" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M92 126 l4 4 -6 -1" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -192,7 +169,6 @@ GLYPHS = {
     "budget-tracker": '<rect x="56" y="122" width="48" height="32" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 132 H104" stroke="{g}" stroke-width="3"/><circle cx="92" cy="143" r="5" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 143 H78" stroke="{g}" stroke-width="3"/>',
     "spaced-repetition": '<rect x="58" y="126" width="34" height="26" rx="3" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 120 H98 a3 3 0 0 1 3 3 V146" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 139 H84" stroke="{g}" stroke-width="3"/><path d="M66 133 H84" stroke="{g}" stroke-width="3"/>',
     "course-creation": '<path d="M80 119 L102 128 L80 137 L58 128 Z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M68 132 V143 a12 7 0 0 0 24 0 V132" fill="none" stroke="{g}" stroke-width="3"/>',
-    # engineering
     "debugging": '<circle cx="80" cy="132" r="9" fill="none" stroke="{g}" stroke-width="3"/><path d="M86 138 l9 9" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
     "refactoring": '<path d="M62 126 h22 a8 8 0 0 1 0 16 h-22" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M92 134 l8 8 -8 8" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     "security-audit": '<path d="M80 118 l16 7 v12 c0 10 -7 17 -16 20 -9 -3 -16 -10 -16 -20 v-12z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M73 137 l5 5 10 -10" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -205,11 +181,9 @@ GLYPHS = {
     "git-workflow": '<circle cx="64" cy="124" r="5" fill="none" stroke="{g}" stroke-width="3"/><circle cx="64" cy="150" r="5" fill="none" stroke="{g}" stroke-width="3"/><circle cx="96" cy="137" r="5" fill="none" stroke="{g}" stroke-width="3"/><path d="M64 129 v16" stroke="{g}" stroke-width="3"/><path d="M69 137 h22" stroke="{g}" stroke-width="3"/>',
     "performance-profiling": '<path d="M58 148 l12 -14 10 8 14 -20" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M88 122 h10 v10" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     "frontend-architecture": '<rect x="56" y="120" width="48" height="34" rx="5" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48" stroke="{g}" stroke-width="3"/><circle cx="63" cy="125" r="2" fill="{g}"/><circle cx="70" cy="125" r="2" fill="{g}"/>',
-    # devops
     "docker-troubleshooting": '<rect x="58" y="132" width="12" height="10" fill="none" stroke="{g}" stroke-width="2.5"/><rect x="72" y="132" width="12" height="10" fill="none" stroke="{g}" stroke-width="2.5"/><rect x="72" y="120" width="12" height="10" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M52 146 h44 a12 12 0 0 1 -12 8 H64 a12 12 0 0 1 -12 -8z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/>',
     "kubernetes-debugging": '<path d="M80 116 l20 10 v20 l-20 10 -20 -10 v-20z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><circle cx="80" cy="136" r="5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M80 121 v10 M92 129 l-8 5 M92 143 l-8 -3 M68 143 l8 -3 M68 129 l8 5" stroke="{g}" stroke-width="2"/>',
     "ci-cd-debugging": '<circle cx="62" cy="136" r="6" fill="none" stroke="{g}" stroke-width="3"/><circle cx="98" cy="136" r="6" fill="none" stroke="{g}" stroke-width="3"/><path d="M68 136 h10" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M82 136 h10" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M80 122 v6 M80 144 v6" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
-    # productivity
     "planning": '<rect x="58" y="118" width="44" height="38" rx="5" fill="none" stroke="{g}" stroke-width="3"/><path d="M58 128 h44" stroke="{g}" stroke-width="3"/><path d="M66 138 l4 4 8 -8" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M84 140 h10" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
     "skill-authoring": '<path d="M70 144 l3 -9 14 -14 6 6 -14 14z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M87 121 l6 6" stroke="{g}" stroke-width="3"/>',
     "technical-writing": '<rect x="60" y="118" width="40" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M68 128 h24 M68 136 h24 M68 144 h14" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
@@ -222,33 +196,25 @@ GLYPHS = {
     "tmux-workspace": '<rect x="54" y="118" width="52" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M78 118 v38 M78 137 h28" stroke="{g}" stroke-width="2.5"/><path d="M60 128 l6 5 -6 5" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     "regex-builder": '<path d="M62 120 q-8 16 0 32 M98 120 q8 16 0 32" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M80 126 v20 M71 131 l18 10 M89 131 l-18 10" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
     "presentation-design": '<rect x="54" y="116" width="52" height="34" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M64 140 l10 -12 8 7 12 -15" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M80 150 v8 M68 158 h24" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
-    # ai
     "prompt-engineering": '<path d="M60 124 h40 v22 H86 l-6 8 -6 -8 H60z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M70 135 h20" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
     "model-selection": '<circle cx="64" cy="126" r="5" fill="none" stroke="{g}" stroke-width="3"/><circle cx="64" cy="146" r="5" fill="none" stroke="{g}" stroke-width="3"/><circle cx="98" cy="136" r="7" fill="{g}" opacity="0.85"/><path d="M69 128 l24 6 M69 144 l24 -6" stroke="{g}" stroke-width="2.5"/>',
-    # homelab
     "lancache": '<rect x="56" y="118" width="48" height="12" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/><rect x="56" y="134" width="48" height="12" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="64" cy="124" r="2.5" fill="{g}"/><circle cx="64" cy="140" r="2.5" fill="{g}"/><path d="M74 152 h12" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
     "unraid": '<rect x="56" y="120" width="10" height="34" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/><rect x="70" y="120" width="10" height="34" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/><rect x="84" y="120" width="10" height="34" rx="3" fill="{g}" opacity="0.4" stroke="{g}" stroke-width="2.5"/><rect x="98" y="120" width="6" height="34" rx="3" fill="none" stroke="{g}" stroke-width="2.5"/>',
     "adguard-home": '<path d="M80 119 l17 7 v13 q0 13 -17 20 q-17 -7 -17 -20 v-13z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><circle cx="80" cy="139" r="8" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M73 139 h14" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
-    # office
     "python-pandas-analysis": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 128 h48 M72 118 v38 M88 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M60 140 h8 M76 146 h8" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
-    # office: spreadsheet advanced family
     "excel-macros-vba": '<rect x="58" y="120" width="44" height="34" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M66 132 l5 12 5 -12" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M82 144 h6 a4 4 0 0 0 0 -8 h-6 v12" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     "power-query-etl": '<path d="M60 124 h16 v10 H60z M60 142 h16 v10 H60z" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M88 128 h14 v20 H88z" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M76 129 q8 0 8 9 t8 9" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M76 147 q8 0 8 -9" fill="none" stroke="{g}" stroke-width="2.5"/>',
     "excel-dashboards": '<rect x="58" y="120" width="44" height="34" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M58 132 h44" stroke="{g}" stroke-width="2.5"/><rect x="64" y="138" width="7" height="10" fill="{g}" opacity="0.8"/><rect x="76" y="142" width="7" height="6" fill="{g}" opacity="0.8"/><rect x="88" y="136" width="7" height="12" fill="{g}" opacity="0.8"/><circle cx="66" cy="126" r="2.5" fill="{g}"/>',
     "google-sheets-advanced": '<rect x="58" y="118" width="44" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M58 130 h44 M72 118 v38 M87 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M62 124 h6" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><circle cx="94" cy="148" r="5" fill="none" stroke="{g}" stroke-width="2.5"/>',
     "excel-financial-modeling": '<path d="M60 150 v-26 M60 150 h42" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M66 142 l10 -10 8 7 12 -15" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="96" cy="124" r="3" fill="{g}"/><path d="M80 152 v4 M92 152 v4" stroke="{g}" stroke-width="2"/>',
-    # devtools
     "code-graph": '<circle cx="80" cy="124" r="6" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="64" cy="148" r="6" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="96" cy="148" r="6" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M76 129 l-8 14 M84 129 l8 14 M70 148 h20" stroke="{g}" stroke-width="2.5"/>',
     "shell-history-alias-miner": '<rect x="56" y="120" width="48" height="34" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M64 132 l7 6 -7 6" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M78 144 h14" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M92 126 l4 -4 4 4" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
     "repo-snippet-extractor": '<path d="M66 124 h20 l8 8 v22 H66z" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/><path d="M86 124 v8 h8" fill="none" stroke="{g}" stroke-width="2.5" stroke-linejoin="round"/><path d="M74 140 l-4 4 4 4 M82 140 l4 4 -4 4" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     "refactoring-safety-checks": '<path d="M80 116 l20 8 v14 c0 12 -9 19 -20 23 c-11 -4 -20 -11 -20 -23 v-14z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M70 138 l7 7 14 -15" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
-    # software-development
     "smythos-sdk": '<circle cx="80" cy="136" r="7" fill="none" stroke="{g}" stroke-width="3"/><circle cx="60" cy="124" r="4.5" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="100" cy="124" r="4.5" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="80" cy="154" r="4.5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M75 131 l-11 -5 M85 131 l11 -5 M80 143 v7" stroke="{g}" stroke-width="2.5"/>',
-    # office: spreadsheet family
     "excel-formulas": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48" stroke="{g}" stroke-width="2.5"/><path d="M64 140 l6 8 M70 140 l-6 8" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M80 148 h4 a5 5 0 0 0 5 -5 v-3" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><circle cx="96" cy="138" r="2.5" fill="{g}"/>',
     "excel-data-cleaning": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48 M80 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M62 138 h12 M62 146 h12" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M88 136 l6 6 8 -11" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     "pivot-tables": '<rect x="56" y="118" width="48" height="38" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M56 130 h48 M74 118 v38" stroke="{g}" stroke-width="2.5"/><path d="M80 138 h18 M80 146 h12" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M62 140 a6 6 0 1 0 6 -6 v6z" fill="{g}" opacity="0.75"/>',
-    # security, engineering, writing, design, data (new wave)
     "authentication-audit": '<rect x="62" y="132" width="36" height="26" rx="4" fill="none" stroke="{g}" stroke-width="3"/><path d="M70 132 v-8 a10 10 0 0 1 20 0 v8" fill="none" stroke="{g}" stroke-width="3"/><circle cx="80" cy="144" r="3.5" fill="{g}"/><path d="M80 147 v5" stroke="{g}" stroke-width="2.5"/>',
     "api-security-audit": '<path d="M62 122 h36 v30 h-36z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M62 132 h36" stroke="{g}" stroke-width="2.5"/><circle cx="68" cy="127" r="2" fill="{g}"/><path d="M70 141 l-6 5 6 5 M90 141 l6 5 -6 5" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
     "secrets-management-audit": '<path d="M80 118 l18 7 v14 c0 11 -8 18 -18 21 c-10 -3 -18 -10 -18 -21 v-14z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><circle cx="80" cy="139" r="5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M80 144 v7 M77 148 h6" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
@@ -260,9 +226,7 @@ GLYPHS = {
     "accessibility-audit": '<circle cx="80" cy="125" r="5.5" fill="none" stroke="{g}" stroke-width="3"/><path d="M67 137 h26" stroke="{g}" stroke-width="3" stroke-linecap="round"/><path d="M80 134 v9" stroke="{g}" stroke-width="3"/><path d="M80 143 l-7 12 M80 143 l7 12" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
     "data-visualization-principles": '<path d="M60 156 v-34 M60 156 h40" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round"/><rect x="67" y="138" width="8" height="16" fill="{g}" opacity="0.8"/><rect x="79" y="128" width="8" height="26" fill="{g}" opacity="0.8"/><rect x="91" y="144" width="8" height="10" fill="{g}" opacity="0.8"/>',
     "sql-for-analysts": '<ellipse cx="80" cy="126" rx="16" ry="6" fill="none" stroke="{g}" stroke-width="3"/><path d="M64 126 v20 c0 3.5 7.5 6 16 6 s16 -2.5 16 -6 v-20" fill="none" stroke="{g}" stroke-width="3"/><path d="M64 136 c0 3.5 7.5 6 16 6 s16 -2.5 16 -6" fill="none" stroke="{g}" stroke-width="2.5"/>',
-    # career
     "latex-resume": '<path d="M62 114 h36 v46 H62z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><circle cx="74" cy="128" r="5" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M67 140 q7 -6 14 0" fill="none" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M86 126 h8 M86 133 h8 M70 150 h20" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
-    # research
     "literature-review": '<path d="M80 124 q-9 -5 -20 -3.5 v26 q11 -1.5 20 3.5 q9 -5 20 -3.5 v-26 q-11 -1.5 -20 3.5z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M80 124 v26" stroke="{g}" stroke-width="2.5"/><circle cx="88" cy="143" r="6" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M92.5 147.5 l4.5 4.5" stroke="{g}" stroke-width="3" stroke-linecap="round"/>',
     "cover-letter-generator": '<path d="M62 112 h40 v52 H62z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M68 120 h28 M68 128 h28 M68 136 h18" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/><path d="M76 152 l8 6 l16 -12" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     "creative-resume-design": '<path d="M60 114 h44 v48 H60z" fill="none" stroke="{g}" stroke-width="3" stroke-linejoin="round"/><path d="M66 122 h18 v10 H66z" fill="none" stroke="{g}" stroke-width="2.5"/><circle cx="88" cy="127" r="4" fill="none" stroke="{g}" stroke-width="2.5"/><path d="M66 140 h32 M66 148 h24" stroke="{g}" stroke-width="2.5" stroke-linecap="round"/>',
@@ -295,7 +259,6 @@ FALLBACK_GLYPH = (
     '<circle cx="80" cy="136" r="10" fill="none" stroke="{g}" stroke-width="3"/>'
     '<path d="M80 130 v6 l4 4" fill="none" stroke="{g}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
 )
-
 
 def build_svg(name: str, category: str, title: str) -> str:
     """Return the SVG text for one skill's robot."""
@@ -342,7 +305,6 @@ def build_svg(name: str, category: str, title: str) -> str:
 </svg>
 """
 
-
 def title_for(skill_dir: pathlib.Path) -> str:
     """Prefer the README H1, fall back to a prettified directory name."""
     readme = skill_dir / "README.md"
@@ -351,7 +313,6 @@ def title_for(skill_dir: pathlib.Path) -> str:
             if line.startswith("# "):
                 return line[2:].strip()
     return skill_dir.name.replace("-", " ").title()
-
 
 def generate(rel: str) -> pathlib.Path:
     category, name = rel.split("/", 1)
@@ -363,10 +324,8 @@ def generate(rel: str) -> pathlib.Path:
     out.write_text(build_svg(name, category, title_for(skill_dir)))
     return out
 
-
 def all_skills() -> list[str]:
     return sorted(f"{p.parent.parent.name}/{p.parent.name}" for p in SKILLS.glob("*/*/SKILL.md"))
-
 
 def check() -> int:
     seen: dict[str, list[str]] = {}
@@ -390,7 +349,6 @@ def check() -> int:
         return 0
     return 1
 
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("skill", nargs="?", help="category/name, e.g. engineering/sql-optimization")
@@ -409,7 +367,6 @@ def main() -> int:
         return 1
     print(generate(args.skill).relative_to(ROOT))
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

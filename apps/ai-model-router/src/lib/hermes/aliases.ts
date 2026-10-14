@@ -9,15 +9,6 @@ export function isValidAliasName(name: string): boolean {
   return ALIAS_NAME_RE.test(name);
 }
 
-/**
- * `model_aliases`: friendly name -> real provider/model, resolvable by the
- * Hermes CLI/gateway (`/model <alias>`) and by `model.default`/tier pools
- * referencing the alias instead of a raw provider+model pair. Stored as
- * `z.record(z.string(), z.unknown())` in the schema (untyped passthrough)
- * because Hermes itself accepts either a `ModelRef`-shaped object or, in
- * older configs, a bare string "provider/model" — this module normalizes
- * reads to `ModelRef` and always writes the object form.
- */
 export function listAliases(profileId: string): Record<string, ModelRef> {
   const raw = readHermesConfig(profileId).model_aliases ?? {};
   const out: Record<string, ModelRef> = {};

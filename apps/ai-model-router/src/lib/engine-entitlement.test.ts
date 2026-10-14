@@ -1,4 +1,3 @@
-/** Tests for engine entitlement + localness + fallback (issues #154, #157). */
 import { describe, expect, it } from "vitest";
 
 import { rankModels, type RankProvider } from "./engine";
@@ -157,7 +156,6 @@ describe("engine fallbackToLocal (#157 part 2)", () => {
   });
 
   it("preferLocal moves local models first without changing scores", () => {
-    // Cloud scores higher on quality; without preferLocal it wins.
     const cloud = mkModel({ id: 1, providerId: 1, quality: 95 });
     const local = mkModel({ id: 2, providerId: 2, modelId: "llama3", quality: 60 });
     const plain = rankModels(mkTask(), [cloud, local], { providers });
@@ -165,7 +163,6 @@ describe("engine fallbackToLocal (#157 part 2)", () => {
 
     const preferred = rankModels(mkTask(), [cloud, local], { providers, preferLocal: true });
     expect(preferred.map((r) => r.model.id)).toEqual([2, 1]);
-    // Score is untouched: the partition reorders, it does not rescore.
     expect(preferred[1].score).toBe(plain[0].score);
     expect(preferred[0].reasons[0]).toBe("local model preferred by policy");
   });

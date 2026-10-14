@@ -1,15 +1,3 @@
-/**
- * Static catalog of Hermes's built-in provider profiles (issue: per-profile
- * router dashboard). Generated once from
- * plugins/model-providers/<name>/__init__.py — those files
- * are the ground truth for base URL / auth type / env var name per provider,
- * but they are Python plugin source, not something this app should parse at
- * runtime. Re-generate by hand if Hermes ships a new bundled provider.
- *
- * "custom" is not a catalog entry with a fixed base URL: any provider not in
- * this table (or explicitly "custom") gets a free-form base URL + API key,
- * matching how Hermes's own model.provider: custom works.
- */
 export type ProviderAuthType =
   | "api_key"
   | "bearer"
@@ -26,9 +14,7 @@ export interface ProviderCatalogEntry {
   label: string;
   baseUrl: string;
   authType: ProviderAuthType;
-  /** First entry is the canonical env var Hermes reads; others are accepted aliases. */
   envVars: string[];
-  /** True when Hermes authenticates this provider via `hermes auth add <id>` rather than a key. */
   oauthOnly?: boolean;
 }
 
@@ -87,9 +73,6 @@ export const PROVIDER_CATALOG_BY_ID: Record<string, ProviderCatalogEntry> = Obje
   PROVIDER_CATALOG.map((p) => [p.id, p]),
 );
 
-/** Local network / self-hosted providers (Ollama, LM Studio, vLLM, …) are always
- * added as `custom` with a base URL the user types in — there is no catalog
- * entry because the host is unique to the user's machine. */
 export function catalogEntryFor(id: string): ProviderCatalogEntry {
   return (
     PROVIDER_CATALOG_BY_ID[id] ?? {

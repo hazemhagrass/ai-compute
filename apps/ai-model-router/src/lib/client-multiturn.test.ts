@@ -2,11 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Provider } from "./types";
 
-/**
- * client.ts opens the SQLite database through repo.ts to resolve provider
- * secrets. Mocking that seam keeps these tests about the request shape,
- * not about disk state.
- */
 vi.mock("./repo", () => ({
   getProviderSecret: () => "",
 }));
@@ -101,8 +96,6 @@ describe("chatMessages", () => {
   });
 
   it("estimates usage from the whole transcript when the provider reports none", async () => {
-    // A multi-turn transcript must not be estimated as if it were one short
-    // prompt, or the cumulative cost of a long chat is silently underbilled.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 })),

@@ -10,7 +10,6 @@ export interface UsageEventInput {
   modelLabel?: string;
   taskSlug?: string;
   taskLabel?: string;
-  /** playground | recommend | test | api */
   source?: string;
   systemPrompt?: string;
   prompt?: string;
@@ -52,7 +51,6 @@ export interface UsageEvent {
   cachedTokens: number;
   reasoningTokens: number;
   contextWindow: number;
-  /** total_tokens / context_window, 0-1 — "how full was my context" */
   contextFill: number;
   costUsd: number;
   inputCostUsd: number;
@@ -139,16 +137,12 @@ function mapEvent(r: UsageRow): UsageEvent {
   };
 }
 
-/** Cost in USD given per-1M-token prices. */
 export function computeCost(
   inputTokens: number,
   outputTokens: number,
   inputCostPer1M: number,
   outputCostPer1M: number,
 ): { inputCostUsd: number; outputCostUsd: number; costUsd: number } {
-  // A freshly discovered model has no price yet, and a malformed catalogue
-  // entry can yield NaN. Either must resolve to 0, or a single bad row
-  // poisons every SUM() in the analytics queries with NaN.
   const price = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
   const tokens = (v: number) => (Number.isFinite(v) && v > 0 ? v : 0);
 
@@ -191,9 +185,6 @@ export function recordUsage(input: UsageEventInput): UsageEvent {
       input.taskSlug ?? "",
       input.taskLabel ?? "",
       input.source ?? "playground",
-      // Redacted and truncated at the only write site: a secret pasted into a
-      // prompt would otherwise sit in the database forever, and full
-      // transcripts grow the file without bound.
       sanitizeForLog(input.systemPrompt),
       sanitizeForLog(input.prompt),
       sanitizeForLog(input.response),
@@ -229,7 +220,6 @@ export interface LogQuery {
   source?: string;
   okOnly?: boolean;
   errorsOnly?: boolean;
-  /** ISO date or "YYYY-MM-DD" lower bound */
   since?: string;
   search?: string;
 }
@@ -297,8 +287,6 @@ export function clearUsage(): number {
   return getDb().prepare("DELETE FROM usage_events").run().changes;
 }
 
-/* -------------------------------------------------------------- analytics */
-
 export interface Bucket {
   key: string;
   label: string;
@@ -310,8 +298,8 @@ export interface Bucket {
   avgLatencyMs: number;
   avgTokensPerSec: number;
   errors: number;
-  share: number; // 0-1 of total cost
-  tokenShare: number; // 0-1 of total tokens
+  share: number;
+  tokenShare: number;
 }
 
 export interface Analytics {

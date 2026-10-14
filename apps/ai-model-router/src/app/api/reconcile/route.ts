@@ -20,12 +20,6 @@ const schema = z.object({
     .default([]),
 });
 
-/**
- * Reconcile a provider invoice against computed cost for a period. The caller
- * pastes the bill as per-model lines; the response reports per-line and total
- * variance, invoice lines with no recorded usage, and computed spend that
- * never made the bill.
- */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;

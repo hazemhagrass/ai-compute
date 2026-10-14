@@ -10,8 +10,6 @@ import { requireAuth } from "@/lib/auth";
 import type { Model, Provider } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-// Two sequential provider calls would double the wait, so both legs run
-// concurrently below and the cap covers the slower one.
 export const maxDuration = 120;
 
 interface CompareBody {
@@ -42,7 +40,6 @@ export interface CompareLeg {
   event: UsageEvent;
 }
 
-/** Run one side of the comparison and log it like a playground call. */
 async function runLeg(
   model: Model,
   provider: Provider,
@@ -104,7 +101,6 @@ async function runLeg(
   };
 }
 
-/** Run one prompt against two models concurrently and return both legs. */
 export async function POST(request: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -113,9 +109,6 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const body: CompareBody = parsed.data;
 
-  // Budget gate (#163): both legs dispatch concurrently below, so the check
-  // has to happen here, once, before either call is constructed. A blocked
-  // compare records no spend for either leg.
   const gate = await enforceBudgets(getDb(), new Date());
   if (!gate.ok && gate.blocked) {
     return NextResponse.json(
@@ -149,18 +142,12 @@ export async function POST(request: Request) {
   const system = body.system ?? "";
   const maxTokens = Math.min(8000, Math.max(64, body.maxTokens ?? 2000));
 
-  // Both legs run concurrently; exactly two calls per request is the bound.
-  // A failure in one leg is captured in that leg's result, never thrown, so
-  // the successful leg is always returned. The response is 200 in every
-  // case: per-leg `ok` carries the outcome.
   const [a, b] = await Promise.all([
     runLeg(modelA, providerA, system, body.prompt, maxTokens, task?.slug ?? "", task?.label ?? ""),
     runLeg(modelB, providerB, system, body.prompt, maxTokens, task?.slug ?? "", task?.label ?? ""),
   ]);
 
   const headers = new Headers();
-  // Mirrors the playground stream header (#163): present only when a budget
-  // sits between the warning threshold and the cap.
   if (gate.warningPercent !== null) {
     headers.set("x-budget-warning", String(Math.round(gate.warningPercent)));
   }
