@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS routes (
 );
 """
 
-
 @dataclass(frozen=True)
 class Perf:
     """Aggregated performance for one model, derived from its samples."""
@@ -93,7 +92,6 @@ class Perf:
         """
         return 0 <= self.gpu_fraction < 0.99
 
-
 class Registry:
     """Storage for model facts, measurements, and routing decisions."""
 
@@ -110,8 +108,6 @@ class Registry:
 
     def close(self) -> None:
         self._conn.close()
-
-    # ---- models -------------------------------------------------------
 
     def upsert_model(self, card: Any) -> None:
         now = time.time()
@@ -167,8 +163,6 @@ class Registry:
         self._conn.commit()
         return cur.rowcount
 
-    # ---- measurements -------------------------------------------------
-
     def record_measurement(self, model: str, kind: str, *, gen_tps: float,
                            prefill_tps: float = 0.0, load_s: float = 0.0,
                            gpu_fraction: float = -1.0, output_tokens: int = 0,
@@ -198,7 +192,6 @@ class Registry:
 
         gen = [r["gen_tps"] for r in rows]
         prefill = [r["prefill_tps"] for r in rows if r["prefill_tps"] > 0]
-        # Only cold runs tell us what loading costs; a warm run reports ~0.
         cold = [r["load_s"] for r in rows if not r["was_resident"] and r["load_s"] > 0.1]
         gpu = [r["gpu_fraction"] for r in rows if r["gpu_fraction"] >= 0]
 
@@ -220,8 +213,6 @@ class Registry:
         else:
             row = self._conn.execute("SELECT COUNT(*) c FROM measurements").fetchone()
         return row["c"]
-
-    # ---- routes -------------------------------------------------------
 
     def record_route(self, *, chosen: str, intent: str, objective: str, reason: str,
                      considered: list[dict[str, Any]], predicted_s: float) -> int:

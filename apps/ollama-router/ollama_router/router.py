@@ -28,10 +28,6 @@ from typing import Any
 
 from .registry import Perf, Registry
 
-# ---------------------------------------------------------------------
-# Intent detection
-# ---------------------------------------------------------------------
-
 Intent = str
 
 INTENT_PATTERNS: list[tuple[Intent, re.Pattern[str]]] = [
@@ -46,18 +42,14 @@ INTENT_PATTERNS: list[tuple[Intent, re.Pattern[str]]] = [
     ("extraction", re.compile(
         r"\b(extract|parse|classif|categor|label|tag|json|schema|"
         r"summar|tl;?dr|rewrite|translate)\b", re.I)),
-    ("chat", re.compile(r".", re.S)),  # fallback, always matches
+    ("chat", re.compile(r".", re.S)),
 ]
 
-# Which model families are known to be tuned for which intent. Used only as a
-# tiebreak nudge, never as a hard filter, because a general model often does
-# a specialist job well enough and the measured numbers matter more.
 FAMILY_AFFINITY: dict[Intent, tuple[str, ...]] = {
     "code": ("coder", "code", "devstral", "codestral"),
     "reasoning": ("r1", "reason", "think", "qwq"),
     "embedding": ("embed",),
 }
-
 
 def detect_intent(prompt: str) -> Intent:
     """Classify a prompt with regexes, not a model.
@@ -70,7 +62,6 @@ def detect_intent(prompt: str) -> Intent:
             return intent
     return "chat"
 
-
 def estimate_tokens(text: str) -> int:
     """Rough token count for budgeting, assuming ~4 characters per token.
 
@@ -79,11 +70,6 @@ def estimate_tokens(text: str) -> int:
     real count should tokenise properly.
     """
     return max(1, len(text) // 4)
-
-
-# ---------------------------------------------------------------------
-# Objectives
-# ---------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Objective:
@@ -113,23 +99,16 @@ class Objective:
             known = ", ".join(sorted(OBJECTIVES))
             raise ValueError(f"unknown objective {name!r}; known objectives: {known}") from None
 
-
 OBJECTIVES: dict[str, Objective] = {
-    # Answer now. Strongly prefers whatever is already warm and fits in VRAM.
     "interactive": Objective("interactive", speed=3.0, capability=0.8, residency=3.0, fit=2.0),
-    # Quality matters more than a few seconds of latency.
     "quality":     Objective("quality",     speed=0.6, capability=3.0, residency=0.4, fit=1.2),
-    # Long unattended job: load cost amortises, throughput dominates.
     "batch":       Objective("batch",       speed=2.0, capability=1.5, residency=0.2, fit=2.5),
-    # Sensible default.
     "balanced":    Objective("balanced",    speed=1.5, capability=1.5, residency=1.0, fit=1.5),
 }
-
 
 INSTRUCTION_INTENTS = frozenset({"chat", "code", "reasoning", "extraction"})
 
 _BASE_MODEL_RE = re.compile(r"[:\-]base\b|\bbase$")
-
 
 def _is_base_model(name: str) -> bool:
     """True for models published without instruction tuning.
@@ -140,7 +119,6 @@ def _is_base_model(name: str) -> bool:
     costs an answer that ignores the question entirely.
     """
     return bool(_BASE_MODEL_RE.search(name.lower()))
-
 
 @dataclass
 class Candidate:
@@ -170,7 +148,6 @@ class Candidate:
             "parts": {k: round(v, 3) for k, v in self.parts.items()},
             "notes": self.notes,
         }
-
 
 @dataclass
 class Decision:
@@ -210,7 +187,6 @@ class Decision:
             "excluded": self.excluded,
         }
 
-
 class Router:
     """Scores installed models against a request.
 
@@ -241,9 +217,6 @@ class Router:
               intent: Intent | None = None,
               max_output_tokens: int = 512) -> Decision:
         obj = Objective.get(objective)
-        # An explicit intent wins over the regexes: a caller embedding this in
-        # a tool usually knows what it is asking for, and the classifier is a
-        # fallback for when nobody said.
         intent = intent or detect_intent(prompt)
         resident_set = set(resident or [])
         exclude_set = set(exclude or [])
@@ -265,9 +238,6 @@ class Router:
                 continue
 
             caps = set(m["capabilities"])
-            # Embedding models cannot chat, and chat models cannot embed.
-            # Treat that as a hard filter: no amount of speed makes a model
-            # able to do a thing it structurally cannot do.
             missing = required_caps - caps
             if missing:
                 excluded.append({
@@ -279,12 +249,6 @@ class Router:
                 excluded.append({"model": name, "why": "embedding-only model, cannot generate text"})
                 continue
 
-            # Base models are raw next-token predictors: given an instruction
-            # they continue it rather than answer it. That is a correctness
-            # failure no throughput advantage can offset, so exclude them from
-            # instruction-shaped work outright instead of scoring them down
-            # and watching them win on speed anyway. They stay eligible for
-            # completion intents, which is what they are actually good at.
             if intent in INSTRUCTION_INTENTS and _is_base_model(name):
                 excluded.append({"model": name, "why": "base model, not instruction tuned"})
                 continue
@@ -312,56 +276,43 @@ class Router:
         return Decision(best.name, intent, obj.name, self._explain(best, candidates, intent, obj),
                         candidates, excluded, best.predicted_s)
 
-    # ---- scoring -------------------------------------------------------
-
     def _score(self, m: dict[str, Any], perf: Perf, obj: Objective, intent: Intent,
                resident: set[str], prompt_tokens: int, max_output: int) -> Candidate:
         name = m["name"]
         c = Candidate(name=name, measured=perf.measured)
         c.resident = name in resident
 
-        # --- fit: does it sit entirely in VRAM? --------------------------
         if self.vram_budget > 0:
             c.fits_vram = m["size_bytes"] <= self.vram_budget
         else:
-            c.fits_vram = True  # unknown; do not penalise
+            c.fits_vram = True
         if perf.spills_to_cpu:
-            # A measurement beats an estimate. If we watched it spill, it spills.
             c.fits_vram = False
             c.notes.append(f"measured only {perf.gpu_fraction:.0%} on GPU")
         fit_score = 1.0 if c.fits_vram else 0.15
         if not c.fits_vram:
             c.notes.append("spills to CPU, expect a large slowdown")
 
-        # --- speed: measured if we have it, else estimated ---------------
         if perf.measured and perf.gen_tps > 0:
             tps = perf.gen_tps
             if not c.fits_vram:
-                # The measured rate was recorded while spilling, so the cost
-                # of spilling is already priced into tok/s. Penalising fit
-                # again here would count the same problem twice and bury a
-                # model that is demonstrably fast in spite of the split.
                 fit_score = 0.75
                 c.notes.append("spill already reflected in the measured rate")
         else:
             tps = self._estimate_tps(m, c.fits_vram)
             c.notes.append("speed estimated, never measured")
         c.gen_tps = tps
-        # 60 tok/s is treated as "fast enough that more does not help a human".
         speed_score = min(1.0, tps / 60.0)
 
-        # --- residency: cold load is often the whole cost ----------------
         load_s = perf.cold_load_s or self._estimate_load_s(m)
         if c.resident:
             residency_score = 1.0
             load_penalty = 0.0
         else:
             load_penalty = load_s
-            # 30s of loading scores 0; instant scores 1.
             residency_score = max(0.0, 1.0 - load_s / 30.0)
             c.notes.append(f"cold start, about {load_s:.0f}s to load")
 
-        # --- capability: size and family affinity ------------------------
         capability_score = self._capability(m, intent)
 
         c.load_s = load_s
@@ -382,14 +333,6 @@ class Router:
         ) / total_weight
 
         if not perf.measured:
-            # Discount unmeasured models hard. Without this an optimistic
-            # estimate outranks an observed fact, and the router keeps
-            # preferring whatever it knows least about, which is exactly
-            # backwards: the estimate is a guess from parameter count, while
-            # the measurement is what this machine actually did. The gap has
-            # to be wide enough that a favourable guess cannot beat a real
-            # number, while still letting a never-benchmarked model win when
-            # nothing measured is eligible at all.
             c.score *= 0.55
         return c
 
@@ -405,7 +348,6 @@ class Router:
             base = 0.4
         else:
             billions = total / 1e9
-            # Diminishing returns: 30B is better than 7B, but not four times.
             base = min(1.0, (billions / 30.0) ** 0.5)
 
         name_l = m["name"].lower()
@@ -415,15 +357,12 @@ class Router:
                 base = min(1.0, base + 0.25)
                 break
 
-        # Heavy quantisation costs quality.
         quant = (m["quantization"] or "").upper()
         if quant.startswith(("Q2", "Q3")):
             base *= 0.75
         elif quant.startswith("Q8") or quant == "F16":
             base = min(1.0, base * 1.05)
 
-        # Base models are excluded outright for instruction intents (see
-        # _is_base_model), so no scoring penalty is needed here.
         return base
 
     def _estimate_tps(self, m: dict[str, Any], fits: bool) -> float:
@@ -437,8 +376,6 @@ class Router:
         billions = active / 1e9
         tps = 180.0 / max(1.0, billions) ** 0.85
         if not fits:
-            # Measured spill cost: the 14B at 45 percent GPU ran roughly four
-            # times slower than its fully resident peers would suggest.
             tps *= 0.25
         return max(1.0, tps)
 

@@ -15,12 +15,8 @@ from dataclasses import dataclass
 from .ollama import OllamaClient, OllamaError
 from .registry import Registry
 
-# Short, cheap prompts. The goal is to measure throughput, not to evaluate
-# answer quality, so the prompt just has to produce a predictable stream of
-# tokens without a long think phase.
 BENCH_PROMPT = "Count from one to twenty in words, separated by commas."
 BENCH_TOKENS = 48
-
 
 @dataclass(frozen=True)
 class GpuInfo:
@@ -35,7 +31,6 @@ class GpuInfo:
     @property
     def detected(self) -> bool:
         return self.total_bytes > 0
-
 
 def probe_gpu() -> GpuInfo:
     """Read GPU memory via nvidia-smi.
@@ -60,7 +55,6 @@ def probe_gpu() -> GpuInfo:
     if len(parts) < 3:
         return GpuInfo()
     try:
-        # nvidia-smi reports MiB.
         return GpuInfo(
             name=parts[0],
             total_bytes=int(float(parts[1]) * 1024 * 1024),
@@ -68,7 +62,6 @@ def probe_gpu() -> GpuInfo:
         )
     except ValueError:
         return GpuInfo()
-
 
 def discover(client: OllamaClient, registry: Registry) -> list[str]:
     """Refresh the registry from whatever Ollama currently has installed.
@@ -88,7 +81,6 @@ def discover(client: OllamaClient, registry: Registry) -> list[str]:
     registry.forget_missing(names)
     return names
 
-
 def benchmark(client: OllamaClient, registry: Registry, model: str,
               *, tokens: int = BENCH_TOKENS, keep_loaded: bool = False) -> dict:
     """Run one model and record what happened.
@@ -97,10 +89,6 @@ def benchmark(client: OllamaClient, registry: Registry, model: str,
     still loaded, because /api/ps only reports models currently in memory
     and the GPU split is the number we most want.
     """
-    # Embedding models reject /api/generate outright. Skip them here rather
-    # than recording a failure, because there is nothing wrong with them:
-    # they simply do not generate text and the router never sends them a
-    # generation request.
     card = registry.model(model)
     if card and "completion" not in card["capabilities"]:
         return {
@@ -145,7 +133,6 @@ def benchmark(client: OllamaClient, registry: Registry, model: str,
         "output_tokens": result.output_tokens,
         "was_resident": was_resident,
     }
-
 
 def benchmark_all(client: OllamaClient, registry: Registry, *,
                   models: list[str] | None = None,

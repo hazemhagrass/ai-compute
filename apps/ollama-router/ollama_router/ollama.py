@@ -14,7 +14,6 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
-
 class OllamaError(RuntimeError):
     """Ollama returned a non-2xx response or could not be reached."""
 
@@ -22,11 +21,9 @@ class OllamaError(RuntimeError):
         super().__init__(message)
         self.status = status
 
-
 class OllamaUnreachable(OllamaError):
     """The Ollama daemon is not listening. Distinct so callers can tell the
     user to start it rather than reporting a generic failure."""
-
 
 @dataclass(frozen=True)
 class GenerateResult:
@@ -62,7 +59,6 @@ class GenerateResult:
             return 0.0
         return self.prompt_tokens / self.prompt_eval_s
 
-
 @dataclass(frozen=True)
 class ResidentModel:
     """A model currently held in memory, from /api/ps."""
@@ -84,7 +80,6 @@ class ResidentModel:
         if self.size_bytes <= 0:
             return 0.0
         return min(1.0, self.vram_bytes / self.size_bytes)
-
 
 @dataclass(frozen=True)
 class ModelCard:
@@ -111,13 +106,11 @@ class ModelCard:
     def size_gb(self) -> float:
         return self.size_bytes / 1e9
 
-
 def _ns_to_s(value: Any) -> float:
     try:
         return float(value) / 1e9
     except (TypeError, ValueError):
         return 0.0
-
 
 class OllamaClient:
     """Synchronous Ollama client.
@@ -129,8 +122,6 @@ class OllamaClient:
     def __init__(self, base_url: str = "http://localhost:11434", timeout: float = 600.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-
-    # ---- plumbing ----------------------------------------------------
 
     def _request(self, path: str, payload: dict[str, Any] | None = None,
                  *, method: str = "POST", timeout: float | None = None) -> Any:
@@ -154,8 +145,6 @@ class OllamaClient:
         if not body:
             return None
         return json.loads(body)
-
-    # ---- introspection -----------------------------------------------
 
     def version(self) -> str:
         data = self._request("/api/version", method="GET", timeout=10)
@@ -225,8 +214,6 @@ class OllamaClient:
             model_info=mi,
         )
 
-    # ---- generation ---------------------------------------------------
-
     def generate(self, model: str, prompt: str, *, num_predict: int = 128,
                  options: dict[str, Any] | None = None,
                  keep_alive: str | None = None) -> GenerateResult:
@@ -271,10 +258,6 @@ class OllamaClient:
 
         data = self._request("/api/chat", payload) or {}
         message = data.get("message") or {}
-        # Reasoning models put chain-of-thought in a separate `thinking`
-        # field and leave `content` empty when the token budget runs out
-        # mid-thought. Falling back to the thinking text is better than
-        # returning an empty string that looks like a silent failure.
         text = message.get("content") or ""
         if not text.strip():
             text = message.get("thinking") or ""
@@ -340,7 +323,6 @@ class OllamaClient:
         except OllamaError:
             pass
 
-
 def _estimate_active_params(total: int, expert_count: int, expert_used: int) -> int:
     """Parameters actually multiplied per token.
 
@@ -360,11 +342,8 @@ def _estimate_active_params(total: int, expert_count: int, expert_used: int) -> 
     if expert_count <= 0 or expert_used <= 0 or expert_used >= expert_count:
         return total
     ratio = expert_used / expert_count
-    # Assume roughly a third of parameters are non-expert (attention,
-    # embeddings, shared MLP) and always active.
     dense_share = 0.33
     return int(total * (dense_share + (1 - dense_share) * ratio))
-
 
 def result_from_chunk(model: str, chunk: dict[str, Any]) -> GenerateResult:
     """Rebuild a GenerateResult from the final streaming chunk.

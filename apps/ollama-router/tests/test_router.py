@@ -19,7 +19,6 @@ from ollama_router.router import (  # noqa: E402
     Router, detect_intent, estimate_tokens, Objective,
 )
 
-
 @dataclass
 class FakeCard:
     """Stands in for ollama.ModelCard without needing a live daemon."""
@@ -35,10 +34,8 @@ class FakeCard:
     expert_count: int = 0
     expert_used: int = 0
 
-
 GB = 10 ** 9
 
-# Real models and sizes from the development machine.
 FIXTURES = [
     FakeCard("nomic-embed-text:latest", int(0.3 * GB), "nomic-bert", "137M", "F16",
              ("embedding",), 2048, 137_000_000, 137_000_000),
@@ -55,21 +52,17 @@ FIXTURES = [
              13_400_000_000, expert_count=128, expert_used=8),
     FakeCard("nemotron-3.5-lightning:latest", int(25.4 * GB), "nemotron", "32.9B",
              "Q4_K_M", ("completion",), 131072, 32_900_000_000, 32_900_000_000),
-    # A chat model with a deliberately small window, so the context-fit rule
-    # can be tested on a model that is not already excluded for capability.
     FakeCard("tiny-ctx-chat:latest", int(0.8 * GB), "llama", "1.1B", "Q4_K_M",
              ("completion",), 4096, 1_100_000_000, 1_100_000_000),
 ]
 
 VRAM_16GB = 16376 * 1024 * 1024
 
-
 def seeded_registry() -> Registry:
     reg = Registry(":memory:")
     for card in FIXTURES:
         reg.upsert_model(card)
     return reg
-
 
 def chosen_of(decision) -> str:
     """Assert a model was chosen and return its name.
@@ -79,7 +72,6 @@ def chosen_of(decision) -> str:
     """
     assert decision.chosen is not None, f"expected a choice, got none: {decision.reason}"
     return decision.chosen
-
 
 class TestIntent(unittest.TestCase):
     def test_code_prompts(self):
@@ -100,19 +92,15 @@ class TestIntent(unittest.TestCase):
         self.assertEqual(detect_intent("hello, how are you today"), "chat")
 
     def test_intent_is_deterministic(self):
-        # Routing must not vary run to run for the same input.
         p = "debug this python function"
         self.assertEqual(detect_intent(p), detect_intent(p))
-
 
 class TestTokenEstimate(unittest.TestCase):
     def test_scales_with_length(self):
         self.assertLess(estimate_tokens("short"), estimate_tokens("word " * 500))
 
     def test_never_zero(self):
-        # A zero would make context-fit maths divide badly.
         self.assertGreaterEqual(estimate_tokens(""), 1)
-
 
 class TestCapabilityFiltering(unittest.TestCase):
     def setUp(self):
@@ -142,13 +130,11 @@ class TestCapabilityFiltering(unittest.TestCase):
         self.assertNotEqual(second.chosen, first.chosen)
 
     def test_context_window_too_small_is_excluded(self):
-        # tiny-ctx-chat has a 4096 window; ask for far more than that.
-        huge = "word " * 4000  # ~5000 tokens
+        huge = "word " * 4000
         d = self.router.route(huge, max_output_tokens=2000)
         reasons = [e["why"] for e in d.excluded if e["model"] == "tiny-ctx-chat:latest"]
         self.assertTrue(reasons and "context window too small" in reasons[0],
                         f"expected a context exclusion, got {d.excluded}")
-
 
 class TestVramFit(unittest.TestCase):
     def setUp(self):
@@ -167,8 +153,6 @@ class TestVramFit(unittest.TestCase):
         self.assertTrue(small.fits_vram)
 
     def test_headroom_is_reserved_for_kv_cache(self):
-        # A model exactly at total VRAM must not count as fitting, because
-        # the context window needs memory too.
         self.assertLess(self.router.vram_budget, self.router.vram_bytes)
 
     def test_unknown_vram_does_not_penalise_anything(self):
@@ -177,8 +161,6 @@ class TestVramFit(unittest.TestCase):
         self.assertTrue(all(c.fits_vram for c in d.considered))
 
     def test_measured_spill_overrides_size_estimate(self):
-        # qwen3:14b is 9.3GB so it looks like it fits, but it was measured
-        # at 45 percent on GPU. The measurement must win.
         self.reg.record_measurement("qwen3:14b", "benchmark", gen_tps=7.8,
                                     load_s=55.5, gpu_fraction=0.45, output_tokens=40)
         d = self.router.route("hello")
@@ -186,14 +168,12 @@ class TestVramFit(unittest.TestCase):
         self.assertFalse(c.fits_vram)
         self.assertTrue(any("45% on GPU" in n for n in c.notes))
 
-
 class TestMeasurementsBeatHeuristics(unittest.TestCase):
     """The core claim of this router, proven against real measured numbers."""
 
     def setUp(self):
         self.reg = seeded_registry()
         self.router = Router(self.reg, vram_bytes=VRAM_16GB)
-        # Measured on an RTX 4090 Laptop, 16GB VRAM.
         self.reg.record_measurement("qwen3:14b", "benchmark", gen_tps=7.8,
                                     load_s=55.46, gpu_fraction=0.45, output_tokens=40)
         self.reg.record_measurement("qwen3:30b-a3b", "benchmark", gen_tps=26.5,
@@ -221,12 +201,11 @@ class TestMeasurementsBeatHeuristics(unittest.TestCase):
         self.assertTrue(any("estimated" in n for n in c.notes))
 
     def test_median_is_used_so_one_bad_sample_does_not_dominate(self):
-        for tps in (100.0, 102.0, 4.0):  # one run collided with another load
+        for tps in (100.0, 102.0, 4.0):
             self.reg.record_measurement("qwen2.5-coder:7b", "benchmark",
                                         gen_tps=tps, gpu_fraction=1.0, output_tokens=40)
         perf = self.reg.perf("qwen2.5-coder:7b")
         self.assertAlmostEqual(perf.gen_tps, 100.0, places=1)
-
 
 class TestObjectives(unittest.TestCase):
     def setUp(self):
@@ -239,8 +218,6 @@ class TestObjectives(unittest.TestCase):
                                     load_s=5.78, gpu_fraction=0.46, output_tokens=40)
 
     def test_residency_raises_a_models_score(self):
-        # Residency is a factor, not an override: it must always help, but a
-        # far faster model is still allowed to win on the numbers.
         cold = self.router.route("write a function", objective="interactive")
         warm = self.router.route("write a function", objective="interactive",
                                  resident=["qwen3:30b-a3b"])
@@ -250,9 +227,6 @@ class TestObjectives(unittest.TestCase):
         self.assertLess(warm_c.predicted_s, cold_c.predicted_s)
 
     def test_residency_decides_between_comparable_models(self):
-        # Residency should break a tie, not overturn a large speed gap. Give
-        # two models near-identical measured throughput so warmth is the only
-        # thing separating them.
         self.reg.record_measurement("qwen2.5-coder:7b", "benchmark", gen_tps=30.0,
                                     load_s=6.0, gpu_fraction=1.0, output_tokens=40)
         self.reg.record_measurement("llama3.1:latest", "benchmark", gen_tps=30.0,
@@ -264,9 +238,6 @@ class TestObjectives(unittest.TestCase):
         self.assertEqual(warm.chosen, "llama3.1:latest")
 
     def test_residency_does_not_overturn_a_large_speed_gap(self):
-        # The 14B measured 7.8 tok/s against the 30B MoE at 26.5. Even warm,
-        # the slow model loses, because 512 tokens at 7.8 tok/s costs far
-        # more than the 30B's cold load plus its generation.
         self.reg.record_measurement("qwen3:14b", "benchmark", gen_tps=7.8,
                                     load_s=55.46, gpu_fraction=0.45, output_tokens=40)
         small = ["qwen2.5-coder:1.5b-base", "tiny-ctx-chat:latest",
@@ -276,9 +247,6 @@ class TestObjectives(unittest.TestCase):
         self.assertEqual(warm.chosen, "qwen3:30b-a3b")
 
     def test_base_models_are_excluded_from_instruction_work(self):
-        # A base model continues a prompt instead of answering it, so it must
-        # not be selectable for instruction-shaped intents no matter how fast
-        # it is. The 1.5b-base measured 193 tok/s and would otherwise win.
         d = self.router.route("write a function", objective="interactive")
         self.assertNotEqual(d.chosen, "qwen2.5-coder:1.5b-base")
         reasons = [e["why"] for e in d.excluded
@@ -287,15 +255,11 @@ class TestObjectives(unittest.TestCase):
                         f"expected a base-model exclusion, got {d.excluded}")
 
     def test_base_models_stay_eligible_for_completion(self):
-        # Excluding them everywhere would waste a genuinely fast model; they
-        # are good at raw continuation, which is what they were trained for.
         names = [c.name for c in
                  self.router.route("def fib(n):", intent="completion").considered]
         self.assertIn("qwen2.5-coder:1.5b-base", names)
 
     def test_a_measured_model_outranks_an_unmeasured_guess(self):
-        # An estimate must never beat an observation: otherwise the router
-        # prefers whatever it knows least about.
         d = self.router.route("hello", objective="interactive",
                               resident=["qwen2.5-coder:1.5b-base"])
         top = d.considered[0]
@@ -310,21 +274,16 @@ class TestObjectives(unittest.TestCase):
         self.assertGreaterEqual(good_size, fast_size)
 
     def test_unknown_objective_is_rejected(self):
-        # Falling back silently would hide a typo: the caller asks for
-        # 'qualty', gets balanced routing, and never learns it was ignored.
         with self.assertRaises(ValueError) as ctx:
             Objective.get("nonsense")
         self.assertIn("nonsense", str(ctx.exception))
-        self.assertIn("quality", str(ctx.exception))  # lists the valid names
+        self.assertIn("quality", str(ctx.exception))
 
     def test_known_objectives_all_resolve(self):
         for name in ("interactive", "quality", "batch", "balanced"):
             self.assertEqual(Objective.get(name).name, name)
 
     def test_predict_seconds_rescales_with_the_token_budget(self):
-        # The server widens num_predict for thinking models, so the recorded
-        # prediction has to be rescaled or the accuracy self-check compares
-        # a prediction for one budget against a run at another.
         d = self.router.route("hello", objective="balanced")
         small = d.predict_seconds(100)
         large = d.predict_seconds(400)
@@ -337,7 +296,6 @@ class TestObjectives(unittest.TestCase):
         cold = self.router.route("hello", objective="balanced")
         top = cold.considered[0]
         self.assertFalse(top.resident)
-        # A cold model pays its load time on top of generation.
         self.assertAlmostEqual(cold.predict_seconds(0), top.load_s, places=4)
 
     def test_residency_changes_the_prediction(self):
@@ -346,7 +304,6 @@ class TestObjectives(unittest.TestCase):
         warm_c = next(c for c in warm.considered if c.name == cold.chosen)
         cold_c = next(c for c in cold.considered if c.name == cold.chosen)
         self.assertLess(warm_c.predicted_s, cold_c.predicted_s)
-
 
 class TestDecisionShape(unittest.TestCase):
     def setUp(self):
@@ -374,7 +331,6 @@ class TestDecisionShape(unittest.TestCase):
         payload = d.as_dict()
         self.assertEqual(payload["chosen"], d.chosen)
         self.assertIsInstance(payload["considered"], list)
-
 
 class TestRegistry(unittest.TestCase):
     def setUp(self):
@@ -414,7 +370,6 @@ class TestRegistry(unittest.TestCase):
         self.reg.close_route(rid, actual_s=3.5, output_tokens=100)
         acc = self.reg.prediction_accuracy()
         self.assertEqual(acc["samples"], 1)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

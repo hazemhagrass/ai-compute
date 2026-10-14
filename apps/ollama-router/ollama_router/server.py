@@ -26,8 +26,6 @@ from .router import Router
 
 MAX_BODY_BYTES = 8 * 1024 * 1024
 
-
-
 class RouterService:
     """Everything the HTTP layer needs, with no HTTP in it.
 
@@ -45,8 +43,6 @@ class RouterService:
         try:
             return [r.name for r in self.client.ps()]
         except OllamaError:
-            # Residency is an optimisation. If we cannot read it, route
-            # without it rather than failing the request.
             return []
 
     def decide(self, prompt: str, **kwargs) -> Any:
@@ -105,7 +101,6 @@ class RouterService:
             self.registry.close_route(route_id, actual_s=elapsed,
                                       output_tokens=result.output_tokens)
 
-
 def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
     """Build a request handler bound to one service instance."""
 
@@ -113,10 +108,7 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
         server_version = "OllamaRouter/1.0"
         protocol_version = "HTTP/1.1"
 
-        # -- plumbing ---------------------------------------------------
-
         def log_message(self, format: str, *args) -> None:  # noqa: A002,A003
-            # Quiet by default; the daemon prints its own structured lines.
             pass
 
         def _send(self, code: int, payload: Any, *, content_type: str = "application/json") -> None:
@@ -153,8 +145,6 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.end_headers()
-
-        # -- routes -----------------------------------------------------
 
         def do_GET(self) -> None:  # noqa: N802
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
@@ -204,8 +194,6 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
             except Exception as exc:  # noqa: BLE001
                 self._error(500, f"{type(exc).__name__}: {exc}")
 
-        # -- handlers ---------------------------------------------------
-
         def _health(self) -> None:
             gpu = probe_gpu()
             try:
@@ -248,8 +236,6 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
                     "samples": perf.samples,
                 })
             if openai_shape:
-                # Shape expected by OpenAI clients, plus our extra fields,
-                # which clients ignore.
                 self._send(200, {
                     "object": "list",
                     "data": [{"id": r["id"], "object": "model", "created": 0,
@@ -313,10 +299,6 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
             stream = bool(body.get("stream"))
             max_tokens = int(body.get("max_tokens") or 512)
 
-            # Objective may come from the body or from a header. The header
-            # exists because OpenAI client libraries expose custom headers
-            # but not custom body fields, so it is the only way an off the
-            # shelf SDK can ask for a different tradeoff.
             objective = (body.get("objective")
                          or self.headers.get("X-Router-Objective")
                          or "balanced")
@@ -332,26 +314,15 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
                 self._error(503, str(exc))
                 return
             except ValueError as exc:
-                # Unknown objective or other bad request value.
                 self._error(400, str(exc))
                 return
 
-            # A reasoning model spends tokens thinking before it writes a
-            # single word of the answer, and Ollama counts both against
-            # num_predict. Passing a small max_tokens straight through means
-            # the budget is gone before the answer starts and the caller gets
-            # an empty string. Give thinking models room for both, while
-            # still honouring the caller's intent for the visible answer.
             num_predict = max_tokens
             if "thinking" in (service.registry.model(model) or {}).get("capabilities", ""):
                 num_predict = max(max_tokens * 4, max_tokens + 512)
 
             options: dict[str, Any] = {"num_predict": num_predict}
             if num_predict != max_tokens and decision and route_id:
-                # The route was scored against the caller's max_tokens, but we
-                # are about to generate against a wider budget. Leaving the
-                # original figure recorded would make the router look badly
-                # miscalibrated when it was measuring a different question.
                 decision.predicted_s = decision.predict_seconds(num_predict)
                 service.registry.update_prediction(route_id, decision.predicted_s)
             if body.get("temperature") is not None:
@@ -381,8 +352,6 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
                     },
                 }
                 if decision is not None:
-                    # Non-standard, and that is the point: the caller can see
-                    # why this model was picked without a second request.
                     payload["x_router"] = {
                         "intent": decision.intent,
                         "objective": decision.objective,
@@ -416,8 +385,6 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
             try:
                 final: dict[str, Any] | None = None
                 for chunk in service.client.chat_stream(model, messages, options=options):
-                    # chat_stream yields raw Ollama objects. The last one
-                    # carries the timings and has no content to emit.
                     if chunk.get("done"):
                         final = chunk
                         break
@@ -442,13 +409,9 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
                         route_id, model, result_from_chunk(model, final),
                         time.time() - started)
             except (OllamaError, BrokenPipeError, ConnectionResetError):
-                # The client hung up or Ollama failed mid-stream. Headers are
-                # already sent, so there is no way to turn this into a clean
-                # HTTP error; just stop.
                 return
 
     return Handler
-
 
 def serve(host: str = "127.0.0.1", port: int = 11435, *,
           ollama_url: str = "http://localhost:11434",
@@ -460,7 +423,6 @@ def serve(host: str = "127.0.0.1", port: int = 11435, *,
     router = Router(registry, vram_bytes=gpu.total_bytes)
     service = RouterService(client, registry, router)
 
-    # Populate on boot so the first request does not pay discovery cost.
     try:
         found = discover(client, registry)
         print(f"discovered {len(found)} models from {ollama_url}")

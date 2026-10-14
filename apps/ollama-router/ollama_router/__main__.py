@@ -26,10 +26,8 @@ from .server import RouterService, serve
 DEFAULT_DB = os.environ.get("OLLAMA_ROUTER_DB", "router.db")
 DEFAULT_OLLAMA = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
-
 def _human_size(n: int) -> str:
     return f"{n / 1e9:.1f}GB" if n else "?"
-
 
 def _build(db: str, ollama: str) -> tuple[OllamaClient, Registry, Router]:
     client = OllamaClient(ollama)
@@ -37,11 +35,9 @@ def _build(db: str, ollama: str) -> tuple[OllamaClient, Registry, Router]:
     gpu = probe_gpu()
     return client, registry, Router(registry, vram_bytes=gpu.total_bytes)
 
-
 def cmd_serve(args) -> int:
     serve(args.host, args.port, ollama_url=args.ollama, db_path=args.db)
     return 0
-
 
 def cmd_discover(args) -> int:
     client, registry, _ = _build(args.db, args.ollama)
@@ -54,7 +50,6 @@ def cmd_discover(args) -> int:
     for n in names:
         print(f"  {n}")
     return 0
-
 
 def cmd_models(args) -> int:
     client, registry, router = _build(args.db, args.ollama)
@@ -92,7 +87,6 @@ def cmd_models(args) -> int:
               f"{load:>7} {gpu_pct:>5}  {', '.join(notes)}")
     return 0
 
-
 def cmd_bench(args) -> int:
     client, registry, _ = _build(args.db, args.ollama)
     if not registry.models():
@@ -113,7 +107,6 @@ def cmd_bench(args) -> int:
         benchmark_all(client, registry, tokens=args.tokens,
                       skip_oversized=not args.include_oversized, progress=show)
     return 0
-
 
 def cmd_route(args) -> int:
     client, registry, router = _build(args.db, args.ollama)
@@ -142,7 +135,6 @@ def cmd_route(args) -> int:
             print(f"  {e['model']:34} {e['why']}")
     return 0
 
-
 def cmd_history(args) -> int:
     _, registry, _ = _build(args.db, args.ollama)
     routes = registry.recent_routes(limit=args.limit)
@@ -161,14 +153,10 @@ def cmd_history(args) -> int:
 
     acc = registry.prediction_accuracy()
     if acc["samples"]:
-        # The router predicts how long each request will take. If those
-        # predictions are badly wrong the scoring model is wrong too, so
-        # surfacing the error is the honest self-check rather than a stat.
         print(f"\nprediction accuracy over {acc['samples']} closed routes: "
               f"median error {acc['median_relative_error'] * 100:.0f}%, "
               f"{acc['within_50pct'] * 100:.0f}% within 50%")
     return 0
-
 
 def cmd_ask(args) -> int:
     client, registry, router = _build(args.db, args.ollama)
@@ -208,7 +196,6 @@ def cmd_ask(args) -> int:
         print(f"\nerror: {exc}", file=sys.stderr)
         return 1
     return 0
-
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
@@ -263,7 +250,6 @@ def main(argv: list[str] | None = None) -> int:
         return args.func(args)
     except KeyboardInterrupt:
         return 130
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
