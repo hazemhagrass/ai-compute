@@ -132,6 +132,9 @@
     "engineering/code-review-checklist": {
       "sha": "dbddb544cbb1"
     },
+    "engineering/comment-removal": {
+      "sha": "196f494632b5"
+    },
     "engineering/database-design": {
       "sha": "9bdb3d0d9e41"
     },
@@ -175,7 +178,7 @@
       "sha": "ba6c997b2d51"
     },
     "homelab/unraid": {
-      "sha": "4ec1896ad080"
+      "sha": "6de363277733"
     },
     "knowledge/airtable-database-builder": {
       "sha": "0d183fae5e30"
