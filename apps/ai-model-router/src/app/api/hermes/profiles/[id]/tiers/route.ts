@@ -3,7 +3,13 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
-import { setClassifierPool, setDefaultTier, setTierRouterEnabled, upsertTier } from "@/lib/hermes/tiers";
+import {
+  setClassifierPool,
+  setDefaultTier,
+  setRouterBehavior,
+  setTierRouterEnabled,
+  upsertTier,
+} from "@/lib/hermes/tiers";
 import { parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +37,8 @@ const settingsSchema = z.object({
   enabled: z.boolean().optional(),
   default_tier: z.string().trim().min(1).optional(),
   classifier_pool: z.array(modelRefSchema).optional(),
+  cooldown_s: z.number().positive().optional(),
+  restore_primary: z.boolean().optional(),
 });
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/tiers">) {
@@ -53,6 +61,9 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   if (parsed.data.enabled !== undefined) setTierRouterEnabled(id, parsed.data.enabled);
   if (parsed.data.default_tier !== undefined) setDefaultTier(id, parsed.data.default_tier);
   if (parsed.data.classifier_pool !== undefined) setClassifierPool(id, parsed.data.classifier_pool);
+  if (parsed.data.cooldown_s !== undefined || parsed.data.restore_primary !== undefined) {
+    setRouterBehavior(id, { cooldown_s: parsed.data.cooldown_s, restore_primary: parsed.data.restore_primary });
+  }
 
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
 }

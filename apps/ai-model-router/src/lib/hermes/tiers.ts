@@ -1,5 +1,6 @@
 import { emptyTier, emptyTierRouter, type ModelRef, type TierEntry } from "./config-schema";
 import { updateHermesConfig } from "./config-io";
+import { systemOneProblems } from "./systemone";
 
 export function setTierRouterEnabled(profileId: string, enabled: boolean): void {
   updateHermesConfig(profileId, (cfg) => {
@@ -29,13 +30,45 @@ export function setClassifierPool(profileId: string, pool: ModelRef[]): void {
  * fields are left untouched so a partial patch doesn't clobber the other. */
 export function setClassifierSettings(
   profileId: string,
-  settings: { timeout_s?: number; history_turns?: number },
+  settings: { timeout_s?: number; history_turns?: number; enabled?: boolean },
 ): void {
   updateHermesConfig(profileId, (cfg) => {
     const tr = cfg.tier_router ?? emptyTierRouter();
     tr.classifier = { ...tr.classifier };
     if (settings.timeout_s !== undefined) tr.classifier.timeout_s = settings.timeout_s;
     if (settings.history_turns !== undefined) tr.classifier.history_turns = settings.history_turns;
+    if (settings.enabled !== undefined) tr.classifier.enabled = settings.enabled;
+    cfg.tier_router = tr;
+    return cfg;
+  });
+}
+
+/** `tier_router.cooldown_s` (per-entry cooldown after 429/5xx/transport
+ * failure) and `.restore_primary` (revert to the profile's primary model at
+ * each turn boundary). `undefined` fields are left untouched. */
+export function setRouterBehavior(
+  profileId: string,
+  settings: { cooldown_s?: number; restore_primary?: boolean },
+): void {
+  updateHermesConfig(profileId, (cfg) => {
+    const tr = { ...(cfg.tier_router ?? emptyTierRouter()) };
+    if (settings.cooldown_s !== undefined) tr.cooldown_s = settings.cooldown_s;
+    if (settings.restore_primary !== undefined) tr.restore_primary = settings.restore_primary;
+    cfg.tier_router = tr;
+    return cfg;
+  });
+}
+
+/** Merge a patch into `tier_router.classifier.systemone`. Keys the app does
+ * not edit (routine/escalation/verdict model) are preserved. Throws without
+ * writing when the merged block would be discarded by Hermes. */
+export function setSystemOne(profileId: string, patch: Record<string, unknown>): void {
+  updateHermesConfig(profileId, (cfg) => {
+    const tr = cfg.tier_router ?? emptyTierRouter();
+    const merged = { ...(tr.classifier.systemone ?? {}), ...patch };
+    const problems = systemOneProblems(merged);
+    if (problems.length > 0) throw new Error(`invalid systemone: ${problems.join("; ")}`);
+    tr.classifier = { ...tr.classifier, systemone: merged };
     cfg.tier_router = tr;
     return cfg;
   });

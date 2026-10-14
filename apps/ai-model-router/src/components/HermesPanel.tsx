@@ -49,11 +49,26 @@ interface TierEntry {
   fallback: ModelRef[];
 }
 
+interface SystemOneConfig {
+  enabled?: boolean;
+  endpoints?: string[];
+  timeout_s?: number;
+  attempt_timeout_s?: number;
+  min_confidence?: number;
+}
+
 interface TierRouterConfig {
   enabled: boolean;
   default_tier: string;
   cooldown_s: number;
-  classifier: { pool: ModelRef[]; timeout_s?: number; history_turns?: number };
+  restore_primary?: boolean;
+  classifier: {
+    pool: ModelRef[];
+    enabled?: boolean;
+    timeout_s?: number;
+    history_turns?: number;
+    systemone?: SystemOneConfig;
+  };
   tiers: Record<string, TierEntry>;
   routes?: Record<string, Record<string, string>>;
 }
@@ -938,6 +953,20 @@ function RouterTab({
             </Field>
           </div>
         )}
+        {tierRouter && (
+          <div className="mt-4 border-t border-[var(--border)] pt-4">
+            <RouterBehaviorForm
+              profileId={profileId}
+              cooldownS={tierRouter.cooldown_s}
+              restorePrimary={tierRouter.restore_primary ?? false}
+              onSaved={() => {
+                onRefresh();
+                onToast("Router settings saved", "good");
+              }}
+              onToast={onToast}
+            />
+          </div>
+        )}
       </Card>
 
       <div className="flex justify-end">
@@ -1005,6 +1034,7 @@ function RouterTab({
         <div className="mt-4 border-t border-[var(--border)] pt-4">
           <ClassifierSettingsForm
             profileId={profileId}
+            enabled={tierRouter?.classifier.enabled ?? true}
             timeoutS={tierRouter?.classifier.timeout_s}
             historyTurns={tierRouter?.classifier.history_turns}
             onSaved={() => {
@@ -1014,6 +1044,22 @@ function RouterTab({
             onToast={onToast}
           />
         </div>
+      </Card>
+
+      <Card title="SystemOne pre-classifier">
+        <p className="mb-3 text-[11px] text-[var(--fg-dim)]">
+          Optional local decision models consulted before the classifier pool. If they disagree, time out, or fall
+          below the confidence floor, the turn falls through to the classifier pool.
+        </p>
+        <SystemOneForm
+          profileId={profileId}
+          config={tierRouter?.classifier.systemone}
+          onSaved={() => {
+            onRefresh();
+            onToast("SystemOne settings saved", "good");
+          }}
+          onToast={onToast}
+        />
       </Card>
 
       <Card title="Task routes">
@@ -1090,7 +1136,8 @@ function TierCard({
             </span>
           )}
           <span className="rounded-md bg-[var(--panel-2)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--fg-dim)]">
-            {tier.mode ?? "round_robin"}
+            {/* Hermes treats a missing mode as priority (agent/tier_router.py). */}
+            {tier.mode ?? "priority"}
           </span>
         </div>
       </div>
@@ -1278,12 +1325,14 @@ function ClassifierPoolEditor({
 
 function ClassifierSettingsForm({
   profileId,
+  enabled,
   timeoutS,
   historyTurns,
   onSaved,
   onToast,
 }: {
   profileId: string;
+  enabled: boolean;
   timeoutS: number | undefined;
   historyTurns: number | undefined;
   onSaved: () => void;
@@ -1332,33 +1381,238 @@ function ClassifierSettingsForm({
     }
   }
 
+  async function toggleEnabled() {
+    try {
+      await api(`/api/hermes/profiles/${profileId}/classifier`, { method: "PATCH", json: { enabled: !enabled } });
+      onSaved();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Failed to toggle classifier", "bad");
+    }
+  }
+
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <Field label="Timeout (seconds)" hint="how long the classifier call is allowed to take">
+    <div className="space-y-3">
+      <label className="flex cursor-pointer items-center gap-2 text-xs">
+        <input type="checkbox" checked={enabled} onChange={toggleEnabled} className="h-4 w-4 accent-[var(--accent)]" />
+        Classify each turn
+        <span className="text-[var(--fg-dim)]">(off: every turn goes to the default tier)</span>
+      </label>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Timeout (seconds)" hint="how long the classifier call is allowed to take">
+          <input
+            value={timeoutStr}
+            onChange={(e) => setTimeoutStr(e.target.value)}
+            placeholder="12"
+            inputMode="decimal"
+            className={`${inputCls} w-28 font-mono`}
+          />
+        </Field>
+        <Field label="History turns" hint="how many prior turns feed the classifier's decision">
+          <input
+            value={historyStr}
+            onChange={(e) => setHistoryStr(e.target.value)}
+            placeholder="4"
+            inputMode="numeric"
+            className={`${inputCls} w-28 font-mono`}
+          />
+        </Field>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save classifier settings"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RouterBehaviorForm({
+  profileId,
+  cooldownS,
+  restorePrimary,
+  onSaved,
+  onToast,
+}: {
+  profileId: string;
+  cooldownS: number;
+  restorePrimary: boolean;
+  onSaved: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [cooldownStr, setCooldownStr] = useState(String(cooldownS));
+  const [lastCooldownS, setLastCooldownS] = useState(cooldownS);
+  if (cooldownS !== lastCooldownS) {
+    setLastCooldownS(cooldownS);
+    setCooldownStr(String(cooldownS));
+  }
+
+  async function patch(json: { cooldown_s?: number; restore_primary?: boolean }) {
+    try {
+      await api(`/api/hermes/profiles/${profileId}/tiers`, { method: "PATCH", json });
+      onSaved();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Save failed", "bad");
+    }
+  }
+
+  function saveCooldown() {
+    const n = Number(cooldownStr);
+    if (!Number.isFinite(n) || n <= 0) {
+      onToast("Cooldown must be a positive number of seconds", "bad");
+      return;
+    }
+    void patch({ cooldown_s: n });
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-4 text-xs">
+      <Field label="Cooldown (seconds)" hint="how long a pool entry is skipped after a 429, 5xx, or transport failure">
+        <div className="flex gap-2">
+          <input
+            value={cooldownStr}
+            onChange={(e) => setCooldownStr(e.target.value)}
+            inputMode="decimal"
+            className={`${inputCls} w-28 font-mono`}
+          />
+          <button
+            onClick={saveCooldown}
+            className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90"
+          >
+            Save
+          </button>
+        </div>
+      </Field>
+      <label className="flex cursor-pointer items-center gap-2 pb-2">
         <input
-          value={timeoutStr}
-          onChange={(e) => setTimeoutStr(e.target.value)}
-          placeholder="12"
-          inputMode="decimal"
-          className={`${inputCls} w-28 font-mono`}
+          type="checkbox"
+          checked={restorePrimary}
+          onChange={() => void patch({ restore_primary: !restorePrimary })}
+          className="h-4 w-4 accent-[var(--accent)]"
+        />
+        Restore primary model after each turn
+        <span className="text-[var(--fg-dim)]">(off: the router keeps the session on the routed model)</span>
+      </label>
+    </div>
+  );
+}
+
+function SystemOneForm({
+  profileId,
+  config,
+  onSaved,
+  onToast,
+}: {
+  profileId: string;
+  config: SystemOneConfig | undefined;
+  onSaved: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const fromConfig = (c: SystemOneConfig | undefined) => ({
+    enabled: c?.enabled === true,
+    endpoints: (c?.endpoints ?? []).join("\n"),
+    timeout: c?.timeout_s !== undefined ? String(c.timeout_s) : "",
+    attempt: c?.attempt_timeout_s !== undefined ? String(c.attempt_timeout_s) : "",
+    confidence: c?.min_confidence !== undefined ? String(c.min_confidence) : "",
+  });
+  const [form, setForm] = useState(() => fromConfig(config));
+  const [lastConfig, setLastConfig] = useState(config);
+  const [saving, setSaving] = useState(false);
+  if (config !== lastConfig) {
+    setLastConfig(config);
+    setForm(fromConfig(config));
+  }
+
+  async function save() {
+    const systemone: SystemOneConfig = {
+      enabled: form.enabled,
+      endpoints: form.endpoints
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    };
+    const nums: [keyof SystemOneConfig, string, string][] = [
+      ["timeout_s", form.timeout, "Total timeout"],
+      ["attempt_timeout_s", form.attempt, "Attempt timeout"],
+      ["min_confidence", form.confidence, "Min confidence"],
+    ];
+    for (const [key, raw, label] of nums) {
+      if (!raw.trim()) continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) {
+        onToast(`${label} must be a number`, "bad");
+        return;
+      }
+      (systemone as Record<string, unknown>)[key] = n;
+    }
+    setSaving(true);
+    try {
+      await api(`/api/hermes/profiles/${profileId}/classifier`, { method: "PATCH", json: { systemone } });
+      onSaved();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Save failed", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 text-xs">
+      <label className="flex cursor-pointer items-center gap-2">
+        <input
+          type="checkbox"
+          checked={form.enabled}
+          onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+          className="h-4 w-4 accent-[var(--accent)]"
+        />
+        Enabled
+      </label>
+      <Field label="Endpoints" hint="1 to 3, one per line, each ending in /v1/systemone (no credentials or query string)">
+        <textarea
+          value={form.endpoints}
+          onChange={(e) => setForm({ ...form, endpoints: e.target.value })}
+          rows={3}
+          placeholder="http://10.0.0.5:8000/v1/systemone"
+          className={`${inputCls} w-full font-mono`}
         />
       </Field>
-      <Field label="History turns" hint="how many prior turns feed the classifier's decision">
-        <input
-          value={historyStr}
-          onChange={(e) => setHistoryStr(e.target.value)}
-          placeholder="4"
-          inputMode="numeric"
-          className={`${inputCls} w-28 font-mono`}
-        />
-      </Field>
-      <button
-        onClick={save}
-        disabled={saving}
-        className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
-      >
-        {saving ? "Saving…" : "Save classifier settings"}
-      </button>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Total timeout (s)" hint="0.1 to 120, default 4">
+          <input
+            value={form.timeout}
+            onChange={(e) => setForm({ ...form, timeout: e.target.value })}
+            placeholder="4"
+            inputMode="decimal"
+            className={`${inputCls} w-24 font-mono`}
+          />
+        </Field>
+        <Field label="Attempt timeout (s)" hint="0.05 to total, default 1.5">
+          <input
+            value={form.attempt}
+            onChange={(e) => setForm({ ...form, attempt: e.target.value })}
+            placeholder="1.5"
+            inputMode="decimal"
+            className={`${inputCls} w-24 font-mono`}
+          />
+        </Field>
+        <Field label="Min confidence" hint="0.5 to 1, default 0.75">
+          <input
+            value={form.confidence}
+            onChange={(e) => setForm({ ...form, confidence: e.target.value })}
+            placeholder="0.75"
+            inputMode="decimal"
+            className={`${inputCls} w-24 font-mono`}
+          />
+        </Field>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save SystemOne"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1512,7 +1766,7 @@ function TierForm({
   onToast: (m: string, t?: Tone) => void;
 }) {
   const [name, setName] = useState(editingName ?? "");
-  const [mode, setMode] = useState<"round_robin" | "priority">(initial?.mode ?? "round_robin");
+  const [mode, setMode] = useState<"round_robin" | "priority">(initial?.mode ?? "priority");
   const [escalateTo, setEscalateTo] = useState(initial?.escalate_to ?? "");
   const [pool, setPool] = useState<ModelRef[]>(initial?.pool ?? []);
   const [fallback, setFallback] = useState<ModelRef[]>(initial?.fallback ?? []);

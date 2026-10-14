@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
-import { setClassifierSettings, removeRoute, setRoute } from "@/lib/hermes/tiers";
+import { setClassifierSettings, removeRoute, setRoute, setSystemOne } from "@/lib/hermes/tiers";
 import { parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,18 @@ export const dynamic = "force-dynamic";
 const classifierSettingsSchema = z.object({
   timeout_s: z.number().positive().optional(),
   history_turns: z.number().int().min(0).optional(),
+  enabled: z.boolean().optional(),
+  /** Merged into `classifier.systemone`; validated against Hermes's own
+   * loader rules in `setSystemOne`, so only the shape is checked here. */
+  systemone: z
+    .object({
+      enabled: z.boolean().optional(),
+      endpoints: z.array(z.string().trim().min(1)).optional(),
+      timeout_s: z.number().optional(),
+      attempt_timeout_s: z.number().optional(),
+      min_confidence: z.number().optional(),
+    })
+    .optional(),
 });
 
 const setRouteSchema = z.object({
@@ -25,9 +37,11 @@ const removeRouteSchema = z.object({
 });
 
 
-/** `tier_router.classifier`'s tuning knobs (timeout_s, history_turns) — kept
- * as its own PATCH verb, separate from the pool-only one on
- * `tiers/route.ts`, since these two are edited from different UI cards. */
+/** `tier_router.classifier`'s tuning knobs (timeout_s, history_turns,
+ * enabled, systemone) — kept as its own PATCH verb, separate from the
+ * pool-only one on `tiers/route.ts`, since these are edited from different
+ * UI cards. An invalid systemone block is rejected with 400 and nothing is
+ * written, because Hermes would silently drop it. */
 export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/classifier">) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -35,7 +49,15 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   const parsed = await parseBody(request, classifierSettingsSchema);
   if (!parsed.ok) return parsed.response;
 
-  setClassifierSettings(id, parsed.data);
+  const { systemone, ...settings } = parsed.data;
+  if (systemone !== undefined) {
+    try {
+      setSystemOne(id, systemone);
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+    }
+  }
+  setClassifierSettings(id, settings);
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
 }
 

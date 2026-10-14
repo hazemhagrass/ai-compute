@@ -77,6 +77,53 @@ describe("classifier settings", () => {
     expect(cfg.tier_router?.classifier.pool).toEqual([{ provider: "a", model: "m" }]);
     expect(cfg.tier_router?.classifier.timeout_s).toBe(5);
   });
+
+  it("setClassifierSettings toggles classifier.enabled without touching the rest", async () => {
+    const { configIo, tiers } = await fresh();
+    tiers.setClassifierSettings("default", { timeout_s: 7 });
+    tiers.setClassifierSettings("default", { enabled: false });
+    const cfg = configIo.readHermesConfig("default");
+    expect(cfg.tier_router?.classifier.enabled).toBe(false);
+    expect(cfg.tier_router?.classifier.timeout_s).toBe(7);
+  });
+});
+
+describe("router behavior", () => {
+  it("setRouterBehavior sets cooldown_s and restore_primary independently", async () => {
+    const { configIo, tiers } = await fresh();
+    tiers.setRouterBehavior("default", { cooldown_s: 45 });
+    tiers.setRouterBehavior("default", { restore_primary: true });
+    const tr = configIo.readHermesConfig("default").tier_router;
+    expect(tr?.cooldown_s).toBe(45);
+    expect(tr?.restore_primary).toBe(true);
+  });
+});
+
+describe("systemone", () => {
+  it("setSystemOne merges the patch and keeps keys the app does not edit", async () => {
+    const { configIo, tiers } = await fresh();
+    configIo.updateHermesConfig("default", (cfg) => {
+      const tr = cfg.tier_router ?? { enabled: false, default_tier: "normal", cooldown_s: 120, classifier: { pool: [] }, tiers: {} };
+      tr.classifier = { ...tr.classifier, systemone: { enabled: false, routine_model: "clef-flash", verdict_model: "openjev" } };
+      cfg.tier_router = tr;
+      return cfg;
+    });
+    tiers.setSystemOne("default", { enabled: true, endpoints: ["http://h:8000/v1/systemone"], min_confidence: 0.8 });
+    const so = configIo.readHermesConfig("default").tier_router?.classifier.systemone;
+    expect(so).toEqual({
+      enabled: true,
+      endpoints: ["http://h:8000/v1/systemone"],
+      min_confidence: 0.8,
+      routine_model: "clef-flash",
+      verdict_model: "openjev",
+    });
+  });
+
+  it("setSystemOne refuses a block Hermes would silently discard", async () => {
+    const { configIo, tiers } = await fresh();
+    expect(() => tiers.setSystemOne("default", { enabled: true, endpoints: [] })).toThrow();
+    expect(configIo.readHermesConfig("default").tier_router?.classifier.systemone).toBeUndefined();
+  });
 });
 
 describe("task routes", () => {
