@@ -273,6 +273,18 @@ Can also run **Lancache** on Unraid (separate cache server or same box if enough
 
 Unraid's dillon crond takes NO user field: five time fields then the command (`/etc/cron.d/root` proves it). A Debian-style line (`* * * * * root /usr/bin/php ...`) makes crond run `root` as the command -- the job's log fills with `/bin/sh: line 1: root: command not found` every minute while the real job never runs. Found live in the unraid-vitals plugin (repo commit 65cf262): the collector was dead since install. Verify a fix by watching the job's output mtime cross a minute boundary, not the log. Check an existing `/etc/cron.d/*` file on the target before writing a cron line anywhere.
 
+## Growing a VM disk image
+
+`qemu-img resize` changes the image file only. The guest still has to grow its partition table and filesystem (`growpart`/`partprobe`, then `resize2fs`, or `pvresize`/`lvextend` for LVM). Never shrink: `qemu-img resize` will happily truncate an image that a running guest is writing to.
+
+- **The VM must be shut off.** A running QEMU holds its own view of the size and keeps writing past a new boundary, which corrupts the filesystem. `virsh shutdown` and wait for `shut off`; refuse if it is still running.
+- **Always pass `-f`.** Badayli Sites and Medianet are qcow2 here while the other seven VMs are raw. Without `-f` qemu guesses, and a wrong guess can resize the wrong thing.
+- **Read the format from `qemu-img info` PLAIN TEXT, not `--output=json`.** On qemu 10.2 the JSON nests keys under `children[].info`, and the `"format"` key there holds the literal string `file` -- the source type, not the disk format. Grepping that JSON for `"format"` yields `file` and hands qemu-img a bogus `-f`. The text form's `file format: raw` line is correct. The same trap applies to `virtual-size`: nested in the JSON, plain on the `virtual size:` line.
+- **Compare sizes as bytes, not the human string.** `virtual size: 110 GiB (N bytes)` carries both. Take the bytes for arithmetic and the GiB for display; comparing `"1.0" < "9.0"` as strings is wrong.
+- **Refuse overlay/snapshot disks.** Medianet attaches `vdisk1.snap`, a qcow2 overlay whose `vdisk1.img` is the backing file. Its usable size is capped by the backing image, so growing the overlay hands the guest nothing. Detect a `<backingStore>` element inside the `<disk>` block and skip it, pointing at the backing image instead.
+- **Parse libvirt XML by splitting on `</disk>`, not by word-splitting.** Disk source paths contain spaces (`/mnt/user/domains/Badayli Labs/vdisk1.img`). A `for x in $(...)` over the flattened XML shreds every chunk and yields nothing. Read line by line after `sed 's|</disk>|</disk>\n|g'`, and keep the space-containing path quoted everywhere.
+- Raw images are sparse: growing by 50G only consumes space as the guest writes into it. `qemu-img info` shows `disk size` (actual) well under `virtual size`.
+
 ## CPU pinning for VM and Docker hosts
 
 See `references/cpu-and-fan-tuning.md` and `references/selene-server.md` (live state of 192.168.1.254: fan fix, SMART sweep, plugin state, pending decisions) for the full procedure and verification commands.
