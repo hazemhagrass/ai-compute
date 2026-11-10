@@ -5,6 +5,27 @@ description: "Use when a container won't start or a build breaks. Debug Docker s
 
 Diagnose Docker issues methodically: check the symptoms (container status, exit codes), read the evidence (logs, events, inspect), isolate the cause (image, network, volume, host), then fix and verify.
 
+## CRITICAL: Shared infrastructure is OFF LIMITS
+
+**NEVER modify, connect, disconnect, restart, or reconfigure shared infrastructure containers** — Nginx Proxy Manager (NPM), cloudflared, or any container that serves multiple sites/apps — to fix a single app's problem. This includes:
+
+- `docker network connect/disconnect` on NPM or cloudflared
+- Editing NPM's `default.conf`, `proxy_host/*.conf`, or its SQLite database
+- `docker cp` into NPM or cloudflared (CA bundles, certs, configs)
+- Restarting NPM or cloudflared
+- Modifying cloudflared tunnel config or CA bundles
+- Any TLS/certificate changes on shared containers
+
+These containers carry EVERY site on the box. One change to fix one subdomain can take down all sites simultaneously (this has happened). The user has explicitly and repeatedly forbidden this.
+
+**Instead:**
+- Diagnose read-only (logs, inspect, curl with SNI)
+- Fix on the APP's own container/network/port
+- Hand the user a recipe to apply in the NPM UI / Cloudflare dashboard themselves
+- If shared infra WAS touched (emergency only), revert ALL changes and verify OTHER sites still work
+
+See `self-hosted-web-app-deploy` skill → `references/cloudflared-npm-origin-chain.md` for the full diagnosis procedure and revert recipe.
+
 ## The debugging loop
 
 1. **Identify the symptom** - what's visibly broken?
