@@ -7,7 +7,7 @@ Diagnose Docker issues methodically: check the symptoms (container status, exit 
 
 ## CRITICAL: Shared infrastructure is OFF LIMITS
 
-**NEVER modify, connect, disconnect, restart, or reconfigure shared infrastructure containers** — Nginx Proxy Manager (NPM), cloudflared, or any container that serves multiple sites/apps — to fix a single app's problem. This includes:
+**NEVER modify, connect, disconnect, restart, or reconfigure shared infrastructure containers** (Nginx Proxy Manager (NPM), cloudflared, or any container that serves multiple sites/apps) to fix a single app's problem. This includes:
 
 - `docker network connect/disconnect` on NPM or cloudflared
 - Editing NPM's `default.conf`, `proxy_host/*.conf`, or its SQLite database
