@@ -14,10 +14,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ollama_router.registry import Registry  # noqa: E402
-from ollama_router.router import (  # noqa: E402
-    Router, detect_intent, estimate_tokens, Objective,
+from ollama_router.registry import Registry
+from ollama_router.router import (
+    Objective,
+    Router,
+    detect_intent,
+    estimate_tokens,
 )
+
 
 @dataclass
 class FakeCard:
