@@ -11,8 +11,10 @@ import json
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
+
 
 class OllamaError(RuntimeError):
     """Ollama returned a non-2xx response or could not be reached."""
