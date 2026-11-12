@@ -28,7 +28,17 @@ export interface PoolTarget {
 export type ValidationTarget =
   | { kind: "tier"; name: string }
   | { kind: "classifier" }
+  | { kind: "import" }
   | null;
+
+// "edit" is the row policy for direct tier/classifier edits. "import" is the
+// policy for copying a whole tier_router template into a profile: only a
+// structurally broken row (no model name) blocks the write, because a template
+// copy seeds the router before the profile is finished. A provider the target
+// does not configure yet, an off-catalog model, and a model barred from chat
+// pools are all warnings, since erroring would make cross-profile copy
+// impossible until every provider and model already existed on the target.
+export type ValidationPolicy = "edit" | "import";
 
 export interface ModelCatalog {
   models: readonly Model[];
@@ -53,7 +63,12 @@ const CHAT_POOL_TASK: Task = {
 
 const CHAT_POOL_CRITERIA: ExclusionCriteria = { task: CHAT_POOL_TASK };
 
-type ModelProblem = { field: "model"; level: "error" | "warning"; message: string };
+type ModelProblem = {
+  field: "model";
+  level: "error" | "warning";
+  message: string;
+  reason: "required" | "off-catalog" | "excluded";
+};
 
 function providerOwnsModel(m: Model, provider: string): boolean {
   const needle = provider.trim().toLowerCase();
@@ -65,7 +80,9 @@ function providerOwnsModel(m: Model, provider: string): boolean {
 
 function modelProblem(entry: ModelRef, catalog: ModelCatalog): ModelProblem | null {
   const needle = entry.model.trim().toLowerCase();
-  if (!needle) return { field: "model", level: "error", message: "model is required" };
+  if (!needle) {
+    return { field: "model", level: "error", message: "model is required", reason: "required" };
+  }
   const matches = catalog.models.filter(
     (m) =>
       m.modelId.trim().toLowerCase() === needle ||
@@ -76,6 +93,7 @@ function modelProblem(entry: ModelRef, catalog: ModelCatalog): ModelProblem | nu
       field: "model",
       level: "warning",
       message: `model "${entry.model}" is not in the router model catalog`,
+      reason: "off-catalog",
     };
   }
   // Prefer matches whose provider owns the model id, so the verdict and the
@@ -91,6 +109,7 @@ function modelProblem(entry: ModelRef, catalog: ModelCatalog): ModelProblem | nu
       field: "model",
       level: "error",
       message: `model "${entry.model}" cannot join a chat pool: ${report.excluded[0].primary.message}`,
+      reason: "excluded",
     };
   }
   return null;
@@ -103,12 +122,13 @@ function rowProblems(
   entry: ModelRef,
   config: HermesConfig,
   catalog: ModelCatalog,
+  policy: ValidationPolicy = "edit",
 ): ValidationOutcome {
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
   const providers = config.providers ?? {};
   if (!(entry.provider in providers)) {
-    errors.push({
+    (policy === "import" ? warnings : errors).push({
       tier,
       index,
       list,
@@ -118,7 +138,8 @@ function rowProblems(
   }
   const problem = modelProblem(entry, catalog);
   if (problem) {
-    (problem.level === "error" ? errors : warnings).push({
+    const level = policy === "import" && problem.reason !== "required" ? "warning" : problem.level;
+    (level === "error" ? errors : warnings).push({
       tier,
       index,
       list,
@@ -160,6 +181,18 @@ function targetsFor(before: HermesConfig, after: HermesConfig, target: Validatio
   if (!target) return [];
   const tr = after.tier_router;
   const beforeTr = before.tier_router;
+  if (target.kind === "import") {
+    // A template import replaces the whole block, so every copied row counts as
+    // new and gets validated.
+    const rows: PoolTarget[] = [
+      { tier: "classifier", list: "pool", entries: tr?.classifier.pool ?? [], base: [] },
+    ];
+    for (const [name, tier] of Object.entries(tr?.tiers ?? {})) {
+      rows.push({ tier: name, list: "pool", entries: tier.pool ?? [], base: [] });
+      rows.push({ tier: name, list: "fallback", entries: tier.fallback ?? [], base: [] });
+    }
+    return rows;
+  }
   if (target.kind === "classifier") {
     return [
       {
@@ -188,12 +221,13 @@ export function validateWrittenEntries(
 ): ValidationOutcome {
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
+  const policy: ValidationPolicy = target?.kind === "import" ? "import" : "edit";
   for (const { tier, list, entries, base } of targetsFor(before, after, target)) {
     entries.forEach((entry, index) => {
       // Only rows that are new or changed compared with the same tier and list
       // on disk are validated. Unchanged rows are never errors.
       if (base.some((row) => sameRow(row, entry))) return;
-      const outcome = rowProblems(tier, list, index, entry, after, catalog);
+      const outcome = rowProblems(tier, list, index, entry, after, catalog, policy);
       errors.push(...outcome.errors);
       warnings.push(...outcome.warnings);
     });
