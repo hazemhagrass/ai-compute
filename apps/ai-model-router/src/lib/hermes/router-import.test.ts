@@ -150,11 +150,12 @@ describe("resolveTierRouterSource", () => {
         normal: {
           mode: "round_robin",
           escalate_to: null,
+          api_key: "sk-secret-tier",
           pool: [{ provider: "fixture-provider", model: "m", api_key: "sk-secret-ref" }],
           fallback: [{ provider: "fixture-provider", model: "m", api_key: "sk-secret-fb" }],
         },
       },
-      classifier: { pool: [{ provider: "fixture-provider", model: "m", api_key: "sk-secret-cls" }] },
+      classifier: { api_key: "sk-secret-classifier", pool: [{ provider: "fixture-provider", model: "m", api_key: "sk-secret-cls" }] },
     });
 
     const resolved = h.routerImport.resolveTierRouterSource({ from: "default" });

@@ -158,6 +158,21 @@ describe("POST /api/hermes/profiles/[id]/tiers/import input rules", () => {
     expectUnchanged(configPath, before);
   });
 
+  it("404 and writes nothing when the target profile id is invalid", async () => {
+    const h = await fresh();
+    await seedSourceAndTarget(h);
+    const { configPath } = h.paths.profilePaths("default");
+    const before = snapshot(configPath);
+
+    const res = await h.importRoute.POST(
+      post("/api/hermes/profiles/../tiers/import", { from: "src" }),
+      ctx(".."),
+    );
+
+    expect(res.status).toBe(404);
+    expectUnchanged(configPath, before);
+  });
+
   it("400 when neither from nor preset is given", async () => {
     const h = await fresh();
     await seedSourceAndTarget(h);

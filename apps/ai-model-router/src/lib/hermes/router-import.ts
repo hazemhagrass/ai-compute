@@ -3,7 +3,6 @@ import fs from "node:fs";
 import {
   parseHermesConfig,
   type HermesConfig,
-  type ModelRef,
   type TierRouterConfig,
 } from "./config-schema";
 import {
@@ -23,17 +22,28 @@ export type TierRouterSource = { from: string } | { preset: string };
 // providers block are out of scope by construction (only tier_router is read),
 // and any api_key that snuck into a model ref inside the router is dropped
 // rather than copied, so template seeding cannot leak credentials.
+const SECRET_KEY_RE = /^(api_?key|token|secret|password|authorization)$/i;
+
+function scrubSecrets(value: unknown): void {
+  if (Array.isArray(value)) {
+    for (const item of value) scrubSecrets(item);
+    return;
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of Object.keys(obj)) {
+      if (SECRET_KEY_RE.test(key)) {
+        delete obj[key];
+      } else {
+        scrubSecrets(obj[key]);
+      }
+    }
+  }
+}
+
 function stripSecretRefs(router: TierRouterConfig): TierRouterConfig {
   const clone = structuredClone(router);
-  const scrub = (refs: ModelRef[] | undefined): void => {
-    if (!refs) return;
-    for (const ref of refs) delete ref.api_key;
-  };
-  scrub(clone.classifier?.pool);
-  for (const tier of Object.values(clone.tiers ?? {})) {
-    scrub(tier.pool);
-    scrub(tier.fallback);
-  }
+  scrubSecrets(clone);
   return clone;
 }
 
