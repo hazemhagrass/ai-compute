@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
-import { api } from "./store";
+import { api, ApiResponseError } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
 import { Field, inputCls } from "./ProvidersPanel";
 
@@ -59,8 +59,34 @@ interface DryRunResult {
   dryRun: boolean;
   yaml: string;
   diff: string;
+  baseHash: string;
   valid: boolean;
   errors: TierValidationError[];
+  warnings: TierValidationError[];
+}
+
+function isStalePreview(err: unknown): boolean {
+  return err instanceof ApiResponseError && err.status === 409;
+}
+
+function planFailure(err: unknown): Partial<DryRunResult> | null {
+  if (err instanceof ApiResponseError && err.body && typeof err.body === "object") {
+    const body = err.body as Partial<DryRunResult>;
+    if (Array.isArray(body.errors) && body.errors.length > 0) return body;
+  }
+  return null;
+}
+
+function mergeFailure(preview: DryRunResult | null, body: Partial<DryRunResult>): DryRunResult {
+  return {
+    dryRun: preview?.dryRun ?? false,
+    yaml: body.yaml ?? preview?.yaml ?? "",
+    diff: body.diff ?? preview?.diff ?? "",
+    baseHash: body.baseHash ?? preview?.baseHash ?? "",
+    valid: false,
+    errors: body.errors ?? [],
+    warnings: body.warnings ?? preview?.warnings ?? [],
+  };
 }
 
 interface SystemOneConfig {
@@ -872,6 +898,85 @@ function ProviderForm({
   );
 }
 
+function DeleteTierConfirm({
+  profileId,
+  name,
+  preview,
+  onPreview,
+  onCancel,
+  onDeleted,
+  onToast,
+}: {
+  profileId: string;
+  name: string;
+  preview: DryRunResult;
+  onPreview: (preview: DryRunResult) => void;
+  onCancel: () => void;
+  onDeleted: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  async function fetchPreview() {
+    try {
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers/${encodeURIComponent(name)}?dry_run=1`,
+        { method: "DELETE" },
+      );
+      onPreview(res);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Delete preview failed", "bad");
+    }
+  }
+
+  async function confirmDelete() {
+    setSaving(true);
+    try {
+      await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers/${encodeURIComponent(name)}`,
+        {
+          method: "DELETE",
+          ...(preview.baseHash ? { headers: { "if-match": preview.baseHash } } : {}),
+        },
+      );
+      onDeleted();
+    } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before deleting.", "bad");
+        await fetchPreview();
+        return;
+      }
+      onToast(err instanceof Error ? err.message : "Delete failed", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card title={`Delete tier: ${name}`} className="border-[var(--bad)]/40">
+      <p className="mb-2 text-[11px] text-[var(--fg-dim)]">
+        This is the diff deleting &quot;{name}&quot; will write to config.yaml.
+      </p>
+      <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => void confirmDelete()}
+          disabled={saving}
+          className="rounded-xl bg-[var(--bad)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Deleting\u2026" : "Confirm delete"}
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function RouterTab({
   profileId,
   providers,
@@ -886,6 +991,7 @@ function RouterTab({
   onToast: (m: string, t?: Tone) => void;
 }) {
   const [addingTier, setAddingTier] = useState(false);
+  const [deleting, setDeleting] = useState<{ name: string; preview: DryRunResult } | null>(null);
   const enabled = tierRouter?.enabled ?? false;
   const tiers = tierRouter?.tiers ?? {};
 
@@ -909,13 +1015,14 @@ function RouterTab({
   }
 
   async function deleteTier(name: string) {
-    if (!confirm(`Delete tier "${name}"?`)) return;
     try {
-      await api(`/api/hermes/profiles/${profileId}/tiers/${name}`, { method: "DELETE" });
-      onToast(`Deleted tier ${name}`, "good");
-      onRefresh();
+      const preview = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers/${encodeURIComponent(name)}?dry_run=1`,
+        { method: "DELETE" },
+      );
+      setDeleting({ name, preview });
     } catch (err) {
-      onToast(err instanceof Error ? err.message : "Delete failed", "bad");
+      onToast(err instanceof Error ? err.message : "Delete preview failed", "bad");
     }
   }
 
@@ -985,6 +1092,22 @@ function RouterTab({
           + Add tier
         </button>
       </div>
+
+      {deleting && (
+        <DeleteTierConfirm
+          profileId={profileId}
+          name={deleting.name}
+          preview={deleting.preview}
+          onPreview={(preview) => setDeleting({ name: deleting.name, preview })}
+          onCancel={() => setDeleting(null)}
+          onDeleted={() => {
+            onToast(`Deleted tier ${deleting.name}`, "good");
+            setDeleting(null);
+            onRefresh();
+          }}
+          onToast={onToast}
+        />
+      )}
 
       {addingTier && (
         <TierForm
@@ -1206,12 +1329,15 @@ function ModelRefListEditor({
   refs,
   onChange,
   errors,
+  warnings,
 }: {
   providers: HermesProviderView[];
   refs: ModelRef[];
   onChange: (next: ModelRef[]) => void;
   errors?: TierValidationError[];
+  warnings?: TierValidationError[];
 }) {
+  const uid = useId();
   const [provider, setProvider] = useState(providers[0]?.id ?? "");
   const [model, setModel] = useState("");
 
@@ -1228,23 +1354,45 @@ function ModelRefListEditor({
   return (
     <div>
       <div className="flex flex-wrap gap-1.5">
-        {refs.map((r, i) => (
-          <span key={`${r.provider}/${r.model}/${i}`} className="flex flex-col gap-0.5">
-            <span className="flex items-center gap-1.5 rounded-md bg-[var(--panel-2)] px-2 py-1 font-mono text-[11px]">
-              {r.provider}/{r.model}
-              <button onClick={() => remove(i)} className="text-[var(--bad)] hover:opacity-70">
-                ×
-              </button>
-            </span>
-            {(errors ?? [])
+        {refs.map((r, i) => {
+          const messages = [
+            ...(errors ?? [])
               .filter((e) => e.index === i)
-              .map((e) => (
-                <span key={e.field} className="max-w-[16rem] text-[10px] text-[var(--bad)]">
-                  {e.message}
+              .map((e) => ({ text: e.message, cls: "text-[var(--bad)]" })),
+            ...(warnings ?? [])
+              .filter((w) => w.index === i)
+              .map((w) => ({ text: w.message, cls: "text-[var(--warn)]" })),
+          ];
+          const describedBy = messages.map((_, k) => `${uid}-row-${i}-msg-${k}`).join(" ");
+          return (
+            <span key={`${r.provider}/${r.model}/${i}`} className="flex flex-col gap-0.5">
+              <span
+                role="group"
+                aria-label={`Row ${i + 1}: ${r.provider}/${r.model}`}
+                aria-describedby={describedBy || undefined}
+                className="flex items-center gap-1.5 rounded-md bg-[var(--panel-2)] px-2 py-1 font-mono text-[11px]"
+              >
+                {r.provider}/{r.model}
+                <button
+                  onClick={() => remove(i)}
+                  aria-label={`Remove ${r.provider}/${r.model}`}
+                  className="text-[var(--bad)] hover:opacity-70"
+                >
+                  ×
+                </button>
+              </span>
+              {messages.map((m, k) => (
+                <span
+                  key={k}
+                  id={`${uid}-row-${i}-msg-${k}`}
+                  className={`max-w-[16rem] text-[10px] ${m.cls}`}
+                >
+                  {m.text}
                 </span>
               ))}
-          </span>
-        ))}
+            </span>
+          );
+        })}
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <select value={provider} onChange={(e) => setProvider(e.target.value)} className={`${inputCls} max-w-[10rem]`}>
@@ -1277,17 +1425,39 @@ function ModelRefListEditor({
   );
 }
 
-function DryRunDiff({ diff, valid }: { diff: string; valid: boolean }) {
+function DryRunDiff({
+  diff,
+  valid,
+  warnings = [],
+}: {
+  diff: string;
+  valid: boolean;
+  warnings?: TierValidationError[];
+}) {
   return (
     <div className="mt-3">
       <p
+        role="status"
+        aria-live="polite"
         className={`text-[10px] font-medium uppercase tracking-wider ${
           valid ? "text-[var(--fg-dim)]" : "text-[var(--bad)]"
         }`}
       >
         {valid ? "Pending changes to config.yaml" : "Fix the highlighted rows before saving"}
       </p>
-      <pre className="mt-1 max-h-64 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--panel-2)] p-3 font-mono text-[11px] leading-relaxed">
+      {warnings.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {warnings.map((w, i) => (
+            <li key={`${w.tier}-${w.index}-${w.field}-${i}`} className="text-[10px] text-[var(--warn)]">
+              Warning: {w.message} (saving is still allowed)
+            </li>
+          ))}
+        </ul>
+      )}
+      <pre
+        aria-label="Proposed changes to config.yaml"
+        className="mt-1 max-h-64 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--panel-2)] p-3 font-mono text-[11px] leading-relaxed"
+      >
         {diff}
       </pre>
     </div>
@@ -1315,6 +1485,7 @@ function ClassifierPoolEditor({
   if (pool !== lastPool) {
     setLastPool(pool);
     setLocal(pool);
+    setPreview(null);
   }
 
   async function run(dryRun: boolean) {
@@ -1322,14 +1493,30 @@ function ClassifierPoolEditor({
     try {
       const res = await api<DryRunResult>(
         `/api/hermes/profiles/${profileId}/tiers${dryRun ? "?dry_run=1" : ""}`,
-        { method: "PATCH", json: { classifier_pool: local } },
+        {
+          method: "PATCH",
+          json: { classifier_pool: local },
+          ...(dryRun || !preview?.baseHash ? {} : { headers: { "if-match": preview.baseHash } }),
+        },
       );
       if (dryRun) {
         setPreview(res);
         return;
       }
+      setPreview(null);
       onSaved();
     } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before saving.", "bad");
+        await run(true);
+        return;
+      }
+      const failure = planFailure(err);
+      if (failure) {
+        setPreview(mergeFailure(preview, failure));
+        onToast(err instanceof Error ? err.message : "Save failed", "bad");
+        return;
+      }
       onToast(err instanceof Error ? err.message : "Save failed", "bad");
     } finally {
       setSaving(false);
@@ -1350,10 +1537,11 @@ function ClassifierPoolEditor({
           setPreview(null);
         }}
         errors={preview?.errors}
+        warnings={preview?.warnings}
       />
       {preview ? (
         <>
-          <DryRunDiff diff={preview.diff} valid={preview.valid} />
+          <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => void run(false)}
@@ -1863,14 +2051,30 @@ function TierForm({
     try {
       const res = await api<DryRunResult>(
         `/api/hermes/profiles/${profileId}/tiers${dryRun ? "?dry_run=1" : ""}`,
-        { method: "POST", json: payload() },
+        {
+          method: "POST",
+          json: payload(),
+          ...(dryRun || !preview?.baseHash ? {} : { headers: { "if-match": preview.baseHash } }),
+        },
       );
       if (dryRun) {
         setPreview(res);
         return;
       }
+      setPreview(null);
       onSaved();
     } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before saving.", "bad");
+        await run(true);
+        return;
+      }
+      const failure = planFailure(err);
+      if (failure) {
+        setPreview(mergeFailure(preview, failure));
+        onToast(err instanceof Error ? err.message : "Save failed", "bad");
+        return;
+      }
       onToast(err instanceof Error ? err.message : "Save failed", "bad");
     } finally {
       setSaving(false);
@@ -1948,6 +2152,7 @@ function TierForm({
               setPreview(null);
             }}
             errors={preview?.errors.filter((e) => e.list !== "fallback")}
+            warnings={preview?.warnings.filter((w) => w.list !== "fallback")}
           />
         </Field>
 
@@ -1960,11 +2165,12 @@ function TierForm({
               setPreview(null);
             }}
             errors={preview?.errors.filter((e) => e.list === "fallback")}
+            warnings={preview?.warnings.filter((w) => w.list === "fallback")}
           />
         </Field>
       </div>
 
-      {preview && <DryRunDiff diff={preview.diff} valid={preview.valid} />}
+      {preview && <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />}
 
       <div className="mt-5 flex gap-3">
         {preview ? (
