@@ -3,19 +3,21 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
-import YAML from "yaml";
 import {
-  setClassifierPool,
-  setDefaultTier,
-  setRouterBehavior,
-  setTierRouterEnabled,
-  upsertTier,
+  commitConfigChange,
+  planConfigChange,
+  planPayload,
+  type ConfigChangePlan,
+} from "@/lib/hermes/config-plan";
+import type { ValidationTarget } from "@/lib/hermes/config-validate";
+import {
+  applySetClassifierPool,
+  applySetDefaultTier,
+  applySetRouterBehavior,
+  applyTierRouterEnabled,
+  applyUpsertTier,
 } from "@/lib/hermes/tiers";
 import { parseBody } from "@/lib/schemas";
-import {
-  validateTierConfig,
-  unifiedDiff,
-} from "@/lib/hermes/config-diff";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,26 @@ const settingsSchema = z.object({
   restore_primary: z.boolean().optional(),
 });
 
+function isDryRun(request: Request): boolean {
+  return new URL(request.url).searchParams.get("dry_run") === "1";
+}
+
+function finish(
+  profileId: string,
+  plan: ConfigChangePlan,
+  dryRun: boolean,
+  okStatus: number,
+): NextResponse {
+  const payload = planPayload(plan, dryRun);
+  if (dryRun) return NextResponse.json(payload);
+  if (!plan.valid) return NextResponse.json(payload, { status: 400 });
+  commitConfigChange(profileId, plan);
+  return NextResponse.json(
+    { ...payload, tierRouter: plan.next.tier_router ?? null },
+    { status: okStatus },
+  );
+}
+
 export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/tiers">) {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -57,53 +79,37 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const dryRun = isDryRun(request);
   const parsed = await parseBody(request, settingsSchema);
   if (!parsed.ok) return parsed.response;
 
-  if (parsed.data.enabled !== undefined) setTierRouterEnabled(id, parsed.data.enabled);
-  if (parsed.data.default_tier !== undefined) setDefaultTier(id, parsed.data.default_tier);
-  if (parsed.data.classifier_pool !== undefined) setClassifierPool(id, parsed.data.classifier_pool);
-  if (parsed.data.cooldown_s !== undefined || parsed.data.restore_primary !== undefined) {
-    setRouterBehavior(id, { cooldown_s: parsed.data.cooldown_s, restore_primary: parsed.data.restore_primary });
-  }
-
-  return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
+  const target: ValidationTarget =
+    parsed.data.classifier_pool !== undefined ? { kind: "classifier" } : null;
+  const plan = planConfigChange(id, target, (cfg) => {
+    let next = cfg;
+    if (parsed.data.enabled !== undefined) next = applyTierRouterEnabled(next, parsed.data.enabled);
+    if (parsed.data.default_tier !== undefined) next = applySetDefaultTier(next, parsed.data.default_tier);
+    if (parsed.data.classifier_pool !== undefined) next = applySetClassifierPool(next, parsed.data.classifier_pool);
+    if (parsed.data.cooldown_s !== undefined || parsed.data.restore_primary !== undefined) {
+      next = applySetRouterBehavior(next, {
+        cooldown_s: parsed.data.cooldown_s,
+        restore_primary: parsed.data.restore_primary,
+      });
+    }
+    return next;
+  });
+  return finish(id, plan, dryRun, 200);
 }
 
 export async function POST(request: Request, ctx: RouteContext<"/api/hermes/profiles/[id]/tiers">) {
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
-  const url = new URL(request.url);
-  const dryRun = url.searchParams.get("dry_run") === "1";
+  const dryRun = isDryRun(request);
   const parsed = await parseBody(request, upsertTierSchema);
   if (!parsed.ok) return parsed.response;
 
-  const before = readHermesConfig(id);
-  const beforeYaml = YAML.stringify(before, { lineWidth: 0 });
-  const cfg = readHermesConfig(id);
-  if (!cfg.tier_router) {
-    // ensure
-  }
   const { name, ...patch } = parsed.data;
-  // apply mutation in-memory
-  const tr = cfg.tier_router ?? (cfg.tier_router = (readHermesConfig(id).tier_router ?? { enabled: false, default_tier: "normal", cooldown_s: 120, classifier: { pool: [] }, tiers: {} }));
-  tr.tiers = tr.tiers ?? {};
-  tr.tiers[name] = { ...(tr.tiers[name] ?? {}), ...patch, pool: patch.pool ?? tr.tiers[name]?.pool ?? [], fallback: patch.fallback ?? tr.tiers[name]?.fallback ?? [] };
-  cfg.tier_router = tr;
-
-  const errors = validateTierConfig(cfg);
-  if (errors.length > 0) {
-    return NextResponse.json({ dryRun, yaml: null, diff: null, valid: false, errors }, { status: 400 });
-  }
-
-  const afterYaml = YAML.stringify(cfg, { lineWidth: 0 });
-  const diff = unifiedDiff(beforeYaml, afterYaml);
-
-  if (dryRun) {
-    return NextResponse.json({ dryRun: true, yaml: afterYaml, diff, valid: true, errors: [] });
-  }
-
-  upsertTier(id, name, patch);
-  return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null }, { status: 201 });
+  const plan = planConfigChange(id, { kind: "tier", name }, (cfg) => applyUpsertTier(cfg, name, patch));
+  return finish(id, plan, dryRun, 201);
 }
