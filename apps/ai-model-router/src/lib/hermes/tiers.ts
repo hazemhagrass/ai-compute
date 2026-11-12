@@ -1,4 +1,5 @@
 import { emptyTier, emptyTierRouter, type HermesConfig, type ModelRef, type TierEntry } from "./config-schema";
+import { ConfigChangeError } from "./config-errors";
 import { updateHermesConfig } from "./config-io";
 import { systemOneProblems } from "./systemone";
 
@@ -12,7 +13,11 @@ export function setTierRouterEnabled(profileId: string, enabled: boolean): void 
 }
 
 export function applySetDefaultTier(config: HermesConfig, tierName: string): HermesConfig {
-  config.tier_router = { ...(config.tier_router ?? emptyTierRouter()), default_tier: tierName };
+  const tr = config.tier_router ?? emptyTierRouter();
+  if (!Object.hasOwn(tr.tiers ?? {}, tierName)) {
+    throw new ConfigChangeError(400, `default_tier "${tierName}" is not an existing tier`);
+  }
+  config.tier_router = { ...tr, default_tier: tierName };
   return config;
 }
 
@@ -122,7 +127,9 @@ export function upsertTier(profileId: string, name: string, patch: Partial<TierE
 
 export function applyRemoveTier(config: HermesConfig, name: string): HermesConfig {
   const tr = config.tier_router;
-  if (!tr) return config;
+  if (!tr?.tiers || !Object.hasOwn(tr.tiers, name)) {
+    throw new ConfigChangeError(404, `tier "${name}" does not exist`);
+  }
   if (tr.tiers) {
     delete tr.tiers[name];
     for (const t of Object.values(tr.tiers)) {
@@ -146,9 +153,14 @@ export function removeTier(profileId: string, name: string): void {
 }
 
 export function applyRenameTier(config: HermesConfig, oldName: string, newName: string): HermesConfig {
-  if (!newName.trim() || oldName === newName) return config;
+  if (!newName.trim()) throw new ConfigChangeError(400, "newName is required");
   const tiers = config.tier_router?.tiers;
-  if (!tiers || !tiers[oldName]) return config;
+  if (!tiers || !Object.hasOwn(tiers, oldName)) {
+    throw new ConfigChangeError(404, `tier "${oldName}" does not exist`);
+  }
+  if (Object.hasOwn(tiers, newName)) {
+    throw new ConfigChangeError(409, `tier "${newName}" already exists`);
+  }
   tiers[newName] = tiers[oldName];
   delete tiers[oldName];
   for (const t of Object.values(tiers)) {
@@ -166,6 +178,5 @@ export function applyRenameTier(config: HermesConfig, oldName: string, newName: 
 }
 
 export function renameTier(profileId: string, oldName: string, newName: string): void {
-  if (!newName.trim() || oldName === newName) return;
   updateHermesConfig(profileId, (cfg) => applyRenameTier(cfg, oldName, newName));
 }

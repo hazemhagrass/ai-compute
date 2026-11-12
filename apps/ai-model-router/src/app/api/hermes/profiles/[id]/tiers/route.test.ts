@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -181,7 +182,7 @@ describe("POST /api/hermes/profiles/[id]/tiers dry-run", () => {
     expectUnchanged(configPath, before);
   });
 
-  it("rejects a model missing from the router model catalog", async () => {
+  it("warns on a model missing from the router model catalog without blocking", async () => {
     const h = await fresh();
     await seedCatalog(h);
     h.configIo.writeHermesConfig("default", baseConfig(h, {}));
@@ -198,11 +199,12 @@ describe("POST /api/hermes/profiles/[id]/tiers dry-run", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.valid).toBe(false);
-    expect(body.errors).toContainEqual(
+    expect(body.valid).toBe(true);
+    expect(body.errors).toEqual([]);
+    expect(body.warnings).toContainEqual(
       expect.objectContaining({ tier: "normal", index: 0, field: "model" }),
     );
-    expect(body.errors[0].message).toContain("not in the router model catalog");
+    expect(body.warnings[0].message).toContain("not in the router model catalog");
     expectUnchanged(configPath, before);
   });
 });
@@ -227,8 +229,11 @@ describe("POST /api/hermes/profiles/[id]/tiers real write", () => {
     expect(res.status).toBe(400);
     expect(body.valid).toBe(false);
     expect(body.dryRun).toBe(false);
+    expect(body.error).toContain("validation failed");
     expect(body.errors).toEqual([
       expect.objectContaining({ tier: "complex", index: 0, field: "provider" }),
+    ]);
+    expect(body.warnings).toEqual([
       expect.objectContaining({ tier: "complex", index: 0, field: "model" }),
     ]);
     expectUnchanged(configPath, before);
@@ -409,5 +414,298 @@ describe("tiers/[tierName] dry-run", () => {
     expect(written.tier_router?.tiers.standard).toBeDefined();
     expect(written.tier_router?.tiers.normal).toBeUndefined();
     expect(written.tier_router?.default_tier).toBe("standard");
+  });
+});
+
+describe("POST validation policy: only new or changed rows are validated", () => {
+  it("lets a tier with an off-catalog legacy row change mode and escalate_to", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    h.configIo.writeHermesConfig(
+      "default",
+      baseConfig(h, {
+        legacy: {
+          mode: "priority",
+          escalate_to: null,
+          pool: [{ provider: "fixture-provider", model: "legacy-local-tag" }],
+          fallback: [],
+        },
+        normal: { mode: "round_robin", escalate_to: null, pool: goodPool(), fallback: [] },
+      }),
+    );
+
+    const res = await h.tiersRoute.POST(
+      jsonRequest("/api/hermes/profiles/default/tiers", "POST", {
+        name: "legacy",
+        mode: "round_robin",
+        escalate_to: "normal",
+        pool: [{ provider: "fixture-provider", model: "legacy-local-tag" }],
+        fallback: [],
+      }),
+      tiersCtx("default"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.valid).toBe(true);
+    expect(body.errors).toEqual([]);
+    expect(body.warnings).toEqual([]);
+    const written = h.configIo.readHermesConfig("default");
+    expect(written.tier_router?.tiers.legacy.mode).toBe("round_robin");
+    expect(written.tier_router?.tiers.legacy.escalate_to).toBe("normal");
+    expect(written.tier_router?.tiers.legacy.pool[0].model).toBe("legacy-local-tag");
+  });
+
+  it("saves a new off-catalog row with a warning instead of an error", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    h.configIo.writeHermesConfig(
+      "default",
+      baseConfig(h, {
+        normal: { mode: "round_robin", escalate_to: null, pool: goodPool(), fallback: [] },
+      }),
+    );
+    const { configPath } = h.paths.profilePaths("default");
+
+    const res = await h.tiersRoute.POST(
+      jsonRequest("/api/hermes/profiles/default/tiers", "POST", {
+        name: "normal",
+        mode: "round_robin",
+        escalate_to: null,
+        pool: [...goodPool(), { provider: "fixture-provider", model: "local-ollama-tag" }],
+        fallback: [],
+      }),
+      tiersCtx("default"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.valid).toBe(true);
+    expect(body.errors).toEqual([]);
+    expect(body.warnings).toEqual([
+      expect.objectContaining({ tier: "normal", index: 2, field: "model" }),
+    ]);
+    expect(body.warnings[0].message).toContain("not in the router model catalog");
+    expect(fs.readFileSync(configPath, "utf8")).toBe(body.yaml);
+    expect(body.yaml).toContain("local-ollama-tag");
+  });
+
+  it("rejects a new row with an unknown provider and writes nothing", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    h.configIo.writeHermesConfig(
+      "default",
+      baseConfig(h, {
+        normal: { mode: "round_robin", escalate_to: null, pool: goodPool(), fallback: [] },
+      }),
+    );
+    const { configPath } = h.paths.profilePaths("default");
+    const before = snapshot(configPath);
+
+    const res = await h.tiersRoute.POST(
+      jsonRequest("/api/hermes/profiles/default/tiers", "POST", {
+        name: "normal",
+        mode: "round_robin",
+        escalate_to: null,
+        pool: [...goodPool(), { provider: "ghost-provider", model: "fixture-chat-model" }],
+        fallback: [],
+      }),
+      tiersCtx("default"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.valid).toBe(false);
+    expect(body.errors).toEqual([
+      expect.objectContaining({ tier: "normal", index: 2, field: "provider" }),
+    ]);
+    expectUnchanged(configPath, before);
+  });
+});
+
+describe("tiers/[tierName] rename and delete preconditions", () => {
+  function twoTiers(h: Harness) {
+    h.configIo.writeHermesConfig(
+      "default",
+      baseConfig(h, {
+        a: { mode: "priority", escalate_to: null, pool: goodPool(), fallback: [] },
+        b: { mode: "priority", escalate_to: null, pool: goodPool(), fallback: [] },
+      }),
+    );
+  }
+
+  it("returns 409 when the new tier name already exists and writes nothing", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    twoTiers(h);
+    const { configPath } = h.paths.profilePaths("default");
+    const before = snapshot(configPath);
+
+    const res = await h.tierNameRoute.PATCH(
+      jsonRequest("/api/hermes/profiles/default/tiers/a", "PATCH", { newName: "b" }),
+      tierNameCtx("default", "a"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toContain("already exists");
+    expectUnchanged(configPath, before);
+  });
+
+  it("returns 404 when renaming a tier that does not exist and writes nothing", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    twoTiers(h);
+    const { configPath } = h.paths.profilePaths("default");
+    const before = snapshot(configPath);
+
+    const res = await h.tierNameRoute.PATCH(
+      jsonRequest("/api/hermes/profiles/default/tiers/ghost", "PATCH", { newName: "c" }),
+      tierNameCtx("default", "ghost"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("does not exist");
+    expectUnchanged(configPath, before);
+  });
+
+  it("returns 404 when deleting a tier that does not exist and writes nothing", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    twoTiers(h);
+    const { configPath } = h.paths.profilePaths("default");
+    const before = snapshot(configPath);
+
+    const res = await h.tierNameRoute.DELETE(
+      new Request("http://localhost/api/hermes/profiles/default/tiers/ghost"),
+      tierNameCtx("default", "ghost"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("does not exist");
+    expectUnchanged(configPath, before);
+  });
+});
+
+describe("optimistic concurrency via If-Match baseHash", () => {
+  it("returns baseHash of the on-disk text and refuses a stale confirm with 409", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    h.configIo.writeHermesConfig("default", baseConfig(h, {}));
+    const { configPath } = h.paths.profilePaths("default");
+    const onDisk = fs.readFileSync(configPath, "utf8");
+
+    const previewRes = await h.tiersRoute.POST(
+      jsonRequest("/api/hermes/profiles/default/tiers?dry_run=1", "POST", upsertBody("complex", goodPool())),
+      tiersCtx("default"),
+    );
+    const preview = await previewRes.json();
+
+    expect(preview.baseHash).toBe(
+      crypto.createHash("sha256").update(onDisk, "utf8").digest("hex"),
+    );
+
+    const before = snapshot(configPath);
+    const staleRes = await h.tiersRoute.POST(
+      new Request("http://localhost/api/hermes/profiles/default/tiers", {
+        method: "POST",
+        headers: { "content-type": "application/json", "if-match": "not-the-previewed-hash" },
+        body: JSON.stringify(upsertBody("complex", goodPool())),
+      }),
+      tiersCtx("default"),
+    );
+    const staleBody = await staleRes.json();
+
+    expect(staleRes.status).toBe(409);
+    expect(staleBody.error).toContain("changed");
+    expectUnchanged(configPath, before);
+
+    const okRes = await h.tiersRoute.POST(
+      new Request("http://localhost/api/hermes/profiles/default/tiers", {
+        method: "POST",
+        headers: { "content-type": "application/json", "if-match": preview.baseHash },
+        body: JSON.stringify(upsertBody("complex", goodPool())),
+      }),
+      tiersCtx("default"),
+    );
+
+    expect(okRes.status).toBe(201);
+    expect(fs.readFileSync(configPath, "utf8")).toContain("complex:");
+  });
+
+  it("refuses a stale delete with 409 and writes nothing", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    h.configIo.writeHermesConfig(
+      "default",
+      baseConfig(h, {
+        trivial: { mode: "priority", escalate_to: null, pool: goodPool(), fallback: [] },
+      }),
+    );
+    const { configPath } = h.paths.profilePaths("default");
+    const before = snapshot(configPath);
+
+    const res = await h.tierNameRoute.DELETE(
+      new Request("http://localhost/api/hermes/profiles/default/tiers/trivial", {
+        method: "DELETE",
+        headers: { "if-match": "stale-hash" },
+      }),
+      tierNameCtx("default", "trivial"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toContain("changed");
+    expectUnchanged(configPath, before);
+  });
+});
+
+describe("PATCH /api/hermes/profiles/[id]/tiers settings validation", () => {
+  it("rejects a default_tier that is not an existing tier and writes nothing", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    h.configIo.writeHermesConfig(
+      "default",
+      baseConfig(h, {
+        normal: { mode: "round_robin", escalate_to: null, pool: goodPool(), fallback: [] },
+      }),
+    );
+    const { configPath } = h.paths.profilePaths("default");
+    const before = snapshot(configPath);
+
+    const res = await h.tiersRoute.PATCH(
+      jsonRequest("/api/hermes/profiles/default/tiers", "PATCH", { default_tier: "ghost" }),
+      tiersCtx("default"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("not an existing tier");
+    expectUnchanged(configPath, before);
+  });
+
+  it("accepts an existing default_tier and writes it", async () => {
+    const h = await fresh();
+    await seedCatalog(h);
+    h.configIo.writeHermesConfig(
+      "default",
+      baseConfig(h, {
+        normal: { mode: "round_robin", escalate_to: null, pool: goodPool(), fallback: [] },
+        complex: { mode: "priority", escalate_to: null, pool: goodPool(), fallback: [] },
+      }),
+    );
+
+    const res = await h.tiersRoute.PATCH(
+      jsonRequest("/api/hermes/profiles/default/tiers", "PATCH", { default_tier: "complex" }),
+      tiersCtx("default"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.valid).toBe(true);
+    const written = h.configIo.readHermesConfig("default");
+    expect(written.tier_router?.default_tier).toBe("complex");
   });
 });
