@@ -47,6 +47,22 @@ interface TierEntry {
   fallback: ModelRef[];
 }
 
+interface TierValidationError {
+  tier: string;
+  index: number;
+  field: "provider" | "model";
+  message: string;
+  list?: "pool" | "fallback";
+}
+
+interface DryRunResult {
+  dryRun: boolean;
+  yaml: string;
+  diff: string;
+  valid: boolean;
+  errors: TierValidationError[];
+}
+
 interface SystemOneConfig {
   enabled?: boolean;
   endpoints?: string[];
@@ -1189,10 +1205,12 @@ function ModelRefListEditor({
   providers,
   refs,
   onChange,
+  errors,
 }: {
   providers: HermesProviderView[];
   refs: ModelRef[];
   onChange: (next: ModelRef[]) => void;
+  errors?: TierValidationError[];
 }) {
   const [provider, setProvider] = useState(providers[0]?.id ?? "");
   const [model, setModel] = useState("");
@@ -1211,14 +1229,20 @@ function ModelRefListEditor({
     <div>
       <div className="flex flex-wrap gap-1.5">
         {refs.map((r, i) => (
-          <span
-            key={`${r.provider}/${r.model}/${i}`}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--panel-2)] px-2 py-1 font-mono text-[11px]"
-          >
-            {r.provider}/{r.model}
-            <button onClick={() => remove(i)} className="text-[var(--bad)] hover:opacity-70">
-              ×
-            </button>
+          <span key={`${r.provider}/${r.model}/${i}`} className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1.5 rounded-md bg-[var(--panel-2)] px-2 py-1 font-mono text-[11px]">
+              {r.provider}/{r.model}
+              <button onClick={() => remove(i)} className="text-[var(--bad)] hover:opacity-70">
+                ×
+              </button>
+            </span>
+            {(errors ?? [])
+              .filter((e) => e.index === i)
+              .map((e) => (
+                <span key={e.field} className="max-w-[16rem] text-[10px] text-[var(--bad)]">
+                  {e.message}
+                </span>
+              ))}
           </span>
         ))}
       </div>
@@ -1253,6 +1277,23 @@ function ModelRefListEditor({
   );
 }
 
+function DryRunDiff({ diff, valid }: { diff: string; valid: boolean }) {
+  return (
+    <div className="mt-3">
+      <p
+        className={`text-[10px] font-medium uppercase tracking-wider ${
+          valid ? "text-[var(--fg-dim)]" : "text-[var(--bad)]"
+        }`}
+      >
+        {valid ? "Pending changes to config.yaml" : "Fix the highlighted rows before saving"}
+      </p>
+      <pre className="mt-1 max-h-64 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--panel-2)] p-3 font-mono text-[11px] leading-relaxed">
+        {diff}
+      </pre>
+    </div>
+  );
+}
+
 function ClassifierPoolEditor({
   profileId,
   providers,
@@ -1268,6 +1309,7 @@ function ClassifierPoolEditor({
 }) {
   const [local, setLocal] = useState<ModelRef[]>(pool);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<DryRunResult | null>(null);
   const dirty = JSON.stringify(local) !== JSON.stringify(pool);
   const [lastPool, setLastPool] = useState(pool);
   if (pool !== lastPool) {
@@ -1275,13 +1317,17 @@ function ClassifierPoolEditor({
     setLocal(pool);
   }
 
-  async function save() {
+  async function run(dryRun: boolean) {
     setSaving(true);
     try {
-      await api(`/api/hermes/profiles/${profileId}/tiers`, {
-        method: "PATCH",
-        json: { classifier_pool: local },
-      });
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers${dryRun ? "?dry_run=1" : ""}`,
+        { method: "PATCH", json: { classifier_pool: local } },
+      );
+      if (dryRun) {
+        setPreview(res);
+        return;
+      }
       onSaved();
     } catch (err) {
       onToast(err instanceof Error ? err.message : "Save failed", "bad");
@@ -1296,15 +1342,44 @@ function ClassifierPoolEditor({
 
   return (
     <div>
-      <ModelRefListEditor providers={providers} refs={local} onChange={setLocal} />
-      {dirty && (
-        <button
-          onClick={save}
-          disabled={saving}
-          className="mt-3 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save classifier pool"}
-        </button>
+      <ModelRefListEditor
+        providers={providers}
+        refs={local}
+        onChange={(next) => {
+          setLocal(next);
+          setPreview(null);
+        }}
+        errors={preview?.errors}
+      />
+      {preview ? (
+        <>
+          <DryRunDiff diff={preview.diff} valid={preview.valid} />
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => void run(false)}
+              disabled={saving || !preview.valid}
+              className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Confirm save"}
+            </button>
+            <button
+              onClick={() => setPreview(null)}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-[var(--panel-2)]"
+            >
+              Back to edit
+            </button>
+          </div>
+        </>
+      ) : (
+        dirty && (
+          <button
+            onClick={() => void run(true)}
+            disabled={saving}
+            className="mt-3 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? "Checking…" : "Save classifier pool"}
+          </button>
+        )
       )}
     </div>
   );
@@ -1758,28 +1833,42 @@ function TierForm({
   const [pool, setPool] = useState<ModelRef[]>(initial?.pool ?? []);
   const [fallback, setFallback] = useState<ModelRef[]>(initial?.fallback ?? []);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<DryRunResult | null>(null);
 
-  async function save() {
+  function payload() {
+    return {
+      name: name.trim(),
+      mode,
+      escalate_to: escalateTo || null,
+      pool,
+      fallback,
+    };
+  }
+
+  function validateLocal(): boolean {
     if (!name.trim()) {
       onToast("Tier name is required", "bad");
-      return;
+      return false;
     }
     if (pool.length === 0) {
       onToast("A tier needs at least one model in its pool", "bad");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function run(dryRun: boolean) {
+    if (!validateLocal()) return;
     setSaving(true);
     try {
-      await api(`/api/hermes/profiles/${profileId}/tiers`, {
-        method: "POST",
-        json: {
-          name: name.trim(),
-          mode,
-          escalate_to: escalateTo || null,
-          pool,
-          fallback,
-        },
-      });
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers${dryRun ? "?dry_run=1" : ""}`,
+        { method: "POST", json: payload() },
+      );
+      if (dryRun) {
+        setPreview(res);
+        return;
+      }
       onSaved();
     } catch (err) {
       onToast(err instanceof Error ? err.message : "Save failed", "bad");
@@ -1802,7 +1891,10 @@ function TierForm({
         <Field label="Tier name" hint="e.g. trivial, normal, complex, plan">
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setPreview(null);
+            }}
             disabled={!!editingName}
             placeholder="normal"
             className={`${inputCls} font-mono`}
@@ -1810,7 +1902,14 @@ function TierForm({
         </Field>
 
         <Field label="Selection mode">
-          <select value={mode} onChange={(e) => setMode(e.target.value as "round_robin" | "priority")} className={inputCls}>
+          <select
+            value={mode}
+            onChange={(e) => {
+              setMode(e.target.value as "round_robin" | "priority");
+              setPreview(null);
+            }}
+            className={inputCls}
+          >
             <option value="round_robin">Round robin (spread load across the pool)</option>
             <option value="priority">Priority (always try pool[0] first)</option>
           </select>
@@ -1821,7 +1920,14 @@ function TierForm({
           hint="Optional: when this tier's pool is exhausted, retry with a different tier's pool"
           className="md:col-span-2"
         >
-          <select value={escalateTo} onChange={(e) => setEscalateTo(e.target.value)} className={inputCls}>
+          <select
+            value={escalateTo}
+            onChange={(e) => {
+              setEscalateTo(e.target.value);
+              setPreview(null);
+            }}
+            className={inputCls}
+          >
             <option value="">(none)</option>
             {existingNames
               .filter((n) => n !== editingName)
@@ -1834,28 +1940,66 @@ function TierForm({
         </Field>
 
         <Field label="Model pool" hint="Models this tier routes to, in order" className="md:col-span-2">
-          <ModelRefListEditor providers={providers} refs={pool} onChange={setPool} />
+          <ModelRefListEditor
+            providers={providers}
+            refs={pool}
+            onChange={(next) => {
+              setPool(next);
+              setPreview(null);
+            }}
+            errors={preview?.errors.filter((e) => e.list !== "fallback")}
+          />
         </Field>
 
         <Field label="Fallback" hint="Used only when every pool model fails" className="md:col-span-2">
-          <ModelRefListEditor providers={providers} refs={fallback} onChange={setFallback} />
+          <ModelRefListEditor
+            providers={providers}
+            refs={fallback}
+            onChange={(next) => {
+              setFallback(next);
+              setPreview(null);
+            }}
+            errors={preview?.errors.filter((e) => e.list === "fallback")}
+          />
         </Field>
       </div>
 
+      {preview && <DryRunDiff diff={preview.diff} valid={preview.valid} />}
+
       <div className="mt-5 flex gap-3">
-        <button
-          onClick={save}
-          disabled={saving}
-          className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save tier"}
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
-        >
-          Cancel
-        </button>
+        {preview ? (
+          <>
+            <button
+              onClick={() => void run(false)}
+              disabled={saving || !preview.valid}
+              className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Confirm save"}
+            </button>
+            <button
+              onClick={() => setPreview(null)}
+              className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+            >
+              Back to edit
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => void run(true)}
+              disabled={saving}
+              className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Checking…" : "Save tier"}
+            </button>
+            <button
+              onClick={onCancel}
+              className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+            >
+              Cancel
+            </button>
+          </>
+        )}
       </div>
     </Card>
   );
