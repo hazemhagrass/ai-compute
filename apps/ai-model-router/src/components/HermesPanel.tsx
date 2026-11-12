@@ -33,6 +33,13 @@ interface HermesProviderView {
   usedInTiers: string[];
 }
 
+interface RouterPresetSummary {
+  name: string;
+  label: string;
+  description: string;
+  tierCount: number;
+}
+
 interface ModelRef {
   provider: string;
   model: string;
@@ -352,6 +359,7 @@ export default function HermesPanel({
           ) : tab === "router" ? (
             <RouterTab
               profileId={activeId}
+              profiles={profiles}
               providers={providers}
               tierRouter={tierRouter}
               onRefresh={refresh}
@@ -378,7 +386,31 @@ function NewProfileForm({
   onToast: (m: string, t?: Tone) => void;
 }) {
   const [id, setId] = useState("");
+  const [startFrom, setStartFrom] = useState("");
+  const [profiles, setProfiles] = useState<HermesProfileSummary[]>([]);
+  const [presets, setPresets] = useState<RouterPresetSummary[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [p, r] = await Promise.all([
+          api<{ profiles: HermesProfileSummary[] }>("/api/hermes/profiles"),
+          api<{ presets: RouterPresetSummary[] }>("/api/hermes/presets"),
+        ]);
+        if (!cancelled) {
+          setProfiles(p.profiles);
+          setPresets(r.presets);
+        }
+      } catch {
+        // The plain create path still works without the source lists.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function create() {
     if (!id.trim()) {
@@ -387,7 +419,12 @@ function NewProfileForm({
     }
     setSaving(true);
     try {
-      await api(`/api/hermes/profiles`, { method: "POST", json: { id: id.trim() } });
+      const source = startFrom.startsWith("profile:")
+        ? { from: startFrom.slice("profile:".length) }
+        : startFrom.startsWith("preset:")
+          ? { preset: startFrom.slice("preset:".length) }
+          : {};
+      await api(`/api/hermes/profiles`, { method: "POST", json: { id: id.trim(), ...source } });
       onCreated(id.trim());
     } catch (err) {
       onToast(err instanceof Error ? err.message : "Failed to create profile", "bad");
@@ -411,6 +448,38 @@ function NewProfileForm({
             }
           }}
         />
+      </Field>
+      <Field
+        label="Start from (optional)"
+        hint="Copies only the tier_router block from the chosen profile or preset. .env files, API keys and provider secrets are never copied."
+        className="mt-4"
+      >
+        <select
+          value={startFrom}
+          onChange={(e) => setStartFrom(e.target.value)}
+          className={inputCls}
+          aria-label="Copy the tier router from a profile or preset"
+        >
+          <option value="">Empty router</option>
+          {profiles.length > 0 && (
+            <optgroup label="Profiles">
+              {profiles.map((p) => (
+                <option key={p.id} value={`profile:${p.id}`}>
+                  {p.label} {p.isDefault ? "(default)" : ""} · {p.tierCount} tier{p.tierCount === 1 ? "" : "s"}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {presets.length > 0 && (
+            <optgroup label="Presets">
+              {presets.map((p) => (
+                <option key={p.name} value={`preset:${p.name}`}>
+                  {p.label} · {p.tierCount} tier{p.tierCount === 1 ? "" : "s"}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
       </Field>
       <div className="mt-4 flex gap-3">
         <button
@@ -977,20 +1046,196 @@ function DeleteTierConfirm({
   );
 }
 
+function CopyRouterPanel({
+  profileId,
+  profiles,
+  onDone,
+  onCancel,
+  onToast,
+}: {
+  profileId: string;
+  profiles: HermesProfileSummary[];
+  onDone: () => void;
+  onCancel: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [presets, setPresets] = useState<RouterPresetSummary[]>([]);
+  const [kind, setKind] = useState<"profile" | "preset">("profile");
+  const [source, setSource] = useState("");
+  const [preview, setPreview] = useState<DryRunResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const selectId = useId();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api<{ presets: RouterPresetSummary[] }>("/api/hermes/presets");
+        if (!cancelled) setPresets(res.presets);
+      } catch (err) {
+        if (!cancelled) onToast(err instanceof Error ? err.message : "Failed to load presets", "bad");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onToast]);
+
+  const options =
+    kind === "profile"
+      ? profiles
+          .filter((p) => p.id !== profileId)
+          .map((p) => ({ value: p.id, label: `${p.label} · ${p.tierCount} tier${p.tierCount === 1 ? "" : "s"}` }))
+      : presets.map((p) => ({ value: p.name, label: `${p.label} · ${p.tierCount} tier${p.tierCount === 1 ? "" : "s"}` }));
+
+  function importBody() {
+    return kind === "profile" ? { from: source } : { preset: source };
+  }
+
+  async function fetchPreview() {
+    if (!source) {
+      onToast("Choose a profile or preset to copy from", "bad");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${encodeURIComponent(profileId)}/tiers/import?dry_run=1`,
+        { method: "POST", json: importBody() },
+      );
+      setPreview(res);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Copy preview failed", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCopy() {
+    if (!preview) return;
+    setBusy(true);
+    try {
+      await api<DryRunResult>(`/api/hermes/profiles/${encodeURIComponent(profileId)}/tiers/import`, {
+        method: "POST",
+        json: importBody(),
+        ...(preview.baseHash ? { headers: { "if-match": preview.baseHash } } : {}),
+      });
+      onToast("Router copied", "good");
+      onDone();
+    } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before copying.", "bad");
+        await fetchPreview();
+        return;
+      }
+      const failed = planFailure(err);
+      if (failed) setPreview(mergeFailure(preview, failed));
+      onToast(err instanceof Error ? err.message : "Copy failed", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Copy router into this profile" className="border-[var(--accent)]/40">
+      <p className="mb-3 text-[11px] text-[var(--fg-dim)]">
+        Copies only the tier_router block from a profile or preset, replacing this profile&apos;s router after you
+        confirm the diff. .env files, API keys and provider secrets are never copied.
+      </p>
+      <div role="radiogroup" aria-label="Copy the tier router from a profile or a preset" className="flex gap-4 text-sm">
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="radio"
+            name={`${selectId}-kind`}
+            checked={kind === "profile"}
+            onChange={() => {
+              setKind("profile");
+              setSource("");
+              setPreview(null);
+            }}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+          From a profile
+        </label>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="radio"
+            name={`${selectId}-kind`}
+            checked={kind === "preset"}
+            onChange={() => {
+              setKind("preset");
+              setSource("");
+              setPreview(null);
+            }}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+          From a preset
+        </label>
+      </div>
+      <Field label="Source" className="mt-3">
+        <select
+          id={selectId}
+          value={source}
+          onChange={(e) => {
+            setSource(e.target.value);
+            setPreview(null);
+          }}
+          className={inputCls}
+        >
+          <option value="">Choose a {kind === "profile" ? "profile" : "preset"}…</option>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {preview && <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />}
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={() => void fetchPreview()}
+          disabled={busy || !source}
+          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)] disabled:opacity-50"
+        >
+          Preview changes
+        </button>
+        {preview && (
+          <button
+            onClick={() => void confirmCopy()}
+            disabled={busy || !preview.valid}
+            className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? "Copying…" : "Confirm copy"}
+          </button>
+        )}
+        <button
+          onClick={onCancel}
+          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function RouterTab({
   profileId,
+  profiles,
   providers,
   tierRouter,
   onRefresh,
   onToast,
 }: {
   profileId: string;
+  profiles: HermesProfileSummary[];
   providers: HermesProviderView[];
   tierRouter: TierRouterConfig | null;
   onRefresh: () => void;
   onToast: (m: string, t?: Tone) => void;
 }) {
   const [addingTier, setAddingTier] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [deleting, setDeleting] = useState<{ name: string; preview: DryRunResult } | null>(null);
   const enabled = tierRouter?.enabled ?? false;
   const tiers = tierRouter?.tiers ?? {};
@@ -1084,7 +1329,13 @@ function RouterTab({
         )}
       </Card>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => setCopying(!copying)}
+          className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+        >
+          Copy router from…
+        </button>
         <button
           onClick={() => setAddingTier(!addingTier)}
           className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90"
@@ -1092,6 +1343,19 @@ function RouterTab({
           + Add tier
         </button>
       </div>
+
+      {copying && (
+        <CopyRouterPanel
+          profileId={profileId}
+          profiles={profiles}
+          onCancel={() => setCopying(false)}
+          onDone={() => {
+            setCopying(false);
+            onRefresh();
+          }}
+          onToast={onToast}
+        />
+      )}
 
       {deleting && (
         <DeleteTierConfirm
