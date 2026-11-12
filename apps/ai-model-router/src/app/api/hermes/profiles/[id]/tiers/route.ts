@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import YAML from "yaml";
 import {
   setClassifierPool,
   setDefaultTier,
@@ -11,6 +12,10 @@ import {
   upsertTier,
 } from "@/lib/hermes/tiers";
 import { parseBody } from "@/lib/schemas";
+import {
+  validateTierConfig,
+  unifiedDiff,
+} from "@/lib/hermes/config-diff";
 
 export const dynamic = "force-dynamic";
 
@@ -69,10 +74,36 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hermes/prof
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const url = new URL(request.url);
+  const dryRun = url.searchParams.get("dry_run") === "1";
   const parsed = await parseBody(request, upsertTierSchema);
   if (!parsed.ok) return parsed.response;
 
+  const before = readHermesConfig(id);
+  const beforeYaml = YAML.stringify(before, { lineWidth: 0 });
+  const cfg = readHermesConfig(id);
+  if (!cfg.tier_router) {
+    // ensure
+  }
   const { name, ...patch } = parsed.data;
+  // apply mutation in-memory
+  const tr = cfg.tier_router ?? (cfg.tier_router = (readHermesConfig(id).tier_router ?? { enabled: false, default_tier: "normal", cooldown_s: 120, classifier: { pool: [] }, tiers: {} }));
+  tr.tiers = tr.tiers ?? {};
+  tr.tiers[name] = { ...(tr.tiers[name] ?? {}), ...patch, pool: patch.pool ?? tr.tiers[name]?.pool ?? [], fallback: patch.fallback ?? tr.tiers[name]?.fallback ?? [] };
+  cfg.tier_router = tr;
+
+  const errors = validateTierConfig(cfg);
+  if (errors.length > 0) {
+    return NextResponse.json({ dryRun, yaml: null, diff: null, valid: false, errors }, { status: 400 });
+  }
+
+  const afterYaml = YAML.stringify(cfg, { lineWidth: 0 });
+  const diff = unifiedDiff(beforeYaml, afterYaml);
+
+  if (dryRun) {
+    return NextResponse.json({ dryRun: true, yaml: afterYaml, diff, valid: true, errors: [] });
+  }
+
   upsertTier(id, name, patch);
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null }, { status: 201 });
 }
