@@ -1,0 +1,95 @@
+{
+  "enabled": true,
+  "default_tier": "normal",
+  "cooldown_s": 300,
+  "restore_primary": true,
+  "classifier": {
+    "pool": [
+      {
+        "provider": "ollama-11",
+        "model": "qwen2.5-coder:3b"
+      },
+      {
+        "provider": "ollama-12",
+        "model": "qwen2.5-coder:3b"
+      }
+    ],
+    "timeout_s": 30,
+    "history_turns": 4
+  },
+  "tiers": {
+    "trivial": {
+      "mode": "round_robin",
+      "escalate_to": "normal",
+      "pool": [
+        {
+          "provider": "ollama-11",
+          "model": "qwen2.5-coder:1.5b"
+        },
+        {
+          "provider": "ollama-12",
+          "model": "qwen2.5-coder:1.5b"
+        }
+      ],
+      "fallback": [
+        {
+          "provider": "ollama-11",
+          "model": "qwen2.5-coder:3b"
+        },
+        {
+          "provider": "ollama-12",
+          "model": "qwen2.5-coder:3b"
+        }
+      ]
+    },
+    "normal": {
+      "mode": "round_robin",
+      "escalate_to": "complex",
+      "pool": [
+        {
+          "provider": "ollama-11",
+          "model": "qwen2.5-coder:7b"
+        },
+        {
+          "provider": "ollama-12",
+          "model": "qwen2.5-coder:7b"
+        }
+      ],
+      "fallback": [
+        {
+          "provider": "ollama-11",
+          "model": "qwen3:30b-a3b"
+        },
+        {
+          "provider": "ollama-12",
+          "model": "qwen3:30b-a3b"
+        }
+      ]
+    },
+    "complex": {
+      "mode": "priority",
+      "escalate_to": null,
+      "pool": [
+        {
+          "provider": "ollama-11",
+          "model": "qwen3-coder:30b"
+        },
+        {
+          "provider": "ollama-12",
+          "model": "qwen3-coder:30b"
+        }
+      ],
+      "fallback": [
+        {
+          "provider": "ollama-11",
+          "model": "deepseek-r1:14b"
+        },
+        {
+          "provider": "ollama-12",
+          "model": "deepseek-r1:14b"
+        }
+      ]
+    }
+  },
+  "routes": {}
+}
