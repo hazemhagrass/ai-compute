@@ -72,6 +72,9 @@ jobs:
       - name: Lint
         run: pnpm exec eslint src --max-warnings 0
 
+      - name: Design tokens (ratchet)
+        run: pnpm lint:design
+
       - name: Test
         run: pnpm test
 
