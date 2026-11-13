@@ -275,7 +275,9 @@ export default function ModelsPanel({
           >
             {new Date(pricingCachedAt).getTime() === 0
               ? "never"
-              : `${pricingAgeDays(new Date(pricingCachedAt).getTime(), nowTs)} days ago`
+              : pricingAgeDays(new Date(pricingCachedAt).getTime(), nowTs) === 0
+                ? "today"
+                : `${pricingAgeDays(new Date(pricingCachedAt).getTime(), nowTs)} days ago`
             }
           </span>
           {isPricingStale(new Date(pricingCachedAt).getTime(), nowTs, PRICING_STALE_DAYS) && (

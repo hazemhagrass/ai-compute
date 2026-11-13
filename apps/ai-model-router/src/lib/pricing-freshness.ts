@@ -1,6 +1,6 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const PRICING_STALE_DAYS = 30;
+export const PRICING_STALE_DAYS = 14;
 
 export function pricingAgeDays(ts: number, now: number): number {
   if (ts <= 0) return Number.POSITIVE_INFINITY;

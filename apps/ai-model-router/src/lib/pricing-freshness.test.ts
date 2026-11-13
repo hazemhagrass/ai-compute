@@ -9,19 +9,19 @@ describe("pricing freshness", () => {
     expect(isPricingStale(0, 1_000_000, PRICING_STALE_DAYS)).toBe(true);
   });
 
-  it("29d is not stale", () => {
+  it("13d is not stale", () => {
     const now = 100 * DAY_MS;
-    expect(isPricingStale(now - 29 * DAY_MS, now, PRICING_STALE_DAYS)).toBe(false);
+    expect(isPricingStale(now - 13 * DAY_MS, now, PRICING_STALE_DAYS)).toBe(false);
   });
 
-  it("exactly 30d is not stale", () => {
+  it("exactly 14d is not stale", () => {
     const now = 100 * DAY_MS;
-    expect(isPricingStale(now - 30 * DAY_MS, now, PRICING_STALE_DAYS)).toBe(false);
+    expect(isPricingStale(now - 14 * DAY_MS, now, PRICING_STALE_DAYS)).toBe(false);
   });
 
-  it("30d+1ms is stale", () => {
+  it("14d+1ms is stale", () => {
     const now = 100 * DAY_MS;
-    expect(isPricingStale(now - 30 * DAY_MS - 1, now, PRICING_STALE_DAYS)).toBe(true);
+    expect(isPricingStale(now - 14 * DAY_MS - 1, now, PRICING_STALE_DAYS)).toBe(true);
   });
 
   it("pricingAgeDays floors and ts 0 is Infinity", () => {
