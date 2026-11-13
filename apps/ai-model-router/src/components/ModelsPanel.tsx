@@ -5,7 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Field, inputCls } from "./ProvidersPanel";
 import { api, apiWithMeta } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
-import { isPricingStale, pricingAgeDays, PRICING_STALE_DAYS } from "@/lib/pricing-freshness";
+import {
+  clampPricingStaleDays,
+  freshnessState,
+  pricingAgeDays,
+  PRICING_STALE_DAYS_DEFAULT,
+} from "@/lib/pricing-freshness";
 import type { Model, Provider } from "@/lib/types";
 
 const SKILL_AXES = [
@@ -51,6 +56,7 @@ export default function ModelsPanel({
   const [providerFilter, setProviderFilter] = useState<number | "all">("all");
   const [syncing, setSyncing] = useState(false);
   const [pricingCachedAt, setPricingCachedAt] = useState<string | null>(null);
+  const [staleDays, setStaleDays] = useState(PRICING_STALE_DAYS_DEFAULT);
   const [nowTs] = useState<number>(() => Date.now());
   const [page, setPage] = useState(0);
   const [evaluating, setEvaluating] = useState<number | null>(null);
@@ -78,7 +84,25 @@ export default function ModelsPanel({
     api<{ cachedAt: string }>("/api/pricing")
       .then((r) => setPricingCachedAt(r.cachedAt))
       .catch(() => {});
+    api<{ settings?: { pricingStaleDays: number } }>("/api/settings")
+      .then((r) => {
+        if (typeof r.settings?.pricingStaleDays === "number") {
+          setStaleDays(clampPricingStaleDays(r.settings.pricingStaleDays));
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const pricingTs =
+    pricingCachedAt === null ? null : new Date(pricingCachedAt).getTime();
+  const freshness =
+    pricingTs === null ? null : freshnessState(pricingTs, nowTs, staleDays);
+  const freshnessColor =
+    freshness === "red"
+      ? "var(--bad)"
+      : freshness === "amber"
+        ? "var(--warn)"
+        : undefined;
 
   const matched = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -263,25 +287,21 @@ export default function ModelsPanel({
         </button>
       </div>
 
-      {pricingCachedAt && (
+      {pricingTs !== null && (
         <div className="text-xs">
           <span className="text-[var(--fg-dim)]">Pricing updated: </span>
-          <span
-            style={{
-              color: isPricingStale(new Date(pricingCachedAt).getTime(), nowTs, PRICING_STALE_DAYS)
-                ? "var(--warn)"
-                : undefined,
-            }}
-          >
-            {new Date(pricingCachedAt).getTime() === 0
+          <span style={{ color: freshnessColor }}>
+            {pricingTs === 0
               ? "never"
-              : pricingAgeDays(new Date(pricingCachedAt).getTime(), nowTs) === 0
+              : pricingAgeDays(pricingTs, nowTs) === 0
                 ? "today"
-                : `${pricingAgeDays(new Date(pricingCachedAt).getTime(), nowTs)} days ago`
+                : `${pricingAgeDays(pricingTs, nowTs)} days ago`
             }
           </span>
-          {isPricingStale(new Date(pricingCachedAt).getTime(), nowTs, PRICING_STALE_DAYS) && (
-            <span className="ml-2 text-[var(--warn)]">stale</span>
+          {(freshness === "amber" || freshness === "red") && (
+            <span className="ml-2" style={{ color: freshnessColor }}>
+              stale
+            </span>
           )}
         </div>
       )}

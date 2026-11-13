@@ -1,5 +1,6 @@
 import { getSetting, setSetting } from "./db";
 import { appendPricingAudit } from "./pricing-audit";
+import { updateFreshnessRecord } from "./pricing-freshness-store";
 import { listModels, updateModel } from "./repo";
 
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
@@ -96,6 +97,7 @@ export async function fetchCatalog(force = false): Promise<{
     const fetchedAt = Date.now();
     setSetting(CACHE_KEY, JSON.stringify(entries));
     setSetting(CACHE_TS_KEY, String(fetchedAt));
+    updateFreshnessRecord("openrouter", fetchedAt);
     appendPricingAudit({ actor: "system", action: "catalog_refresh", details: { count: entries.length } });
     return { entries, cachedAt: new Date(fetchedAt).toISOString(), fromCache: false };
   } finally {

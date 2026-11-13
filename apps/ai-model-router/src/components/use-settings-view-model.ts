@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, apiWithMeta } from "./store";
 import { budgetIdFrom, keyVerifyStatus } from "./settings.rules";
+import { PRICING_STALE_DAYS_DEFAULT } from "@/lib/pricing-freshness";
 
 export interface Subscription {
   providerId: number;
@@ -62,6 +63,10 @@ export interface RetentionPolicy {
   recommendations: { maxAgeDays?: number; maxRows?: number };
 }
 
+export interface Settings {
+  pricingStaleDays: number;
+}
+
 interface RetentionGet {
   policy: RetentionPolicy;
   autoRunIntervalMs: number | null;
@@ -85,19 +90,24 @@ export function useSettingsViewModel({ providers }: { providers: { id: number }[
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [settings, setSettings] = useState<Settings>({
+    pricingStaleDays: PRICING_STALE_DAYS_DEFAULT,
+  });
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setStatus("");
     try {
-      const [subs, pol, bud] = await Promise.all([
+      const [subs, pol, bud, setgs] = await Promise.all([
         api<{ subscriptions?: Subscription[] }>("/api/subscriptions"),
         api<{ policy: RoutingPolicy }>("/api/routing-policy"),
         api<{ budgets?: BudgetRow[] }>("/api/budgets"),
+        api<{ settings?: Settings }>("/api/settings"),
       ]);
       setSubscriptions(subs.subscriptions ?? []);
       setPolicy(pol.policy);
       setBudgets(bud.budgets ?? []);
+      setSettings(setgs.settings ?? { pricingStaleDays: PRICING_STALE_DAYS_DEFAULT });
       if (selectedProvider) {
         const k = await api<{ keys?: ProviderKey[] }>(
           `/api/providers/${selectedProvider}/keys`,
@@ -142,6 +152,23 @@ export function useSettingsViewModel({ providers }: { providers: { id: number }[
         });
         setPolicy(data.policy);
         setStatus("policy saved");
+      } catch (err) {
+        setStatus(`error: ${err instanceof Error ? err.message : err}`);
+      }
+    },
+    [],
+  );
+
+  const updateSettings = useCallback(
+    async (patch: Partial<Settings>) => {
+      setStatus("saving settings...");
+      try {
+        const data = await api<{ settings: Settings }>("/api/settings", {
+          method: "PATCH",
+          json: patch,
+        });
+        setSettings(data.settings);
+        setStatus("settings saved");
       } catch (err) {
         setStatus(`error: ${err instanceof Error ? err.message : err}`);
       }
@@ -279,8 +306,9 @@ export function useSettingsViewModel({ providers }: { providers: { id: number }[
       loading,
       status,
       currentSub,
+      settings,
     }),
-    [selectedProvider, subscriptions, policy, keys, budgets, verifyingId, loading, status, currentSub],
+    [selectedProvider, subscriptions, policy, keys, budgets, verifyingId, loading, status, currentSub, settings],
   );
 
   return {
@@ -288,6 +316,7 @@ export function useSettingsViewModel({ providers }: { providers: { id: number }[
     setSelectedProvider,
     saveSubscription,
     updatePolicy,
+    updateSettings,
     addKey,
     activateKey,
     verifyKey,

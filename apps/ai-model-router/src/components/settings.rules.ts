@@ -1,3 +1,8 @@
+import {
+  PRICING_STALE_DAYS_MAX,
+  PRICING_STALE_DAYS_MIN,
+} from "@/lib/pricing-freshness";
+
 export function budgetIdFrom(label: string, period: string): string {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "-") || period;
 }
@@ -53,4 +58,16 @@ export function budgetStatusTone(
 
 export function money(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
+ * Parses the pricing-stale-days draft input. Returns the integer when it
+ * is inside 1..365, null otherwise so the UI can demand a fix instead of
+ * silently clamping what the user typed.
+ */
+export function pricingStaleDaysValue(raw: string): number | null {
+  const n = Number.parseInt(raw, 10);
+  if (Number.isNaN(n)) return null;
+  if (n < PRICING_STALE_DAYS_MIN || n > PRICING_STALE_DAYS_MAX) return null;
+  return n;
 }

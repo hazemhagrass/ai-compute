@@ -3,7 +3,12 @@
 import { useState } from "react";
 
 import type { Provider } from "@/lib/types";
-import { money, parseModelList, budgetStatusTone } from "./settings.rules";
+import {
+  money,
+  parseModelList,
+  budgetStatusTone,
+  pricingStaleDaysValue,
+} from "./settings.rules";
 import {
   useRetentionViewModel,
   useSettingsViewModel,
@@ -101,6 +106,12 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
           </div>
         )}
       </section>
+
+      <PricingFreshnessSection
+        key={`pricing-stale-${view.settings.pricingStaleDays}`}
+        staleDays={view.settings.pricingStaleDays}
+        onSave={(d) => vm.updateSettings({ pricingStaleDays: d })}
+      />
 
       <BudgetsSection
         budgets={view.budgets}
@@ -366,6 +377,62 @@ function KeysList({
         </button>
       </form>
     </div>
+  );
+}
+
+function PricingFreshnessSection({
+  staleDays,
+  onSave,
+}: {
+  staleDays: number;
+  onSave: (days: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(staleDays));
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/60 p-5">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
+        Pricing freshness
+      </h3>
+      <p className="mb-3 text-sm text-[var(--fg-muted)]">
+        Pricing tables older than this many days are flagged stale on the
+        models panel.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const v = pricingStaleDaysValue(draft);
+          if (v === null) {
+            setError("Enter a whole number of days between 1 and 365");
+            return;
+          }
+          setError(null);
+          onSave(v);
+        }}
+        className="flex flex-wrap items-end gap-3"
+      >
+        <label className="flex flex-col gap-1 text-sm">
+          <span>Stale after (days, 1-365)</span>
+          <input
+            type="number"
+            min={1}
+            max={365}
+            step={1}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1"
+          />
+        </label>
+        <button
+          type="submit"
+          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c]"
+        >
+          Save
+        </button>
+        {error && <span className="text-xs text-red-400">{error}</span>}
+      </form>
+    </section>
   );
 }
 
