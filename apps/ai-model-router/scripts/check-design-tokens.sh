@@ -20,8 +20,15 @@ OFF_PALETTE_BASELINE=81
 HEX_RE='#[0-9a-fA-F]{3,8}\b'
 OFF_PALETTE_RE='\b(text|bg|border|ring)-(zinc|gray|slate|neutral|red|green|blue|white|black)(-[0-9]{2,3})?(/[0-9]+)?\b'
 
+# grep exits 1 for "no match" (fine) and 2+ for a real error (unreadable file,
+# bad pattern). Only the first is tolerated, so a broken scan cannot pass.
 scan() {
-  grep -rnoE --include='*.tsx' --exclude='*.test.*' "$1" src || true
+  local rc=0
+  grep -rnoE --include='*.tsx' --exclude='*.test.*' "$1" src || rc=$?
+  if [ "$rc" -gt 1 ]; then
+    echo "::error::grep failed (exit $rc) while scanning src for $1" >&2
+    exit "$rc"
+  fi
 }
 
 hex_hits="$(scan "$HEX_RE")"
