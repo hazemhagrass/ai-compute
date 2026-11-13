@@ -74,7 +74,7 @@ export async function fetchCatalog(force = false): Promise<{
       try {
         return {
           entries: JSON.parse(raw) as CatalogEntry[],
-          cachedAt: new Date(ts).toISOString(),
+          cachedAt: new Date(Number(ts)).toISOString(),
           fromCache: true,
         };
       } catch {
@@ -93,10 +93,11 @@ export async function fetchCatalog(force = false): Promise<{
     if (!res.ok) throw new Error(`OpenRouter returned ${res.status}`);
     const json = (await res.json()) as { data?: OrModel[] };
     const entries = (json.data ?? []).map(mapEntry).sort((a, b) => a.id.localeCompare(b.id));
+    const fetchedAt = Date.now();
     setSetting(CACHE_KEY, JSON.stringify(entries));
-    setSetting(CACHE_TS_KEY, String(Date.now()));
+    setSetting(CACHE_TS_KEY, String(fetchedAt));
     appendPricingAudit({ actor: "system", action: "catalog_refresh", details: { count: entries.length } });
-    return { entries, cachedAt: new Date().toISOString(), fromCache: false };
+    return { entries, cachedAt: new Date(fetchedAt).toISOString(), fromCache: false };
   } finally {
     clearTimeout(timer);
   }
