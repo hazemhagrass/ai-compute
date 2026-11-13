@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Field, inputCls } from "./ProvidersPanel";
 import { api, apiWithMeta } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
+import { isPricingStale, pricingAgeDays, PRICING_STALE_DAYS } from "@/lib/pricing-freshness";
 import type { Model, Provider } from "@/lib/types";
 
 const SKILL_AXES = [
@@ -49,6 +50,8 @@ export default function ModelsPanel({
   const [filter, setFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState<number | "all">("all");
   const [syncing, setSyncing] = useState(false);
+  const [pricingCachedAt, setPricingCachedAt] = useState<string | null>(null);
+  const [nowTs] = useState<number>(() => Date.now());
   const [page, setPage] = useState(0);
   const [evaluating, setEvaluating] = useState<number | null>(null);
   const [evalPreview, setEvalPreview] = useState<{
@@ -61,6 +64,21 @@ export default function ModelsPanel({
   } | null>(null);
 
   const PAGE_SIZE = 50;
+
+  async function loadPricingMeta() {
+    try {
+      const res = await api<{ cachedAt: string }>("/api/pricing");
+      setPricingCachedAt(res.cachedAt);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  useEffect(() => {
+    api<{ cachedAt: string }>("/api/pricing")
+      .then((r) => setPricingCachedAt(r.cachedAt))
+      .catch(() => {});
+  }, []);
 
   const matched = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -100,6 +118,7 @@ export default function ModelsPanel({
           "good",
         );
         onRefresh();
+        loadPricingMeta();
       } else {
         onToast(
           `${changed} of ${res.matches.length} matched models have stale prices (catalog: ${res.catalogSize})`,
@@ -184,6 +203,7 @@ export default function ModelsPanel({
         setEvalPreview(null);
         onToast("eval scores applied", "good");
         onRefresh();
+        loadPricingMeta();
       } else {
         onToast(`apply failed (${res.status})`, "bad");
       }
@@ -242,6 +262,24 @@ export default function ModelsPanel({
           + Add model
         </button>
       </div>
+
+      {pricingCachedAt && (
+        <div className="text-xs">
+          <span className="text-[var(--fg-dim)]">Pricing updated: </span>
+          <span
+            style={{
+              color: isPricingStale(new Date(pricingCachedAt).getTime(), nowTs, PRICING_STALE_DAYS)
+                ? "var(--warn)"
+                : undefined,
+            }}
+          >
+            {pricingAgeDays(new Date(pricingCachedAt).getTime(), nowTs)} days ago
+          </span>
+          {isPricingStale(new Date(pricingCachedAt).getTime(), nowTs, PRICING_STALE_DAYS) && (
+            <span className="ml-2 text-[var(--warn)]">stale</span>
+          )}
+        </div>
+      )}
 
       {editing && (
         <ModelForm
