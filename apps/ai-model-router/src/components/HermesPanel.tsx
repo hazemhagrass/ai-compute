@@ -16,6 +16,7 @@ interface HermesProfileSummary {
   defaultProvider: string;
   tierRouterEnabled: boolean;
   tierCount: number;
+  configError?: string;
 }
 
 interface HermesProviderView {
@@ -247,6 +248,14 @@ export default function HermesPanel({
               router {activeProfile.tierRouterEnabled ? "on" : "off"} · {activeProfile.tierCount} tier
               {activeProfile.tierCount === 1 ? "" : "s"}
             </span>
+            {activeProfile.configError && (
+              <span
+                className="rounded-md bg-[var(--bad)]/12 px-2 py-1 text-[var(--bad)]"
+                title={activeProfile.configError}
+              >
+                config error
+              </span>
+            )}
           </div>
         )}
       </div>

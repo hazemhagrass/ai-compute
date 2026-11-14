@@ -7,6 +7,10 @@ export const modelRefSchema = z.object({
   timeout: z.number().optional(),
   api_key: z.string().optional(),
   api_mode: z.string().optional(),
+  // Hermes pool entries may carry a weight for weighted_round_robin tiers (agent/
+  // tier_router.py _clean_pool keeps only provider, model, base_url, weight; clamping to a
+  // positive int happens in Hermes at load time, so any number passes through here).
+  weight: z.number().optional(),
 });
 export type ModelRef = z.infer<typeof modelRefSchema>;
 
@@ -34,7 +38,10 @@ const modelSectionSchema = z
 
 const tierEntrySchema = z
   .object({
-    mode: z.enum(["round_robin", "priority"]).optional(),
+    // Mirrors Hermes agent/tier_router.py RouterConfig.from_config: priority and
+    // round_robin are run as-is, weighted_round_robin is expanded by Hermes into a smooth
+    // weighted round-robin sequence at load time.
+    mode: z.enum(["priority", "round_robin", "weighted_round_robin"]).optional(),
     escalate_to: z.string().nullable().optional(),
     pool: z.array(modelRefSchema).default([]),
     fallback: z.array(modelRefSchema).default([]),
