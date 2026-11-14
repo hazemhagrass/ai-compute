@@ -466,7 +466,9 @@ function BudgetsSection({
           type="number"
           aria-label="Budget limit in dollars"
           min={0}
-          step={1}
+          // Cents-level budgets like $0.05 are valid (dollars round to cents
+          // on save). step={1} made the browser block such submits outright.
+          step="any"
           value={dollars}
           onChange={(e) => setDollars(Number(e.target.value))}
           className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm"
