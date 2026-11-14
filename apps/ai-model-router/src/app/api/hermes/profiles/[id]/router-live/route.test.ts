@@ -108,4 +108,29 @@ describe("GET /api/hermes/profiles/[id]/router-live", () => {
     expect(body.routerLive.decisions).toEqual([]);
     expect(body.routerLive.warnings.join(" ")).toContain("disabled");
   });
+
+  it("returns 404 for a profile that does not exist", async () => {
+    const res = await get("qa-nonexistent-zz");
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toContain("does not exist");
+    // The misleading "disabled in this profile's config" warning must not appear here.
+    expect(body.error).not.toContain("disabled");
+  });
+
+  it("returns 400 for an invalid profile id", async () => {
+    const res = await get("bad id");
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toContain("invalid profile id");
+  });
+
+  it("rejects traversal ids instead of escaping PROFILES_DIR", async () => {
+    for (const id of ["..", "../etc", "a/../b"]) {
+      const res = await get(id);
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error?: string };
+      expect(body.error).toContain("invalid profile id");
+    }
+  });
 });
