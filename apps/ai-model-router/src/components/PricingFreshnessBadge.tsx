@@ -75,8 +75,10 @@ export function PricingFreshnessBadgeView({
  * the table timestamp comes from /api/pricing, the threshold from
  * /api/settings. Bumping refreshToken re-reads both after a price sync;
  * keying the badge on the saved pricingStaleDays re-reads it after a
- * settings save. The clock re-reads every minute (and on a token bump) so
- * a panel left open across midnight still shows the right age.
+ * settings save; window focus and tab visibility re-read it so a change
+ * from another browser tab lands without a reload. The clock re-reads
+ * every minute (and on a token bump) so a panel left open across midnight
+ * still shows the right age.
  */
 export default function PricingFreshnessBadge({
   refreshToken = 0,
@@ -98,21 +100,35 @@ export default function PricingFreshnessBadge({
 
   useEffect(() => {
     let cancelled = false;
-    api<{ cachedAt: string }>("/api/pricing")
-      .then((r) => {
-        if (!cancelled) setCachedAt(r.cachedAt);
-      })
-      .catch(() => {});
-    api<{ settings?: { pricingStaleDays: number } }>("/api/settings")
-      .then((r) => {
-        if (cancelled) return;
-        if (typeof r.settings?.pricingStaleDays === "number") {
-          setStaleDays(clampPricingStaleDays(r.settings.pricingStaleDays));
-        }
-      })
-      .catch(() => {});
+    const load = () => {
+      api<{ cachedAt: string }>("/api/pricing")
+        .then((r) => {
+          if (!cancelled) setCachedAt(r.cachedAt);
+        })
+        .catch(() => {});
+      api<{ settings?: { pricingStaleDays: number } }>("/api/settings")
+        .then((r) => {
+          if (cancelled) return;
+          if (typeof r.settings?.pricingStaleDays === "number") {
+            setStaleDays(clampPricingStaleDays(r.settings.pricingStaleDays));
+          }
+        })
+        .catch(() => {});
+    };
+    load();
+    // The threshold can also change in another browser tab of the same
+    // account: this mounted badge never sees the save, so re-read both
+    // fetches when the panel becomes visible again (window focus, tab
+    // visibility) instead of coloring on the old value until a reload.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", load);
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", load);
     };
   }, [refreshToken]);
 

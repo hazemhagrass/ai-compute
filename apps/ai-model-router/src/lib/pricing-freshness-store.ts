@@ -32,14 +32,21 @@ function readRecords(): PricingFreshnessRecord[] {
  * first successful fetch (or for upgrades from before the record map
  * existed) it is backfilled from the cache timestamp and persisted, and a
  * source that never got a table reports fetchedAt: null so a month of
- * failed refreshes still shows up as missing.
+ * failed refreshes still shows up as missing. That persistence is a
+ * write-on-read, but it runs only while no record for the source exists,
+ * so steady state reads and writes stay separated.
  */
 export function getPricingFreshnessRecords(): PricingFreshnessRecord[] {
   const records = readRecords();
   if (records.some((r) => r.source === CATALOG_SOURCE)) return records;
   const ts = Number(getSetting(CATALOG_TS_KEY, "0"));
   if (isUsableFetchedAt(ts)) {
-    const backfilled = [...records, { source: CATALOG_SOURCE, fetchedAt: ts }];
+    // Same eviction as a real fetch, so backfilling into a full store
+    // cannot persist one record past the bound.
+    const backfilled = evictStaleRecords([
+      ...records,
+      { source: CATALOG_SOURCE, fetchedAt: ts },
+    ]);
     setSetting(FRESHNESS_KEY, JSON.stringify(backfilled));
     return backfilled;
   }

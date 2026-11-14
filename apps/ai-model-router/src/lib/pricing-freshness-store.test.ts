@@ -65,7 +65,9 @@ describe("pricing freshness store", () => {
 
   it("keeps an existing catalog record instead of re-reading the cache ts", () => {
     updateFreshnessRecord("openrouter", 1_000);
-    store.set("openrouter_catalog_ts", "9_999");
+    // "9999" is a usable number, so this pins the precedence rule (the
+    // stored record wins) rather than the garbage-input rule.
+    store.set("openrouter_catalog_ts", "9999");
     expect(getFreshnessRecord("openrouter")).toEqual({
       source: "openrouter",
       fetchedAt: 1_000,
@@ -90,6 +92,27 @@ describe("pricing freshness store", () => {
     expect(records).toHaveLength(51);
     expect(records[0]).toEqual({ source: "openrouter", fetchedAt: null });
     expect(records[1].source).toBe("source-5");
+  });
+
+  it("backfill into a full store goes through eviction, not around it", () => {
+    for (let i = 0; i < 50; i++) {
+      updateFreshnessRecord(`source-${i}`, i * 1000);
+    }
+    store.set("openrouter_catalog_ts", "99000");
+    const records = getPricingFreshnessRecords();
+    expect(records).toHaveLength(50);
+    expect(getFreshnessRecord("openrouter")).toEqual({
+      source: "openrouter",
+      fetchedAt: 99_000,
+    });
+    // The persisted list is the trimmed one: no 51-record store on disk.
+    const persisted = JSON.parse(store.get("pricing_freshness") ?? "[]") as {
+      source: string;
+    }[];
+    expect(persisted).toHaveLength(50);
+    // The oldest non-catalog record made room for the backfill.
+    expect(getFreshnessRecord("source-0")).toBeUndefined();
+    expect(getFreshnessRecord("source-1")).toEqual({ source: "source-1", fetchedAt: 1000 });
   });
 
   it("evicts least-recently-updated records so the active source keeps its slot", () => {

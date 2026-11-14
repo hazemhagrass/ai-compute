@@ -18,10 +18,19 @@ vi.mock("./repo", () => ({
 }));
 
 const { fetchCatalog, syncPricing } = await import("./pricing");
-const { getPricingAudit } = await import("./pricing-audit");
+const { appendPricingAudit, getPricingAudit } = await import("./pricing-audit");
 const repo = await import("./repo");
 const listModelsMock = vi.mocked(repo.listModels);
 const updateModelMock = vi.mocked(repo.updateModel);
+
+// Row shape stored in the aggregate catalog_apply entry's details.
+interface CatalogApplyChange {
+  modelId: string;
+  oldInput: number;
+  oldOutput: number;
+  inputCost: number;
+  outputCost: number;
+}
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {
@@ -124,7 +133,7 @@ describe("fetchCatalog", () => {
 });
 
 describe("syncPricing", () => {
-  it("apply path writes changed prices and records one catalog_apply entry per model", async () => {
+  it("apply path writes changed prices and records one aggregate catalog_apply entry", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -144,8 +153,60 @@ describe("syncPricing", () => {
     );
     const apply = getPricingAudit().find((e) => e.action === "catalog_apply");
     expect(apply).toBeDefined();
-    expect((apply!.details as { modelId: string }).modelId).toBe("vendor/m1");
-    expect(apply!.details.inputCost).toBe(1);
+    // The aggregate entry carries old and new prices, so the audit shows
+    // the change, not just the result.
+    expect(apply!.details).toEqual({
+      count: 1,
+      truncated: false,
+      changes: [
+        {
+          modelId: "vendor/m1",
+          oldInput: 0.5,
+          oldOutput: 1.5,
+          inputCost: 1,
+          outputCost: 2,
+        },
+      ],
+    });
+  });
+
+  it("a 60-model sync keeps prior manual_price_edit and catalog_refresh history", async () => {
+    appendPricingAudit({
+      actor: "user",
+      action: "manual_price_edit",
+      details: { modelId: "kept/edit" },
+    });
+    const catalog = Array.from({ length: 60 }, (_, i) => ({
+      id: `vendor/v${i}`,
+      pricing: { prompt: "0.000001", completion: "0.000002" },
+    }));
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ data: catalog }) });
+    // All 60 models differ from the catalog (0.5/1.5 vs 1/2), so all 60
+    // change and would previously have written 60 per-model entries,
+    // spilling past the audit bound and evicting the history above.
+    listModelsMock.mockReturnValue(
+      Array.from({ length: 60 }, (_, i) =>
+        makeModel({ id: i + 1, modelId: `vendor/v${i}`, label: `V${i}` }),
+      ),
+    );
+
+    const res = await syncPricing(true);
+
+    expect(res.applied).toBe(60);
+    const audit = getPricingAudit();
+    expect(audit.map((e) => e.action)).toEqual([
+      "manual_price_edit",
+      "catalog_refresh",
+      "catalog_apply",
+    ]);
+    const apply = audit[2];
+    expect((apply.details as { count: number }).count).toBe(60);
+    expect((apply.details as { truncated: boolean }).truncated).toBe(true);
+    const changes = (apply.details as { changes: CatalogApplyChange[] }).changes;
+    expect(changes).toHaveLength(25);
+    expect(changes[0].modelId).toBe("vendor/v0");
+    expect(changes[0].oldInput).toBe(0.5);
+    expect(changes[0].outputCost).toBe(2);
   });
 
   it("dry run changes nothing and audits nothing beyond the catalog refresh", async () => {

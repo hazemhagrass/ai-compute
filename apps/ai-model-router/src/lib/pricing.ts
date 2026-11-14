@@ -139,6 +139,20 @@ export interface PriceMatch {
   changed: boolean;
 }
 
+// Per-model row kept inside the aggregate catalog_apply audit entry: old
+// and new prices so the audit shows the change, not just the result.
+interface CatalogPriceChange {
+  modelId: string;
+  oldInput: number;
+  oldOutput: number;
+  inputCost: number;
+  outputCost: number;
+}
+
+// How many per-model rows the aggregate entry stores. The count field is
+// always exact, so a bigger sync is summarized, not lost.
+const AUDIT_APPLY_DETAIL_CAP = 25;
+
 export async function syncPricing(apply: boolean): Promise<{
   matches: PriceMatch[];
   unmatched: string[];
@@ -163,7 +177,7 @@ export async function syncPricing(apply: boolean): Promise<{
 
   const matches: PriceMatch[] = [];
   const unmatched: string[] = [];
-  let applied = 0;
+  const appliedChanges: CatalogPriceChange[] = [];
 
   for (const m of listModels()) {
     if (m.inputCost === 0 && m.outputCost === 0 && m.tags.includes("local")) continue;
@@ -197,20 +211,39 @@ export async function syncPricing(apply: boolean): Promise<{
         contextWindow: hit.contextLength || m.contextWindow,
         maxOutput: hit.maxOutput || m.maxOutput,
       });
-      appendPricingAudit({
-        actor: "system",
-        action: "catalog_apply",
-        details: {
-          modelId: m.modelId,
-          inputCost: hit.inputCost,
-          outputCost: hit.outputCost,
-        },
+      appliedChanges.push({
+        modelId: m.modelId,
+        oldInput: m.inputCost,
+        oldOutput: m.outputCost,
+        inputCost: hit.inputCost,
+        outputCost: hit.outputCost,
       });
-      applied++;
     }
   }
 
-  return { matches, unmatched, applied, catalogSize: entries.length };
+  // One aggregate catalog_apply entry per sync, not one per model: a
+  // price sweep can touch more models than the audit keeps (MAX = 50),
+  // and per-model entries would splice the catalog_refresh and
+  // manual_price_edit history they extend out of the log. Appended in a
+  // single write.
+  if (appliedChanges.length > 0) {
+    appendPricingAudit({
+      actor: "system",
+      action: "catalog_apply",
+      details: {
+        count: appliedChanges.length,
+        truncated: appliedChanges.length > AUDIT_APPLY_DETAIL_CAP,
+        changes: appliedChanges.slice(0, AUDIT_APPLY_DETAIL_CAP),
+      },
+    });
+  }
+
+  return {
+    matches,
+    unmatched,
+    applied: appliedChanges.length,
+    catalogSize: entries.length,
+  };
 }
 
 export function cheapnessFromPrice(outputCostPer1M: number): number {
