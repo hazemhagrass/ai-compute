@@ -90,6 +90,45 @@ interface ProfileUsageSummary {
   byProvider: { provider: string; calls: number; tokens: number; costUsd: number }[];
 }
 
+interface RouterLiveCooldown {
+  provider: string;
+  model: string;
+  base_url?: string;
+  scope: string;
+  expires_at: string;
+  approx: boolean;
+}
+
+interface RouterLiveDecision {
+  at: string;
+  tier_requested: string;
+  tier_used: string;
+  source: string;
+  model?: string;
+  provider?: string;
+  switched?: boolean;
+}
+
+interface RouterLiveRestore {
+  enabled: boolean;
+  last_event?: "restored" | "deferred";
+  last_model?: string;
+  last_provider?: string;
+  last_at?: string;
+  pending_capture?: boolean;
+}
+
+interface RouterLiveState {
+  profile: string;
+  source: "state" | "logs" | "none";
+  generated_at: string;
+  state_stale?: boolean;
+  cooldowns: RouterLiveCooldown[];
+  decisions: RouterLiveDecision[];
+  restore: RouterLiveRestore;
+  warnings: string[];
+}
+
 const CATALOG: { id: string; label: string }[] = [
   { id: "anthropic", label: "Anthropic" },
   { id: "openrouter", label: "OpenRouter" },
@@ -124,7 +163,7 @@ export default function HermesPanel({
   const [providers, setProviders] = useState<HermesProviderView[] | null>(null);
   const [tierRouter, setTierRouter] = useState<TierRouterConfig | null>(null);
   const [usage, setUsage] = useState<ProfileUsageSummary | null>(null);
-  const [tab, setTab] = useState<"providers" | "router" | "aliases" | "usage">("providers");
+  const [tab, setTab] = useState<"providers" | "router" | "live" | "aliases" | "usage">("providers");
   const [showAddProvider, setShowAddProvider] = useState(false);
   const [showNewProfile, setShowNewProfile] = useState(false);
 
@@ -278,6 +317,7 @@ export default function HermesPanel({
               [
                 ["providers", "Providers & keys"],
                 ["router", "Router & tiers"],
+                ["live", "Live"],
                 ["aliases", "Fallback & aliases"],
                 ["usage", "Usage"],
               ] as const
@@ -315,6 +355,8 @@ export default function HermesPanel({
               onRefresh={refresh}
               onToast={onToast}
             />
+          ) : tab === "live" ? (
+            <RouterLiveTab key={activeId} profileId={activeId} tierRouter={tierRouter} />
           ) : tab === "aliases" ? (
             <FallbackAliasesTab key={activeId} profileId={activeId} providers={providers} onToast={onToast} />
           ) : (
@@ -356,7 +398,7 @@ function NewProfileForm({
 
   return (
     <Card title="New profile" className="border-[var(--accent)]/40">
-      <Field label="Profile name" hint="creates ~/.hermes/profiles/<name>/ with an empty config — letters, digits, . _ -">
+      <Field label="Profile name" hint="creates ~/.hermes/profiles/<name>/ with an empty config — letters, digits, _ - (max 64)">
         <input
           value={id}
           onChange={(e) => setId(e.target.value)}
@@ -2120,6 +2162,260 @@ function AliasesEditor({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+const ROUTER_LIVE_POLL_MS = 10_000;
+
+function fmtClock(iso: string | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function fmtCountdown(ms: number): string {
+  if (ms <= 0) return "expired";
+  const s = Math.ceil(ms / 1000);
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  const h = Math.floor(s / 3600);
+  return `${h}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
+function ApproxBadge() {
+  return (
+    <span
+      title="Window derived from logged failures: approximate, not the router's exact deadline"
+      className="ml-1 rounded bg-[var(--panel-2)] px-1 py-0.5 text-[10px] whitespace-nowrap text-[var(--fg-dim)]"
+    >
+      approx
+    </span>
+  );
+}
+
+function RouterLiveTab({
+  profileId,
+  tierRouter,
+}: {
+  profileId: string;
+  tierRouter: TierRouterConfig | null;
+}) {
+  const [live, setLive] = useState<RouterLiveState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const load = useCallback(async () => {
+    const res = await api<{ routerLive: RouterLiveState }>(
+      `/api/hermes/profiles/${profileId}/router-live`,
+    );
+    return res.routerLive;
+  }, [profileId]);
+
+  useEffect(() => {
+    // The parent keys this tab by profileId, so switching profiles remounts the component
+    // with fresh state; the effect only needs to poll.
+    let cancelled = false;
+    const poll = () => {
+      load()
+        .then((data) => {
+          if (cancelled) return;
+          setLive(data);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "Failed to load live router state");
+          }
+        });
+    };
+    void poll();
+    const pollTimer = setInterval(poll, ROUTER_LIVE_POLL_MS);
+    const tickTimer = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(pollTimer);
+      clearInterval(tickTimer);
+    };
+  }, [load]);
+
+  if (!live) {
+    return (
+      <Card>
+        <Empty>{error ? `Live view error: ${error}. Retrying every 10s.` : "Loading live router state…"}</Empty>
+      </Card>
+    );
+  }
+
+  const routerDisabled = tierRouter ? !tierRouter.enabled : false;
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <Card>
+          <p className="text-xs text-[var(--bad)]">
+            Last refresh failed: {error} (keeping last good data, retrying every 10s)
+          </p>
+        </Card>
+      )}
+
+      <Card
+        title="Live tier router"
+        subtitle={`Read-only status of the running router. As of ${fmtClock(live.generated_at)}, refreshed every 10s.`}
+        action={
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            {live.source === "state" ? (
+              <span className="rounded-md bg-[var(--good)]/12 px-2 py-1 text-[var(--good)]">
+                source: state file (exact)
+              </span>
+            ) : live.source === "logs" ? (
+              <span className="rounded-md bg-[var(--panel-2)] px-2 py-1">
+                source: log-derived (approx)
+              </span>
+            ) : (
+              <span className="rounded-md bg-[var(--panel-2)] px-2 py-1">no data</span>
+            )}
+            {live.state_stale && (
+              <span className="rounded-md bg-[var(--warn)]/12 px-2 py-1 text-[var(--warn)]">state stale</span>
+            )}
+          </div>
+        }
+      >
+        {live.source === "none" ? (
+          <Empty>
+            {routerDisabled
+              ? "Tier router is disabled for this profile. Enable it in Router & tiers to see live activity."
+              : "No tier-router activity has been recorded yet."}
+          </Empty>
+        ) : (
+          <div className="space-y-5">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
+                Restore primary
+              </p>
+              {live.restore.last_event === undefined ? (
+                <p className="mt-1 text-xs text-[var(--fg-dim)]">
+                  {live.restore.enabled
+                    ? "Enabled, but no restore has run yet in the recent window."
+                    : "Disabled: the router keeps the routed model for the whole session."}
+                </p>
+              ) : (
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-md bg-[var(--panel-2)] px-2 py-1">
+                    {live.restore.last_event === "restored"
+                      ? "restored primary"
+                      : "restore deferred"}
+                    {live.restore.last_model
+                      ? `: ${live.restore.last_model} via ${live.restore.last_provider || "unknown"}`
+                      : ""}
+                  </span>
+                  <span className="text-[var(--fg-dim)]">at {fmtClock(live.restore.last_at)}</span>
+                  {live.restore.pending_capture && (
+                    <span className="rounded-md bg-[var(--warn)]/12 px-2 py-1 text-[var(--warn)]">
+                      capture pending: will retry
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
+                Cooling pool entries ({live.cooldowns.length})
+              </p>
+              {live.cooldowns.length === 0 ? (
+                <p className="mt-1 text-xs text-[var(--fg-dim)]">
+                  No pool entries are cooling right now.
+                </p>
+              ) : (
+                <div className="mt-1 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[var(--fg-dim)]">
+                      <tr>
+                        <th className="py-2 pr-3 font-medium">Entry</th>
+                        <th className="py-2 pr-3 font-medium">Scope</th>
+                        <th className="py-2 pr-3 font-medium">Remaining</th>
+                        <th className="py-2 pr-3 font-medium">Expires at</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {live.cooldowns.map((c) => {
+                        const remaining = new Date(c.expires_at).getTime() - now;
+                        return (
+                          <tr key={`${c.provider}|${c.model}|${c.base_url ?? ""}|${c.scope}|${c.expires_at}`} className="border-t border-[var(--border)]">
+                            <td className="py-2 pr-3 font-mono">
+                              {c.model}
+                              <span className="text-[var(--fg-dim)]"> via {c.provider || "unknown"}</span>
+                              {c.approx && <ApproxBadge />}
+                            </td>
+                            <td className="py-2 pr-3">{c.scope}</td>
+                            <td className="py-2 pr-3">{fmtCountdown(remaining)}</td>
+                            <td className="py-2 pr-3">{fmtClock(c.expires_at)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
+                Last tier decisions
+              </p>
+              {live.decisions.length === 0 ? (
+                <p className="mt-1 text-xs text-[var(--fg-dim)]">
+                  No tier decisions logged yet. The router only logs a line when the routed model differs from
+                  the one already active (already-on-target turns are silent).
+                </p>
+              ) : (
+                <div className="mt-1 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[var(--fg-dim)]">
+                      <tr>
+                        <th className="py-2 pr-3 font-medium">Time</th>
+                        <th className="py-2 pr-3 font-medium">Tier</th>
+                        <th className="py-2 pr-3 font-medium">Source</th>
+                        <th className="py-2 pr-3 font-medium">Routed to</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {live.decisions.map((d) => (
+                        <tr key={`${d.at}|${d.tier_used}|${d.model ?? ""}|${d.source}`} className="border-t border-[var(--border)]">
+                          <td className="py-2 pr-3">{fmtClock(d.at)}</td>
+                          <td className="py-2 pr-3">
+                            {d.tier_requested}
+                            {d.tier_requested !== d.tier_used &&
+                              ` → ${d.tier_used}`}
+                          </td>
+                          <td className="py-2 pr-3 font-mono">{d.source || "—"}</td>
+                          <td className="py-2 pr-3 font-mono">
+                            {d.model ? `${d.model} via ${d.provider || "unknown"}` : "—"}
+                            {d.switched === false && (
+                              <span className="ml-1 rounded bg-[var(--panel-2)] px-1 py-0.5 text-[10px] text-[var(--fg-dim)]">
+                                already on target
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {live.warnings.length > 0 && (
+              <div className="space-y-1 text-[11px] text-[var(--fg-dim)]">
+                {live.warnings.map((w, i) => (
+                  <p key={i}>Note: {w}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import fs from "node:fs";
 
 import { readHermesConfig, writeHermesConfig } from "./config-io";
 import { emptyHermesConfig } from "./config-schema";
-import { PROFILES_DIR, defaultProfilePaths, namedProfilePaths } from "./paths";
+import { PROFILES_DIR, defaultProfilePaths, namedProfilePaths, isValidProfileId } from "./paths";
 
 export interface HermesProfileSummary {
   id: string;
@@ -62,10 +62,8 @@ export function getHermesProfile(id: string): HermesProfileSummary {
   return summarize(id, id, id === "default");
 }
 
-const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]*$/i;
-
 export function isValidProfileName(name: string): boolean {
-  return PROFILE_NAME_RE.test(name);
+  return isValidProfileId(name) && name !== "default";
 }
 
 export function createProfile(id: string): HermesProfileSummary {

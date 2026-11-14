@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { removeTier, renameTier } from "@/lib/hermes/tiers";
 import { z } from "zod";
 import { parseBody } from "@/lib/schemas";
@@ -23,6 +24,8 @@ export async function PATCH(
   const denied = await requireAuth();
   if (denied) return denied;
   const { id, tierName } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, renameSchema);
   if (!parsed.ok) return parsed.response;
 
@@ -34,6 +37,8 @@ export async function DELETE(_req: Request, ctx: RouteContext<"/api/hermes/profi
   const denied = await requireAuth();
   if (denied) return denied;
   const { id, tierName } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
 
   removeTier(id, tierName);
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });

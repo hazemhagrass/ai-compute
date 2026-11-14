@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { setDefaultModel } from "@/lib/hermes/providers";
 import { z } from "zod";
 import { parseBody } from "@/lib/schemas";
@@ -17,6 +18,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   return NextResponse.json({ config: readHermesConfig(id) });
 }
 
@@ -24,6 +27,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, patchSchema);
   if (!parsed.ok) return parsed.response;
 

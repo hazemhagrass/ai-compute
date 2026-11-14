@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { aliasNameSchema, listAliases, removeAlias, setAlias } from "@/lib/hermes/aliases";
 import { modelRefSchema } from "@/lib/hermes/config-schema";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   return NextResponse.json({ aliases: listAliases(id) });
 }
 
@@ -22,6 +25,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hermes/prof
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, upsertSchema);
   if (!parsed.ok) return parsed.response;
 
@@ -33,6 +38,8 @@ export async function DELETE(request: Request, ctx: RouteContext<"/api/hermes/pr
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, deleteSchema);
   if (!parsed.ok) return parsed.response;
 
