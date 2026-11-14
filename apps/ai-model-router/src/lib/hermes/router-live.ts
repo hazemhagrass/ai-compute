@@ -57,43 +57,6 @@ interface LogEvent {
   message: string;
 }
 
-// Read up to the last `bytes` of a file and parse its tier-router lines without loading the
-// whole file. agent.log can reach tens of megabytes on busy profiles.
-function readChunkEvents(
-  filePath: string,
-  bytes: number,
-): { events: LogEvent[]; reachedStart: boolean } {
-  try {
-    if (!fs.existsSync(filePath)) return { events: [], reachedStart: true };
-    const size = fs.statSync(filePath).size;
-    if (size === 0) return { events: [], reachedStart: true };
-    const chunk = Math.min(size, bytes);
-    const buf = Buffer.alloc(chunk);
-    const fd = fs.openSync(filePath, "r");
-    try {
-      fs.readSync(fd, buf, 0, chunk, size - chunk);
-    } finally {
-      fs.closeSync(fd);
-    }
-    const lines = buf.toString("utf8").split("\n");
-    const reachedStart = chunk >= size;
-    if (!reachedStart) lines.shift(); // first chunk line may be partial; drop it
-    const events: LogEvent[] = [];
-    for (const line of lines) {
-      const match = LOG_LINE_RE.exec(line);
-      if (!match) continue;
-      const at = parseLogTimestamp(match[1]);
-      if (!at) continue;
-      events.push({ at, message: match[4] });
-    }
-    return { events, reachedStart };
-  } catch {
-    return { events: [], reachedStart: true };
-  }
-}
-
-// Log timestamps are "%Y-%m-%d %H:%M:%S,%f" in the writer's local time. The dashboard and
-// Hermes run on the same host, so parsing without a zone (local) is correct here.
 function parseLogTimestamp(raw: string): Date | null {
   // "2026-11-13 15:18:07,183" -> "2026-11-13T15:18:07.183" (no zone -> writer's local time)
   const date = new Date(raw.replace(" ", "T").replace(",", "."));
@@ -194,7 +157,7 @@ function mergeDecisions(candidates: RouterDecision[], cap: number): RouterDecisi
     seen.add(key);
     unique.push(d);
   }
-  return unique.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, cap);
+  return unique.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, cap);
 }
 
 function buildLiveFromState(
@@ -213,7 +176,7 @@ function buildLiveFromState(
 
   const decisions = mergeDecisions(
     [state.last_decision, ...state.decisions].filter((d): d is RouterDecision => Boolean(d)),
-    20,
+    DECISIONS_KEEP,
   );
 
   const restore = restoreSchema.parse({
@@ -232,27 +195,75 @@ function buildLiveFromState(
   });
 }
 
+function readChunkEventsWindow(
+  filePath: string,
+  start: number,
+  end: number,
+): { events: LogEvent[]; reachedStart: boolean } {
+  try {
+    if (!fs.existsSync(filePath)) return { events: [], reachedStart: true };
+    const size = fs.statSync(filePath).size;
+    if (size === 0) return { events: [], reachedStart: true };
+    const s = Math.max(0, Math.min(size, start));
+    const e = Math.max(s, Math.min(size, end));
+    const chunk = e - s;
+    if (chunk <= 0) return { events: [], reachedStart: s === 0 };
+    const buf = Buffer.alloc(chunk);
+    const fd = fs.openSync(filePath, "r");
+    try {
+      fs.readSync(fd, buf, 0, chunk, s);
+    } finally {
+      fs.closeSync(fd);
+    }
+    const reachedStart = s === 0;
+    const lines = buf.toString("utf8").split("\n");
+    if (!reachedStart) lines.shift(); // first chunk line may be partial; drop it
+    const events: LogEvent[] = [];
+    for (const line of lines) {
+      const match = LOG_LINE_RE.exec(line);
+      if (!match) continue;
+      const at = parseLogTimestamp(match[1]);
+      if (!at) continue;
+      events.push({ at, message: match[4] });
+    }
+    return { events, reachedStart };
+  } catch {
+    return { events: [], reachedStart: true };
+  }
+}
+
 function collectTierRouterEvents(root: string): LogEvent[] {
-  // Newest first so an early stop (once enough decisions are found) reads recent data only.
   const files = ["agent.log", "agent.log.1", "agent.log.2", "agent.log.3"].map((name) =>
     path.join(root, "logs", name),
   );
   const all: LogEvent[] = [];
   for (const file of files) {
     let fileEvents: LogEvent[] = [];
-    let bytes = SCAN_CHUNK_BASE_BYTES;
-    for (;;) {
-      const chunk = readChunkEvents(file, bytes);
-      fileEvents = chunk.events;
-      if (chunk.reachedStart) break; // whole file scanned
+    let end: number;
+    try {
+      end = fs.existsSync(file) ? fs.statSync(file).size : 0;
+    } catch {
+      end = 0;
+    }
+    if (end === 0) continue;
+    let chunkSize = SCAN_CHUNK_BASE_BYTES;
+    let totalRead = 0;
+    let reachedStart = false;
+    while (!reachedStart && totalRead < MAX_SCAN_BYTES_PER_FILE) {
+      const size = Math.min(chunkSize, MAX_SCAN_BYTES_PER_FILE - totalRead);
+      const start = Math.max(0, end - size);
+      const res = readChunkEventsWindow(file, start, end);
+      fileEvents = [...res.events, ...fileEvents];
+      totalRead += end - start;
+      reachedStart = res.reachedStart || start === 0;
       if (countDecisions(all) + countDecisions(fileEvents) >= DECISIONS_KEEP) break;
-      if (bytes >= MAX_SCAN_BYTES_PER_FILE) break;
-      bytes = Math.min(MAX_SCAN_BYTES_PER_FILE, bytes * 4);
+      if (reachedStart) break;
+      end = start;
+      chunkSize = Math.min(MAX_SCAN_BYTES_PER_FILE, chunkSize * 4);
     }
     all.push(...fileEvents);
     if (countDecisions(all) >= DECISIONS_KEEP) break;
   }
-  // Files were walked newest-first; timestamps are reliable, so sort chronologically.
   return all.sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 

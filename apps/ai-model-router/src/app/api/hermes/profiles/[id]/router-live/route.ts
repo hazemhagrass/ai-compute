@@ -21,8 +21,12 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
 
   // The default profile maps to HERMES_HOME itself and therefore always exists; a named
   // profile exists only when its directory is present under profiles/.
-  if (id !== "default" && !fs.existsSync(profilePaths(id).root)) {
-    return NextResponse.json({ error: `profile "${id}" does not exist` }, { status: 404 });
+  if (id !== "default") {
+    try {
+      if (!fs.lstatSync(profilePaths(id).root).isDirectory()) throw new Error("missing");
+    } catch {
+      return NextResponse.json({ error: `profile "${id}" does not exist` }, { status: 404 });
+    }
   }
 
   try {
