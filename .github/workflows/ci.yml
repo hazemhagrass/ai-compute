@@ -78,6 +78,42 @@ jobs:
       - name: Build
         run: pnpm build
 
+  router-e2e:
+    name: ai-model-router e2e
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ai-model-router
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/ai-model-router/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm build
+
+      # Same gate as local: the suite serves the production build from a
+      # throwaway AMR_DATA_DIR (e2e/start-fresh.sh) with a loopback mock
+      # provider, so no real provider is ever contacted. retries is 0: a
+      # failing spec must block the merge.
+      - name: E2E smoke
+        run: pnpm test:e2e
+
   plans:
     name: plans in sync
     runs-on: ubuntu-latest
