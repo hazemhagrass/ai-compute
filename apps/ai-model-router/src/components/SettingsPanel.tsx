@@ -116,6 +116,7 @@ export default function SettingsPanel({ providers }: { providers: Provider[] }) 
 
       <BudgetsSection
         budgets={view.budgets}
+        pricingStaleDays={view.settings.pricingStaleDays}
         onSave={vm.saveBudget}
         onDelete={vm.deleteBudget}
       />
@@ -439,10 +440,15 @@ function PricingFreshnessSection({
 
 function BudgetsSection({
   budgets,
+  pricingStaleDays,
   onSave,
   onDelete,
 }: {
   budgets: BudgetRow[];
+  // Saved threshold keys the badge so a settings save that bumps it
+  // remounts the badge and it re-reads /api/settings immediately instead
+  // of rendering with the stale threshold until a reload.
+  pricingStaleDays: number;
   onSave: (label: string, period: string, limitCents: number) => void;
   onDelete: (id: string) => void;
 }) {
@@ -456,7 +462,7 @@ function BudgetsSection({
         <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
           Budgets
         </h3>
-        <PricingFreshnessBadge />
+        <PricingFreshnessBadge key={pricingStaleDays} />
       </div>
 
       {budgets.length === 0 ? (

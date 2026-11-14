@@ -6,6 +6,8 @@ import { getSetting, setSetting } from "@/lib/db";
 import {
   clampPricingStaleDays,
   PRICING_STALE_DAYS_DEFAULT,
+  PRICING_STALE_DAYS_MAX,
+  PRICING_STALE_DAYS_MIN,
 } from "@/lib/pricing-freshness";
 import { parseBody } from "@/lib/schemas";
 
@@ -14,7 +16,11 @@ export const dynamic = "force-dynamic";
 const PRICING_STALE_DAYS_KEY = "pricing_stale_days";
 
 const settingsSchema = z.object({
-  pricingStaleDays: z.number().int().min(1).max(365),
+  pricingStaleDays: z
+    .number()
+    .int()
+    .min(PRICING_STALE_DAYS_MIN)
+    .max(PRICING_STALE_DAYS_MAX),
 });
 
 function readPricingStaleDays(): number {

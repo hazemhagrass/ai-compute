@@ -1,11 +1,14 @@
 import { getSetting, setSetting } from "./db";
 import { appendPricingAudit } from "./pricing-audit";
-import { updateFreshnessRecord } from "./pricing-freshness-store";
+import {
+  CATALOG_SOURCE,
+  CATALOG_TS_KEY,
+  updateFreshnessRecord,
+} from "./pricing-freshness-store";
 import { listModels, updateModel } from "./repo";
 
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const CACHE_KEY = "openrouter_catalog";
-const CACHE_TS_KEY = "openrouter_catalog_ts";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export interface CatalogEntry {
@@ -67,7 +70,7 @@ export async function fetchCatalog(force = false): Promise<{
   cachedAt: string;
   fromCache: boolean;
 }> {
-  const ts = Number(getSetting(CACHE_TS_KEY, "0"));
+  const ts = Number(getSetting(CATALOG_TS_KEY, "0"));
   const fresh = Date.now() - ts < CACHE_TTL_MS;
   if (!force && fresh) {
     const raw = getSetting(CACHE_KEY, "");
@@ -96,8 +99,8 @@ export async function fetchCatalog(force = false): Promise<{
     const entries = (json.data ?? []).map(mapEntry).sort((a, b) => a.id.localeCompare(b.id));
     const fetchedAt = Date.now();
     setSetting(CACHE_KEY, JSON.stringify(entries));
-    setSetting(CACHE_TS_KEY, String(fetchedAt));
-    updateFreshnessRecord("openrouter", fetchedAt);
+    setSetting(CATALOG_TS_KEY, String(fetchedAt));
+    updateFreshnessRecord(CATALOG_SOURCE, fetchedAt);
     appendPricingAudit({ actor: "system", action: "catalog_refresh", details: { count: entries.length } });
     return { entries, cachedAt: new Date(fetchedAt).toISOString(), fromCache: false };
   } finally {
@@ -193,6 +196,15 @@ export async function syncPricing(apply: boolean): Promise<{
         outputCost: hit.outputCost,
         contextWindow: hit.contextLength || m.contextWindow,
         maxOutput: hit.maxOutput || m.maxOutput,
+      });
+      appendPricingAudit({
+        actor: "system",
+        action: "catalog_apply",
+        details: {
+          modelId: m.modelId,
+          inputCost: hit.inputCost,
+          outputCost: hit.outputCost,
+        },
       });
       applied++;
     }

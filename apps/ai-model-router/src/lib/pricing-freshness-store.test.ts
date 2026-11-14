@@ -20,8 +20,10 @@ beforeEach(() => {
 });
 
 describe("pricing freshness store", () => {
-  it("starts empty and stores per-source fetchedAt", () => {
-    expect(getPricingFreshnessRecords()).toEqual([]);
+  it("reports a never-fetched catalog source as missing instead of vanishing", () => {
+    expect(getPricingFreshnessRecords()).toEqual([
+      { source: "openrouter", fetchedAt: null },
+    ]);
     updateFreshnessRecord("openrouter", 1_000);
     expect(getFreshnessRecord("openrouter")).toEqual({
       source: "openrouter",
@@ -38,22 +40,84 @@ describe("pricing freshness store", () => {
     expect(getFreshnessRecord("openrouter")?.fetchedAt).toBe(2_000);
   });
 
-  it("records null fetchedAt when a source has no table", () => {
-    updateFreshnessRecord("broken-api", null);
-    expect(getFreshnessRecord("broken-api")?.fetchedAt).toBeNull();
+  it("backfills the catalog record from the cache timestamp and persists it", () => {
+    store.set("openrouter_catalog_ts", "1234567");
+    expect(getPricingFreshnessRecords()).toEqual([
+      { source: "openrouter", fetchedAt: 1_234_567 },
+    ]);
+    // Persisted, not just synthesized: the next raw write keeps it.
+    updateFreshnessRecord("other-source", 9_999);
+    expect(getFreshnessRecord("openrouter")).toEqual({
+      source: "openrouter",
+      fetchedAt: 1_234_567,
+    });
   });
 
-  it("keeps the record list bounded at 50", () => {
+  it("ignores the catalog timestamp when it is null, zero or garbage", () => {
+    for (const ts of ["0", "-5", "abc", ""]) {
+      store.clear();
+      store.set("openrouter_catalog_ts", ts);
+      expect(getPricingFreshnessRecords()).toEqual([
+        { source: "openrouter", fetchedAt: null },
+      ]);
+    }
+  });
+
+  it("keeps an existing catalog record instead of re-reading the cache ts", () => {
+    updateFreshnessRecord("openrouter", 1_000);
+    store.set("openrouter_catalog_ts", "9_999");
+    expect(getFreshnessRecord("openrouter")).toEqual({
+      source: "openrouter",
+      fetchedAt: 1_000,
+    });
+  });
+
+  it("records null fetchedAt when a source has no table", () => {
+    updateFreshnessRecord("broken-api", null);
+    expect(getFreshnessRecord("broken-api")).toEqual({
+      source: "broken-api",
+      fetchedAt: null,
+    });
+  });
+
+  it("keeps the record list bounded at 50, plus the always-present catalog source", () => {
     for (let i = 0; i < 55; i++) {
       updateFreshnessRecord(`source-${i}`, i);
     }
+    // 50 stored records, then the reader prepends the missing catalog
+    // record so "openrouter never fetched" is still reported.
     const records = getPricingFreshnessRecords();
-    expect(records).toHaveLength(50);
-    expect(records[0].source).toBe("source-5");
+    expect(records).toHaveLength(51);
+    expect(records[0]).toEqual({ source: "openrouter", fetchedAt: null });
+    expect(records[1].source).toBe("source-5");
   });
 
-  it("returns empty for corrupted stored JSON", () => {
+  it("evicts least-recently-updated records so the active source keeps its slot", () => {
+    updateFreshnessRecord("openrouter", 1_000);
+    for (let i = 0; i < 55; i++) {
+      updateFreshnessRecord(`source-${i}`, Date.now() + i * 1000);
+      updateFreshnessRecord("openrouter", Date.now() + i * 1000 + 500);
+    }
+    expect(getFreshnessRecord("openrouter")).toBeDefined();
+    expect(getPricingFreshnessRecords()).toHaveLength(50);
+  });
+
+  it("evicts never-fetched records first", () => {
+    updateFreshnessRecord("openrouter", Date.now() + 10_000);
+    updateFreshnessRecord("dead-feed", null);
+    for (let i = 0; i < 50; i++) {
+      updateFreshnessRecord(`source-${i}`, Date.now() + i);
+    }
+    const records = getPricingFreshnessRecords();
+    expect(records).toHaveLength(50);
+    expect(getFreshnessRecord("dead-feed")).toBeUndefined();
+    expect(getFreshnessRecord("openrouter")).toBeDefined();
+  });
+
+  it("returns the synthesized missing record for corrupted stored JSON", () => {
     store.set("pricing_freshness", "{bad");
-    expect(getPricingFreshnessRecords()).toEqual([]);
+    expect(getPricingFreshnessRecords()).toEqual([
+      { source: "openrouter", fetchedAt: null },
+    ]);
   });
 });

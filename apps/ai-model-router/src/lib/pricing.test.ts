@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { Model } from "./types";
 
 const store = new Map<string, string>();
+const fetchMock = vi.fn();
 
 vi.mock("./db", () => ({
   getSetting: (key: string, fallback = "") => store.get(key) ?? fallback,
@@ -14,15 +17,59 @@ vi.mock("./repo", () => ({
   updateModel: vi.fn(),
 }));
 
-const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
-
-const { fetchCatalog } = await import("./pricing");
+const { fetchCatalog, syncPricing } = await import("./pricing");
 const { getPricingAudit } = await import("./pricing-audit");
+const repo = await import("./repo");
+const listModelsMock = vi.mocked(repo.listModels);
+const updateModelMock = vi.mocked(repo.updateModel);
+
+function makeModel(overrides: Partial<Model> = {}): Model {
+  return {
+    id: 7,
+    providerId: 1,
+    providerSlug: "cloud",
+    providerName: "Cloud",
+    modelId: "vendor/m1",
+    label: "M1",
+    quality: 50,
+    speed: 50,
+    cheapness: 50,
+    contextWindow: 8192,
+    maxOutput: 4096,
+    inputCost: 0.5,
+    outputCost: 1.5,
+    skills: {},
+    features: {
+      tools: false,
+      vision: false,
+      json: false,
+      streaming: false,
+      reasoning: false,
+      audio: false,
+      embedding: false,
+    },
+    tags: [],
+    notes: "",
+    enabled: true,
+    createdAt: "",
+    updatedAt: "",
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
   store.clear();
   fetchMock.mockReset();
+  listModelsMock.mockReturnValue([]);
+  updateModelMock.mockClear();
+});
+
+afterEach(() => {
+  // A mid-test failure must not leak the fetch stub or fake clock into
+  // the next test.
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("fetchCatalog", () => {
@@ -45,6 +92,12 @@ describe("fetchCatalog", () => {
     const ts = Number(store.get("openrouter_catalog_ts"));
     expect(res.cachedAt).toBe(new Date(ts).toISOString());
     expect(ts).toBeGreaterThanOrEqual(before);
+    // the freshness record mirrors the cache timestamp (one truth)
+    const records = JSON.parse(store.get("pricing_freshness") ?? "[]") as {
+      source: string;
+      fetchedAt: number;
+    }[];
+    expect(records).toContainEqual({ source: "openrouter", fetchedAt: ts });
   });
 
   it("cache hit returns stored timestamp, not now (fake timers)", async () => {
@@ -56,7 +109,6 @@ describe("fetchCatalog", () => {
     const res = await fetchCatalog(false);
     expect(res.fromCache).toBe(true);
     expect(res.cachedAt).toBe(new Date(storedTs).toISOString());
-    vi.useRealTimers();
   });
 
   it("no stored timestamp: fetches fresh (sensible)", async () => {
@@ -68,5 +120,50 @@ describe("fetchCatalog", () => {
     // no ts -> not fresh -> fetch
     expect(res.fromCache).toBe(false);
     expect(fetchMock).toHaveBeenCalled();
+  });
+});
+
+describe("syncPricing", () => {
+  it("apply path writes changed prices and records one catalog_apply entry per model", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          { id: "vendor/m1", pricing: { prompt: "0.000001", completion: "0.000002" } },
+        ],
+      }),
+    });
+    listModelsMock.mockReturnValue([makeModel()]);
+
+    const res = await syncPricing(true);
+
+    expect(res.applied).toBe(1);
+    expect(updateModelMock).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ inputCost: 1, outputCost: 2 }),
+    );
+    const apply = getPricingAudit().find((e) => e.action === "catalog_apply");
+    expect(apply).toBeDefined();
+    expect((apply!.details as { modelId: string }).modelId).toBe("vendor/m1");
+    expect(apply!.details.inputCost).toBe(1);
+  });
+
+  it("dry run changes nothing and audits nothing beyond the catalog refresh", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          { id: "vendor/m1", pricing: { prompt: "0.000001", completion: "0.000002" } },
+        ],
+      }),
+    });
+    listModelsMock.mockReturnValue([makeModel()]);
+
+    const res = await syncPricing(false);
+
+    expect(res.applied).toBe(0);
+    expect(res.matches[0].changed).toBe(true);
+    expect(updateModelMock).not.toHaveBeenCalled();
+    expect(getPricingAudit().filter((e) => e.action !== "catalog_refresh")).toHaveLength(0);
   });
 });

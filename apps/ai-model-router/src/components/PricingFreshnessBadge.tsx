@@ -6,6 +6,7 @@ import { api } from "./store";
 import {
   clampPricingStaleDays,
   freshnessState,
+  isUsableFetchedAt,
   pricingAgeDays,
   PRICING_STALE_DAYS_DEFAULT,
   type FreshnessState,
@@ -21,16 +22,21 @@ export function freshnessColor(state: FreshnessState): string | undefined {
   return undefined;
 }
 
-/** Whole days in words: "today" for a partial day, "never" for no table. */
+/**
+ * Whole days in words: "today" for a partial day (and a future timestamp
+ * from clock skew, floored below zero), singular for one day, "never" for
+ * no table.
+ */
 export function pricingAgeLabel(
   fetchedAt: number | null,
   now: number,
 ): string {
-  if (fetchedAt === null || !Number.isFinite(fetchedAt) || fetchedAt <= 0) {
+  if (!isUsableFetchedAt(fetchedAt)) {
     return "never";
   }
   const days = pricingAgeDays(fetchedAt, now);
-  return days === 0 ? "today" : `${days} days ago`;
+  if (days <= 0) return "today";
+  return days === 1 ? "1 day ago" : `${days} days ago`;
 }
 
 export interface PricingFreshnessBadgeViewProps {
@@ -67,7 +73,10 @@ export function PricingFreshnessBadgeView({
 /**
  * Self-fetching badge shared by the Models and Settings (budgets) panels:
  * the table timestamp comes from /api/pricing, the threshold from
- * /api/settings. Bumping refreshToken re-reads both after a price sync.
+ * /api/settings. Bumping refreshToken re-reads both after a price sync;
+ * keying the badge on the saved pricingStaleDays re-reads it after a
+ * settings save. The clock re-reads every minute (and on a token bump) so
+ * a panel left open across midnight still shows the right age.
  */
 export default function PricingFreshnessBadge({
   refreshToken = 0,
@@ -78,7 +87,14 @@ export default function PricingFreshnessBadge({
 }) {
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [staleDays, setStaleDays] = useState(PRICING_STALE_DAYS_DEFAULT);
-  const [nowTs] = useState<number>(() => Date.now());
+  const [nowTs, setNowTs] = useState<number>(() => Date.now());
+
+  // Ages are displayed in whole days: refresh the clock so a panel left
+  // open across midnight stops showing yesterday's age.
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

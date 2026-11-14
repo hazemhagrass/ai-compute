@@ -4,9 +4,29 @@ import {
   clampPricingStaleDays,
   pricingAgeDays,
   isPricingStale,
+  isUsableFetchedAt,
   freshnessState,
   summarizePricingFreshness,
 } from "@/lib/pricing-freshness";
+
+describe("isUsableFetchedAt", () => {
+  it("accepts finite positive timestamps only", () => {
+    expect(isUsableFetchedAt(1000)).toBe(true);
+    expect(isUsableFetchedAt(1)).toBe(true);
+    for (const ts of [null, 0, -100, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(isUsableFetchedAt(ts)).toBe(false);
+    }
+  });
+
+  it("narrows the type to number", () => {
+    const ts: number | null = 5000;
+    if (isUsableFetchedAt(ts)) {
+      expect(ts + 1).toBe(5001);
+    } else {
+      throw new Error("should be usable");
+    }
+  });
+});
 
 describe("pricingAgeDays", () => {
   it("returns positive infinity for non-positive timestamps", () => {

@@ -90,4 +90,13 @@ describe("PricingFreshnessBadgeView", () => {
     expect(pricingAgeLabel(null, NOW)).toBe("never");
     expect(pricingAgeLabel(Number.NaN, NOW)).toBe("never");
   });
+
+  it("renders singular day and clamps future timestamps (clock skew) to today", () => {
+    expect(pricingAgeLabel(NOW - DAY, NOW)).toBe("1 day ago");
+    expect(pricingAgeLabel(NOW + DAY, NOW)).toBe("today");
+    expect(pricingAgeLabel(NOW + 5, NOW)).toBe("today");
+    const html = render({ fetchedAt: NOW - DAY });
+    expect(html).toContain("1 day ago");
+    expect(html).not.toContain("today");
+  });
 });
