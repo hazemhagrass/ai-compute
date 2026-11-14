@@ -17,6 +17,29 @@ interface ExportPayload {
   providerKeys: unknown[];
 }
 
+// Import upserts touch updatedAt on every row they rewrite, and exportedAt
+// is the export moment itself. Normalise only those volatile timestamp
+// fields; every other value in the payload must still round-trip exactly.
+const VOLATILE_TIME_KEYS = new Set(["updatedAt", "exportedAt"]);
+const VOLATILE_TIME = "<volatile timestamp>";
+
+function normaliseVolatileTimestamps<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => normaliseVolatileTimestamps(item)) as T;
+  }
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      out[key] =
+        VOLATILE_TIME_KEYS.has(key) && typeof val === "string"
+          ? VOLATILE_TIME
+          : normaliseVolatileTimestamps(val);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 async function exportConfig(page: Page): Promise<{
   path: string;
   payload: ExportPayload;
@@ -61,13 +84,22 @@ test.describe("config export/import round-trip", () => {
 
     // Export again and require every stable section to round-trip unchanged.
     const second = await exportConfig(page);
+    const stable = normaliseVolatileTimestamps;
     expect(second.payload.version).toBe(first.payload.version);
-    expect(second.payload.providers).toEqual(first.payload.providers);
-    expect(second.payload.models).toEqual(first.payload.models);
-    expect(second.payload.tasks).toEqual(first.payload.tasks);
-    expect(second.payload.subscriptions).toEqual(first.payload.subscriptions);
-    expect(second.payload.budgets).toEqual(first.payload.budgets);
-    expect(second.payload.routingPolicy).toEqual(first.payload.routingPolicy);
-    expect(second.payload.providerKeys).toEqual(first.payload.providerKeys);
+    expect(stable(second.payload.providers)).toEqual(
+      stable(first.payload.providers),
+    );
+    expect(stable(second.payload.models)).toEqual(stable(first.payload.models));
+    expect(stable(second.payload.tasks)).toEqual(stable(first.payload.tasks));
+    expect(stable(second.payload.subscriptions)).toEqual(
+      stable(first.payload.subscriptions),
+    );
+    expect(stable(second.payload.budgets)).toEqual(stable(first.payload.budgets));
+    expect(stable(second.payload.routingPolicy)).toEqual(
+      stable(first.payload.routingPolicy),
+    );
+    expect(stable(second.payload.providerKeys)).toEqual(
+      stable(first.payload.providerKeys),
+    );
   });
 });
