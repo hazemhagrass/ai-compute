@@ -10,7 +10,13 @@ export const modelRefSchema = z.object({
   // Hermes pool entries may carry a weight for weighted_round_robin tiers (agent/
   // tier_router.py _clean_pool keeps only provider, model, base_url, weight; clamping to a
   // positive int happens in Hermes at load time, so any number passes through here).
-  weight: z.number().optional(),
+  weight: z
+    .preprocess((v) => {
+      if (v === undefined || v === null) return undefined;
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 1;
+      return Math.max(1, Math.trunc(n));
+    }, z.number().optional()),
 });
 export type ModelRef = z.infer<typeof modelRefSchema>;
 

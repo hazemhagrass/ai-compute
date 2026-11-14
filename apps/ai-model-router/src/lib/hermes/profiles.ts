@@ -61,7 +61,7 @@ function summarize(id: string, label: string, isDefault: boolean): HermesProfile
       defaultProvider: "",
       tierRouterEnabled: false,
       tierCount: 0,
-      configError: err instanceof Error ? err.message : String(err),
+      configError: err instanceof Error ? err.message.split("\n")[0].slice(0, 80) : String(err).slice(0, 80),
     };
   }
 }
