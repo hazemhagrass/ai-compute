@@ -42,12 +42,41 @@ const server = http.createServer((req, res) => {
     });
     req.on("end", () => {
       let model = "mock-alpha";
+      let stream = false;
       try {
         const parsed = JSON.parse(body);
         if (typeof parsed.model === "string") model = parsed.model;
+        if (parsed.stream === true) stream = true;
       } catch {
       }
       const text = REPLIES[model] ?? `MOCK_REPLY for ${model}`;
+
+      // A real OpenAI-compatible provider answers a non-streaming request
+      // with a plain chat.completion JSON body. Serve SSE only when the
+      // caller asked for stream, otherwise the non-streaming client path
+      // would JSON.parse an SSE frame.
+      if (!stream) {
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+        });
+        res.end(
+          JSON.stringify({
+            id: "chatcmpl-e2e-mock",
+            object: "chat.completion",
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: text },
+                finish_reason: "stop",
+              },
+            ],
+            usage: USAGE,
+          }),
+        );
+        return;
+      }
+
       res.writeHead(200, {
         "content-type": "text/event-stream",
         "cache-control": "no-store",
