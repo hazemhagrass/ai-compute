@@ -58,3 +58,36 @@ export function freshnessState(
   if (isPricingStale(fetchedAt, now, staleDays)) return "amber";
   return "ok";
 }
+
+export interface PricingFreshnessSummary {
+  oldestAgeDays: number | null;
+  oldestSource: string | null;
+  missing: string[];
+}
+
+/**
+ * Whole-fleet view over the per-source records: the oldest table age in
+ * floor-of-days, the source it belongs to, and every source whose table is
+ * missing or nonsensical. Ties keep the first source; a missing table never
+ * counts as the oldest.
+ */
+export function summarizePricingFreshness(
+  records: PricingFreshnessRecord[],
+  now: number,
+): PricingFreshnessSummary {
+  let oldestAgeDays: number | null = null;
+  let oldestSource: string | null = null;
+  const missing: string[] = [];
+  for (const r of records) {
+    if (r.fetchedAt === null || !Number.isFinite(r.fetchedAt) || r.fetchedAt <= 0) {
+      missing.push(r.source);
+      continue;
+    }
+    const age = pricingAgeDays(r.fetchedAt, now);
+    if (oldestAgeDays === null || age > oldestAgeDays) {
+      oldestAgeDays = age;
+      oldestSource = r.source;
+    }
+  }
+  return { oldestAgeDays, oldestSource, missing };
+}

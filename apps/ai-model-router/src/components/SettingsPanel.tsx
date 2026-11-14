@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { Provider } from "@/lib/types";
+import PricingFreshnessBadge from "./PricingFreshnessBadge";
 import {
   money,
   parseModelList,
@@ -451,9 +452,12 @@ function BudgetsSection({
 
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/60 p-5">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
-        Budgets
-      </h3>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-dim)]">
+          Budgets
+        </h3>
+        <PricingFreshnessBadge />
+      </div>
 
       {budgets.length === 0 ? (
         <p className="text-sm text-[var(--fg-dim)]">

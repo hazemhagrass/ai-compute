@@ -5,6 +5,7 @@ import {
   pricingAgeDays,
   isPricingStale,
   freshnessState,
+  summarizePricingFreshness,
 } from "@/lib/pricing-freshness";
 
 describe("pricingAgeDays", () => {
@@ -111,6 +112,77 @@ describe("freshnessState", () => {
     expect(freshnessState(now - 30 * DAY, now, 30)).toBe("ok");
     expect(freshnessState(now - 8 * DAY, now, 7)).toBe("amber");
     expect(freshnessState(now - 7 * DAY, now, 7)).toBe("ok");
+  });
+});
+
+describe("summarizePricingFreshness", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = 1_900_000_000_000;
+
+  it("reports the floored age of the oldest table and its source", () => {
+    const summary = summarizePricingFreshness(
+      [
+        { source: "openrouter", fetchedAt: now - 3 * DAY },
+        { source: "openrouter-tuning", fetchedAt: now - (10 * DAY + DAY / 2) },
+      ],
+      now,
+    );
+    expect(summary).toEqual({
+      oldestAgeDays: 10,
+      oldestSource: "openrouter-tuning",
+      missing: [],
+    });
+  });
+
+  it("lists missing tables without letting them win the oldest age", () => {
+    const summary = summarizePricingFreshness(
+      [
+        { source: "never-fetched", fetchedAt: null },
+        { source: "zeroed", fetchedAt: 0 },
+        { source: "garbage", fetchedAt: Number.NaN },
+        { source: "live-feed", fetchedAt: now - DAY },
+      ],
+      now,
+    );
+    expect(summary).toEqual({
+      oldestAgeDays: 1,
+      oldestSource: "live-feed",
+      missing: ["never-fetched", "zeroed", "garbage"],
+    });
+  });
+
+  it("returns nulls and an empty missing list for no records", () => {
+    expect(summarizePricingFreshness([], now)).toEqual({
+      oldestAgeDays: null,
+      oldestSource: null,
+      missing: [],
+    });
+  });
+
+  it("reports null oldest when every table is missing", () => {
+    const summary = summarizePricingFreshness(
+      [
+        { source: "a", fetchedAt: null },
+        { source: "b", fetchedAt: 0 },
+      ],
+      now,
+    );
+    expect(summary).toEqual({
+      oldestAgeDays: null,
+      oldestSource: null,
+      missing: ["a", "b"],
+    });
+  });
+
+  it("keeps the first source when ages tie", () => {
+    const summary = summarizePricingFreshness(
+      [
+        { source: "first", fetchedAt: now - 2 * DAY },
+        { source: "second", fetchedAt: now - 2 * DAY },
+      ],
+      now,
+    );
+    expect(summary.oldestSource).toBe("first");
   });
 });
 

@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
+import PricingFreshnessBadge from "./PricingFreshnessBadge";
 import { Field, inputCls } from "./ProvidersPanel";
 import { api, apiWithMeta } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
-import {
-  clampPricingStaleDays,
-  freshnessState,
-  pricingAgeDays,
-  PRICING_STALE_DAYS_DEFAULT,
-} from "@/lib/pricing-freshness";
 import type { Model, Provider } from "@/lib/types";
 
 const SKILL_AXES = [
@@ -55,9 +50,7 @@ export default function ModelsPanel({
   const [filter, setFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState<number | "all">("all");
   const [syncing, setSyncing] = useState(false);
-  const [pricingCachedAt, setPricingCachedAt] = useState<string | null>(null);
-  const [staleDays, setStaleDays] = useState(PRICING_STALE_DAYS_DEFAULT);
-  const [nowTs] = useState<number>(() => Date.now());
+  const [pricingSyncToken, setPricingSyncToken] = useState(0);
   const [page, setPage] = useState(0);
   const [evaluating, setEvaluating] = useState<number | null>(null);
   const [evalPreview, setEvalPreview] = useState<{
@@ -70,39 +63,6 @@ export default function ModelsPanel({
   } | null>(null);
 
   const PAGE_SIZE = 50;
-
-  async function loadPricingMeta() {
-    try {
-      const res = await api<{ cachedAt: string }>("/api/pricing");
-      setPricingCachedAt(res.cachedAt);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  useEffect(() => {
-    api<{ cachedAt: string }>("/api/pricing")
-      .then((r) => setPricingCachedAt(r.cachedAt))
-      .catch(() => {});
-    api<{ settings?: { pricingStaleDays: number } }>("/api/settings")
-      .then((r) => {
-        if (typeof r.settings?.pricingStaleDays === "number") {
-          setStaleDays(clampPricingStaleDays(r.settings.pricingStaleDays));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const pricingTs =
-    pricingCachedAt === null ? null : new Date(pricingCachedAt).getTime();
-  const freshness =
-    pricingTs === null ? null : freshnessState(pricingTs, nowTs, staleDays);
-  const freshnessColor =
-    freshness === "red"
-      ? "var(--bad)"
-      : freshness === "amber"
-        ? "var(--warn)"
-        : undefined;
 
   const matched = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -142,7 +102,7 @@ export default function ModelsPanel({
           "good",
         );
         onRefresh();
-        loadPricingMeta();
+        setPricingSyncToken((n) => n + 1);
       } else {
         onToast(
           `${changed} of ${res.matches.length} matched models have stale prices (catalog: ${res.catalogSize})`,
@@ -227,7 +187,6 @@ export default function ModelsPanel({
         setEvalPreview(null);
         onToast("eval scores applied", "good");
         onRefresh();
-        loadPricingMeta();
       } else {
         onToast(`apply failed (${res.status})`, "bad");
       }
@@ -287,24 +246,7 @@ export default function ModelsPanel({
         </button>
       </div>
 
-      {pricingTs !== null && (
-        <div className="text-xs">
-          <span className="text-[var(--fg-dim)]">Pricing updated: </span>
-          <span style={{ color: freshnessColor }}>
-            {pricingTs === 0
-              ? "never"
-              : pricingAgeDays(pricingTs, nowTs) === 0
-                ? "today"
-                : `${pricingAgeDays(pricingTs, nowTs)} days ago`
-            }
-          </span>
-          {(freshness === "amber" || freshness === "red") && (
-            <span className="ml-2" style={{ color: freshnessColor }}>
-              stale
-            </span>
-          )}
-        </div>
-      )}
+      <PricingFreshnessBadge refreshToken={pricingSyncToken} />
 
       {editing && (
         <ModelForm
