@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import PricingFreshnessBadge from "./PricingFreshnessBadge";
 import { Field, inputCls } from "./ProvidersPanel";
 import { api, apiWithMeta } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
@@ -49,6 +50,7 @@ export default function ModelsPanel({
   const [filter, setFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState<number | "all">("all");
   const [syncing, setSyncing] = useState(false);
+  const [pricingSyncToken, setPricingSyncToken] = useState(0);
   const [page, setPage] = useState(0);
   const [evaluating, setEvaluating] = useState<number | null>(null);
   const [evalPreview, setEvalPreview] = useState<{
@@ -100,6 +102,7 @@ export default function ModelsPanel({
           "good",
         );
         onRefresh();
+        setPricingSyncToken((n) => n + 1);
       } else {
         onToast(
           `${changed} of ${res.matches.length} matched models have stale prices (catalog: ${res.catalogSize})`,
@@ -242,6 +245,8 @@ export default function ModelsPanel({
           + Add model
         </button>
       </div>
+
+      <PricingFreshnessBadge refreshToken={pricingSyncToken} />
 
       {editing && (
         <ModelForm
