@@ -7,6 +7,20 @@ export const modelRefSchema = z.object({
   timeout: z.number().optional(),
   api_key: z.string().optional(),
   api_mode: z.string().optional(),
+  // Hermes pool entries may carry a weight for weighted_round_robin tiers. agent/
+  // tier_router.py _clean_pool keeps only provider, model, base_url, weight and coerces
+  // exactly like max(1, int(e["weight"])) with fallback 1 on TypeError/ValueError, so an
+  // integer string passes ('3' -> 3), a value Python int() rejects becomes 1, and nothing
+  // here may fail the profile (verified against tier_router.py 193-197).
+  weight: z
+    .preprocess((v) => {
+      if (v === undefined || v === null) return undefined;
+      // Python int() accepts only sign + digits in strings ('3.9' and 'abc' raise -> 1).
+      if (typeof v === "string" && !/^[+-]?\d+$/.test(v.trim())) return 1;
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 1;
+      return Math.max(1, Math.trunc(n));
+    }, z.number().optional()),
 });
 export type ModelRef = z.infer<typeof modelRefSchema>;
 
@@ -34,7 +48,10 @@ const modelSectionSchema = z
 
 const tierEntrySchema = z
   .object({
-    mode: z.enum(["round_robin", "priority"]).optional(),
+    // Mirrors Hermes agent/tier_router.py RouterConfig.from_config: priority and
+    // round_robin are run as-is, weighted_round_robin is expanded by Hermes into a smooth
+    // weighted round-robin sequence at load time.
+    mode: z.enum(["priority", "round_robin", "weighted_round_robin"]).optional(),
     escalate_to: z.string().nullable().optional(),
     pool: z.array(modelRefSchema).default([]),
     fallback: z.array(modelRefSchema).default([]),
