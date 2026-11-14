@@ -70,3 +70,57 @@ describe("tier_router schema parity with the default profile", () => {
     ).toThrow();
   });
 });
+
+describe("weight coercion parity with Hermes _clean_pool", () => {
+  // agent/tier_router.py _clean_pool (193-197): d["weight"] = max(1, int(e["weight"])),
+  // except (TypeError, ValueError): d["weight"] = 1. An uncoercible weight must never fail
+  // the profile.
+  const weightOf = (weight: unknown): number | undefined =>
+    parseHermesConfig({
+      tier_router: { tiers: { normal: { pool: [{ provider: "p", model: "m", weight }] } } },
+    }).tier_router?.tiers.normal.pool[0].weight;
+
+  it("coerces integer strings like Python int()", () => {
+    expect(weightOf("3")).toBe(3);
+    expect(weightOf(" 4 ")).toBe(4);
+  });
+
+  it("clamps to 1 like max(1, int(...))", () => {
+    expect(weightOf(0)).toBe(1);
+    expect(weightOf(-2)).toBe(1);
+    expect(weightOf(0.4)).toBe(1);
+  });
+
+  it("falls back to 1 for values Python int() rejects", () => {
+    expect(weightOf("abc")).toBe(1);
+    expect(weightOf("3.9")).toBe(1);
+    expect(weightOf("")).toBe(1);
+  });
+
+  it("truncates floats like int()", () => {
+    expect(weightOf(3.9)).toBe(3);
+  });
+
+  it("keeps undefined and null weights unset (Hermes omits the key)", () => {
+    expect(weightOf(undefined)).toBeUndefined();
+    expect(weightOf(null)).toBeUndefined();
+  });
+
+  it("never fails the profile for uncoercible weights", () => {
+    const pool = parseHermesConfig({
+      tier_router: {
+        tiers: {
+          normal: {
+            pool: [
+              { provider: "p", model: "m1", weight: "abc" },
+              { provider: "p", model: "m2", weight: 0 },
+              { provider: "p", model: "m3", weight: "3" },
+            ],
+          },
+        },
+      },
+    }).tier_router?.tiers.normal.pool;
+    expect(pool).toHaveLength(3);
+    expect(pool?.map((e) => e.weight)).toEqual([1, 1, 3]);
+  });
+});

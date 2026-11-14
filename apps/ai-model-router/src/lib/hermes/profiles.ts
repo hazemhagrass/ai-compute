@@ -19,6 +19,26 @@ export interface HermesProfileSummary {
   configError?: string;
 }
 
+const CONFIG_ERROR_MAX = 80;
+
+// One short line, never the config text itself. YAML parse errors embed the offending
+// source line (right next to api_key values) after a blank line in err.message, and zod
+// dumps issue JSON; only the diagnostic may surface. Field names and schema literals are
+// fine, config values and source lines are not (issue.message/path carry neither).
+function sanitizeConfigError(err: unknown): string {
+  const issues = (err as { issues?: Array<{ path?: PropertyKey[]; message?: string }> })
+    ?.issues;
+  let msg: string;
+  if (Array.isArray(issues) && issues.length > 0) {
+    const first = issues[0];
+    const where = (first.path ?? []).map(String).join(".") || "config";
+    msg = `${where}: ${first.message ?? "invalid value"}`;
+  } else {
+    msg = err instanceof Error ? err.message : String(err);
+  }
+  return msg.split("\n")[0].slice(0, CONFIG_ERROR_MAX);
+}
+
 function summarize(id: string, label: string, isDefault: boolean): HermesProfileSummary {
   const { configPath } = isDefault ? defaultProfilePaths() : namedProfilePaths(id);
   const hasConfig = fs.existsSync(configPath);
@@ -61,7 +81,7 @@ function summarize(id: string, label: string, isDefault: boolean): HermesProfile
       defaultProvider: "",
       tierRouterEnabled: false,
       tierCount: 0,
-      configError: err instanceof Error ? err.message.split("\n")[0].slice(0, 80) : String(err).slice(0, 80),
+      configError: sanitizeConfigError(err),
     };
   }
 }
