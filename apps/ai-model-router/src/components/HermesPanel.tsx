@@ -398,7 +398,7 @@ function NewProfileForm({
 
   return (
     <Card title="New profile" className="border-[var(--accent)]/40">
-      <Field label="Profile name" hint="creates ~/.hermes/profiles/<name>/ with an empty config — letters, digits, . _ -">
+      <Field label="Profile name" hint="creates ~/.hermes/profiles/<name>/ with an empty config — letters, digits, _ - (max 64)">
         <input
           value={id}
           onChange={(e) => setId(e.target.value)}

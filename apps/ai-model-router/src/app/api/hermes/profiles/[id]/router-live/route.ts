@@ -1,9 +1,7 @@
-import fs from "node:fs";
-
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth";
-import { isValidProfileId, profilePaths } from "@/lib/hermes/paths";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { readRouterLive } from "@/lib/hermes/router-live";
 import { routerLiveSchema } from "@/lib/hermes/router-live-schema";
 
@@ -14,20 +12,10 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   if (denied) return denied;
   const { id } = await ctx.params;
 
-  // Validate before the id can become a path segment.
-  if (!isValidProfileId(id)) {
-    return NextResponse.json({ error: `invalid profile id: ${JSON.stringify(id)}` }, { status: 400 });
-  }
-
-  // The default profile maps to HERMES_HOME itself and therefore always exists; a named
-  // profile exists only when its directory is present under profiles/.
-  if (id !== "default") {
-    try {
-      if (!fs.lstatSync(profilePaths(id).root).isDirectory()) throw new Error("missing");
-    } catch {
-      return NextResponse.json({ error: `profile "${id}" does not exist` }, { status: 404 });
-    }
-  }
+  // Shared guard: 400 before the id can become a path segment, 404 when the named profile
+  // directory is absent (the default profile maps to HERMES_HOME itself and always exists).
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
 
   try {
     const live = routerLiveSchema.parse(readRouterLive(id));

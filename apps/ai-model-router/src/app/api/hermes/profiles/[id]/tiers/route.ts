@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import {
   setClassifierPool,
   setDefaultTier,
@@ -45,6 +46,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
 }
 
@@ -52,6 +55,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, settingsSchema);
   if (!parsed.ok) return parsed.response;
 
@@ -69,6 +74,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hermes/prof
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, upsertTierSchema);
   if (!parsed.ok) return parsed.response;
 

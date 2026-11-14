@@ -4,7 +4,7 @@ import path from "node:path";
 
 import YAML from "yaml";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 // Fixture lines mirror the real log formats produced by Hermes's RedactingFormatter
 // (verified against live ~/.hermes/logs/agent.log); model and provider names only, no
@@ -96,6 +96,16 @@ function writeGatewayState(profileRoot: string, running: boolean, pid?: number):
     JSON.stringify(running ? { gateway_state: "running", pid: pid ?? 1 } : { gateway_state: "stopped" }),
     "utf8",
   );
+}
+
+type ReadSyncCall = [number, Buffer, number, number, number];
+
+function readSyncCalls(spy: MockInstance): ReadSyncCall[] {
+  return spy.mock.calls as unknown as ReadSyncCall[];
+}
+
+function bytesFromReadSync(spy: MockInstance): number {
+  return spy.mock.results.reduce((sum, r) => sum + (r.value as number), 0);
 }
 
 interface RouterLiveJson {
@@ -534,5 +544,101 @@ describe("readRouterLive", () => {
     expect(live.profile).toBe("work");
     expect(live.source).toBe("logs");
     expect(live.decisions).toHaveLength(1);
+  });
+
+  it("drops tier-router lines whose timestamp does not parse", async () => {
+    const { readRouterLive } = await fresh();
+    writeConfig(dir, BASE_CONFIG);
+
+    writeLogs(dir, {
+      "agent.log": [
+        // Log-shaped line with a garbage timestamp: parseLogTimestamp returns null and the
+        // line must be dropped, not surfaced with an invalid date.
+        "9999-99-99 99:99:99,999 INFO [sess] agent.tier_router: tier_router: ghost→ghost (default) -> ghost-model via ghost-provider",
+        tierLine(logTimestamp(Date.now() - 30_000), "INFO", "sess", "tier_router: normal→normal (default) -> claude-sonnet-5 via anthropic"),
+      ],
+    });
+
+    const live = readRouterLive("default") as RouterLiveJson;
+
+    expect(live.decisions).toHaveLength(1);
+    expect(live.decisions[0].model).toBe("claude-sonnet-5");
+  });
+
+  it("reads at most the scan cap per file in total, across disjoint windows", async () => {
+    const { readRouterLive } = await fresh();
+    writeConfig(dir, BASE_CONFIG);
+
+    // Pure noise, no decisions anywhere: the scan grows to the cap and must stop there.
+    const noise: string[] = [];
+    for (let i = 0; i < 24_000; i++) {
+      noise.push(
+        `${logTimestamp(Date.now() - 3_600_000 + i)} INFO [sess] agent.agent: turn ${i} completed with usage stats`,
+      );
+    }
+    writeLogs(dir, { "agent.log": noise });
+    const fileSize = fs.statSync(path.join(dir, "logs", "agent.log")).size;
+    expect(fileSize).toBeGreaterThan(256 * 1024); // file is larger than the injected cap
+
+    const spy = vi.spyOn(fs, "readSync");
+    try {
+      readRouterLive("default", undefined, {
+        chunkBaseBytes: 64 * 1024,
+        maxScanBytesPerFile: 256 * 1024,
+      });
+
+      const totalBytes = bytesFromReadSync(spy);
+      expect(totalBytes).toBeGreaterThan(0);
+      expect(totalBytes).toBeLessThanOrEqual(256 * 1024);
+
+      // Windows are disjoint: no byte of the file is ever read twice (the growth loop reads
+      // only the not-yet-scanned region, so the sum cannot approach 2x the file size).
+      const ranges = readSyncCalls(spy)
+        .map(([, , length, position]) => ({ start: position, end: position + length }))
+        .sort((a, b) => a.start - b.start);
+      for (let i = 1; i < ranges.length; i++) {
+        expect(ranges[i].start).toBeGreaterThanOrEqual(ranges[i - 1].end);
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("serves an unchanged log file from the scan cache and reads 0 bytes on the next poll", async () => {
+    const { readRouterLive } = await fresh();
+    writeConfig(dir, BASE_CONFIG);
+
+    const logFile = path.join(dir, "logs", "agent.log");
+    writeLogs(dir, {
+      "agent.log": [
+        tierLine(logTimestamp(Date.now() - 30_000), "INFO", "sess", "tier_router: normal→normal (default) -> claude-sonnet-5 via anthropic"),
+      ],
+    });
+
+    const spy = vi.spyOn(fs, "readSync");
+    try {
+      const first = readRouterLive("default") as RouterLiveJson;
+      expect(first.decisions).toHaveLength(1);
+      expect(bytesFromReadSync(spy)).toBeGreaterThan(0);
+
+      // Same path, size, and mtimeMs: the cached scan is served without touching the file.
+      spy.mockClear();
+      const second = readRouterLive("default") as RouterLiveJson;
+      expect(second.decisions).toHaveLength(1);
+      expect(spy).toHaveBeenCalledTimes(0);
+      expect(bytesFromReadSync(spy)).toBe(0);
+
+      // Appending changes size+mtimeMs and must invalidate the cached entry.
+      fs.appendFileSync(
+        logFile,
+        tierLine(logTimestamp(Date.now() - 10_000), "INFO", "sess", "tier_router: plan→plan (default) -> claude-opus-5-5 via anthropic") + "\n",
+        "utf8",
+      );
+      const third = readRouterLive("default") as RouterLiveJson;
+      expect(third.decisions).toHaveLength(2);
+      expect(bytesFromReadSync(spy)).toBeGreaterThan(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

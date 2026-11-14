@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { listProviderViews, removeProvider, updateProvider } from "@/lib/hermes/providers";
 import { parseBody } from "@/lib/schemas";
 
@@ -23,6 +24,8 @@ export async function PATCH(
   const denied = await requireAuth();
   if (denied) return denied;
   const { id, providerId } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, patchSchema);
   if (!parsed.ok) return parsed.response;
 
@@ -41,6 +44,8 @@ export async function DELETE(
   const denied = await requireAuth();
   if (denied) return denied;
   const { id, providerId } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
 
   const existing = readHermesConfig(id).providers?.[providerId];
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });

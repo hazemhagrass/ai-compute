@@ -6,6 +6,7 @@ import type { HermesConfig } from "./config-schema";
 import { HERMES_HOME, profilePaths } from "./paths";
 import {
   cooldownEntrySchema,
+  DECISIONS_KEEP,
   restoreSchema,
   routerLiveSchema,
   tierRouterStateSchema,
@@ -21,13 +22,21 @@ import { z } from "zod";
 // agent.tier_router through RedactingFormatter. Log lines carry no secrets (model and
 // provider names and session tags only).
 
-const DECISIONS_KEEP = 10;
 // newest-first adaptive scan constants: router lines are sparse in busy logs (verified on
 // the live install: the newest agent.tier_router line sat ~45k lines above the tail of a
 // 164k-line agent.log), so scanning a fixed small tail shows nothing. Start small and grow
-// with a hard per-file cap; stop as soon as enough decisions are in hand.
-const SCAN_CHUNK_BASE_BYTES = 256 * 1024;
-const MAX_SCAN_BYTES_PER_FILE = 32 * 1024 * 1024;
+// with a hard per-file cap; stop as soon as enough decisions are in hand. Windows are
+// disjoint (each grows downward from the previous start), so the total bytes read per file
+// never exceeds the cap. Scan limits are injectable for tests.
+export interface ScanLimits {
+  chunkBaseBytes: number;
+  maxScanBytesPerFile: number;
+}
+
+export const DEFAULT_SCAN_LIMITS: ScanLimits = {
+  chunkBaseBytes: 256 * 1024,
+  maxScanBytesPerFile: 32 * 1024 * 1024,
+};
 const MAX_FUTURE_SKEW_MS = 120_000;
 
 // Mirrors agent/failure_cooldown.py: DEFAULT_FAILURE_COOLDOWN_SECONDS. Every cooldown arm
@@ -232,39 +241,92 @@ function readChunkEventsWindow(
   }
 }
 
-function collectTierRouterEvents(root: string): LogEvent[] {
+function collectTierRouterEvents(root: string, limits: ScanLimits): LogEvent[] {
   const files = ["agent.log", "agent.log.1", "agent.log.2", "agent.log.3"].map((name) =>
     path.join(root, "logs", name),
   );
   const all: LogEvent[] = [];
   for (const file of files) {
-    let fileEvents: LogEvent[] = [];
-    let end: number;
-    try {
-      end = fs.existsSync(file) ? fs.statSync(file).size : 0;
-    } catch {
-      end = 0;
-    }
-    if (end === 0) continue;
-    let chunkSize = SCAN_CHUNK_BASE_BYTES;
-    let totalRead = 0;
-    let reachedStart = false;
-    while (!reachedStart && totalRead < MAX_SCAN_BYTES_PER_FILE) {
-      const size = Math.min(chunkSize, MAX_SCAN_BYTES_PER_FILE - totalRead);
-      const start = Math.max(0, end - size);
-      const res = readChunkEventsWindow(file, start, end);
-      fileEvents = [...res.events, ...fileEvents];
-      totalRead += end - start;
-      reachedStart = res.reachedStart || start === 0;
-      if (countDecisions(all) + countDecisions(fileEvents) >= DECISIONS_KEEP) break;
-      if (reachedStart) break;
-      end = start;
-      chunkSize = Math.min(MAX_SCAN_BYTES_PER_FILE, chunkSize * 4);
-    }
-    all.push(...fileEvents);
+    all.push(...scanFileEvents(file, limits));
     if (countDecisions(all) >= DECISIONS_KEEP) break;
   }
   return all.sort((a, b) => a.at.getTime() - b.at.getTime());
+}
+
+// Per-file scan cache keyed by path and validated against size+mtimeMs, so an unchanged
+// log file is served from memory on the next poll and reads 0 bytes. The scan itself is a
+// pure function of the file (the early stop counts only this file's own decisions), which
+// makes caching safe even when other rotations change between polls.
+interface ScanCacheEntry {
+  size: number;
+  mtimeMs: number;
+  limits: ScanLimits;
+  events: LogEvent[];
+}
+
+const SCAN_CACHE_MAX_ENTRIES = 64;
+const scanCache = new Map<string, ScanCacheEntry>();
+
+export function clearRouterLiveScanCache(): void {
+  scanCache.clear();
+}
+
+function scanFileEvents(file: string, limits: ScanLimits): LogEvent[] {
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(file);
+    if (!stat.isFile()) return [];
+  } catch {
+    return [];
+  }
+  const hit = scanCache.get(file);
+  if (
+    hit &&
+    hit.size === stat.size &&
+    hit.mtimeMs === stat.mtimeMs &&
+    hit.limits.chunkBaseBytes === limits.chunkBaseBytes &&
+    hit.limits.maxScanBytesPerFile === limits.maxScanBytesPerFile
+  ) {
+    scanCache.delete(file);
+    scanCache.set(file, hit); // refresh eviction order
+    return hit.events;
+  }
+  const events = scanFileWindows(file, limits);
+  if (scanCache.size >= SCAN_CACHE_MAX_ENTRIES) {
+    const oldest = scanCache.keys().next().value;
+    if (oldest !== undefined) scanCache.delete(oldest);
+  }
+  scanCache.set(file, { size: stat.size, mtimeMs: stat.mtimeMs, limits, events });
+  return events;
+}
+
+// Backward chunked read: windows are disjoint and shrink the remaining budget, so the
+// total bytes read from one file never exceeds limits.maxScanBytesPerFile.
+function scanFileWindows(file: string, limits: ScanLimits): LogEvent[] {
+  let fileEvents: LogEvent[] = [];
+  let end: number;
+  try {
+    end = fs.existsSync(file) ? fs.statSync(file).size : 0;
+  } catch {
+    end = 0;
+  }
+  if (end === 0) return fileEvents;
+  let chunkSize = limits.chunkBaseBytes;
+  let totalRead = 0;
+  let reachedStart = false;
+  while (!reachedStart && totalRead < limits.maxScanBytesPerFile) {
+    const size = Math.min(chunkSize, limits.maxScanBytesPerFile - totalRead);
+    const start = Math.max(0, end - size);
+    const res = readChunkEventsWindow(file, start, end);
+    fileEvents = [...res.events, ...fileEvents];
+    totalRead += end - start;
+    reachedStart = res.reachedStart || start === 0;
+    if (countDecisions(fileEvents) >= DECISIONS_KEEP) break;
+    if (reachedStart) break;
+    end = start;
+    chunkSize = Math.min(limits.maxScanBytesPerFile, chunkSize * 4);
+  }
+  return fileEvents;
 }
 
 function countDecisions(events: LogEvent[]): number {
@@ -275,7 +337,12 @@ function countDecisions(events: LogEvent[]): number {
   return count;
 }
 
-function deriveLiveFromLogs(profileId: string, root: string, config: HermesConfig): RouterLive {
+function deriveLiveFromLogs(
+  profileId: string,
+  root: string,
+  config: HermesConfig,
+  limits: ScanLimits,
+): RouterLive {
   const now = Date.now();
   const enabled = config.tier_router?.restore_primary === true;
   let restore: RouterRestore = restoreSchema.parse({ enabled });
@@ -283,7 +350,7 @@ function deriveLiveFromLogs(profileId: string, root: string, config: HermesConfi
   const arms = new Map<string, { entry: CooldownEntry; at: number }>();
   const window = cooldownWindowSeconds(config);
 
-  for (const event of collectTierRouterEvents(root)) {
+  for (const event of collectTierRouterEvents(root, limits)) {
     const decision = DECISION_RE.exec(event.message);
     if (decision) {
       decisions.push({
@@ -366,8 +433,13 @@ function deriveLiveFromLogs(profileId: string, root: string, config: HermesConfi
   };
 }
 
-export function readRouterLive(profileId: string, cfg?: HermesConfig): RouterLive {
+export function readRouterLive(
+  profileId: string,
+  cfg?: HermesConfig,
+  scanLimits?: Partial<ScanLimits>,
+): RouterLive {
   const config = cfg ?? readHermesConfig(profileId);
+  const limits: ScanLimits = { ...DEFAULT_SCAN_LIMITS, ...scanLimits };
   const { root } = profilePaths(profileId);
   const generatedAt = new Date().toISOString();
 
@@ -395,7 +467,7 @@ export function readRouterLive(profileId: string, cfg?: HermesConfig): RouterLiv
     warnings.push(`State file state/tier-router.json could not be read (${stateResult.reason}); showing log-derived data`);
   }
 
-  const live = deriveLiveFromLogs(profileId, root, config);
+  const live = deriveLiveFromLogs(profileId, root, config, limits);
   return routerLiveSchema.parse({
     ...live,
     warnings: [...warnings, ...live.warnings],

@@ -100,8 +100,11 @@ describe("GET /api/hermes/profiles/[id]/router-live", () => {
   });
 
   it("returns source none and a warning for a disabled router", async () => {
-    writeFileSync(join(DIR, "config.yaml"), "tier_router:\n  enabled: false\n", "utf8");
-    const res = await get();
+    // Own profile dir so the shared default fixture stays enabled for the other tests.
+    const offRoot = join(DIR, "profiles", "qa-off");
+    mkdirSync(offRoot, { recursive: true });
+    writeFileSync(join(offRoot, "config.yaml"), "tier_router:\n  enabled: false\n", "utf8");
+    const res = await get("qa-off");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { routerLive: { source: string; warnings: string[]; decisions: unknown[] } };
     expect(body.routerLive.source).toBe("none");

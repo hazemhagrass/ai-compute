@@ -8,6 +8,10 @@ import { z } from "zod";
 // Until the Hermes writer exists (Phase B), this app works purely from logs and every
 // cooldown entry it produces carries approx: true.
 
+// One cap for the decision list, shared by the log path, the state-file path, and the
+// response schema so they cannot drift apart.
+export const DECISIONS_KEEP = 10;
+
 export const decisionSchema = z.object({
   at: z.string(),
   tier_requested: z.string(),
@@ -69,7 +73,7 @@ export const routerLiveSchema = z.object({
   generated_at: z.string(),
   state_stale: z.boolean().optional(),
   cooldowns: z.array(cooldownEntrySchema).default([]),
-  decisions: z.array(decisionSchema).max(20).default([]),
+  decisions: z.array(decisionSchema).max(DECISIONS_KEEP).default([]),
   restore: restoreSchema.default({ enabled: false }),
   warnings: z.array(z.string()).default([]),
 });
