@@ -16,6 +16,7 @@ export default function ComparePanel({ models }: { models: Model[] }) {
 
       <div className="grid gap-2 sm:grid-cols-2">
         <select
+          aria-label="Model A"
           value={view.draft.modelA}
           onChange={(e) => vm.setModelA(e.target.value)}
           className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
@@ -28,6 +29,7 @@ export default function ComparePanel({ models }: { models: Model[] }) {
           ))}
         </select>
         <select
+          aria-label="Model B"
           value={view.draft.modelB}
           onChange={(e) => vm.setModelB(e.target.value)}
           className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
@@ -43,6 +45,7 @@ export default function ComparePanel({ models }: { models: Model[] }) {
 
       <input
         type="text"
+        aria-label="Prompt"
         value={view.draft.prompt}
         onChange={(e) => vm.setPrompt(e.target.value)}
         placeholder="Prompt to send to both"
@@ -50,6 +53,7 @@ export default function ComparePanel({ models }: { models: Model[] }) {
       />
       <input
         type="text"
+        aria-label="System prompt"
         value={vm.view.system}
         onChange={(e) => vm.setSystem(e.target.value)}
         placeholder="System prompt (optional)"
