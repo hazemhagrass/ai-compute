@@ -55,8 +55,11 @@ test.describe("budget warning", () => {
       page.getByText(/Budget at 80% for this period/),
     ).toBeVisible();
 
-    // Cleanup: drop the budget and confirm the empty state returns.
+    // Cleanup: drop the budget and confirm the empty state returns. The
+    // delete asks for a window.confirm, which Playwright auto-dismisses,
+    // so accept it explicitly like a user would.
     await nav(page).getByRole("button", { name: /^Settings/ }).click();
+    page.once("dialog", (dialog) => dialog.accept());
     await page
       .getByRole("row")
       .filter({ hasText: "e2e smoke" })
