@@ -204,6 +204,7 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <select
+          aria-label="Model"
           value={modelRowId ?? ""}
           onChange={(e) => pickModel(Number(e.target.value))}
           className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
@@ -216,6 +217,7 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
           ))}
         </select>
         <select
+          aria-label="Task"
           value={taskSlug}
           onChange={(e) => pickTask(e.target.value)}
           className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
@@ -230,6 +232,7 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
       </div>
       <input
         type="text"
+        aria-label="System prompt"
         value={system}
         onChange={(e) => setSystem(e.target.value)}
         placeholder="System prompt (optional)"
@@ -263,6 +266,7 @@ export default function PlaygroundPanel({ models, tasks, onToast }: Props) {
       <div className="flex gap-2">
         <input
           type="text"
+          aria-label="Prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && run()}

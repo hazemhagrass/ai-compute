@@ -446,12 +446,14 @@ function BudgetsSection({
         className="mt-3 grid gap-2 rounded-md border border-dashed border-[var(--border)] p-3 sm:grid-cols-[2fr_1fr_1fr_auto]"
       >
         <input
+          aria-label="Budget label"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="Label (defaults to period)"
           className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm"
         />
         <select
+          aria-label="Budget period"
           value={period}
           onChange={(e) => setPeriod(e.target.value)}
           className="rounded border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm"
@@ -462,6 +464,7 @@ function BudgetsSection({
         </select>
         <input
           type="number"
+          aria-label="Budget limit in dollars"
           min={0}
           step={1}
           value={dollars}
