@@ -96,7 +96,7 @@ Authentication uses scrypt (password + per-password salt) with HMAC-signed httpO
 Disabled by default. Set AMR_BACKUP_ENABLED=true to enable.
 
 - AMR_BACKUP_ENABLED: true enables the scheduler. Default false.
-- AMR_BACKUP_INTERVAL_MS: run interval in milliseconds. Default 86400000 (24h). Must be an integer at least 60000, otherwise falls back to 24h with a warning.
+- AMR_BACKUP_INTERVAL_MS: run interval in milliseconds. Default 86400000 (24h). Must be an integer at least 60000 and at most 2147483647, otherwise falls back to 24h with a warning. Values above 2147483647 also fall back to 24h with a warning. An immediate backup runs at every server start.
 - AMR_BACKUP_KEEP: number of backups to retain. Default 7. Must be an integer at least 1, otherwise falls back to 7 with a warning.
 - AMR_BACKUP_DIR: backup directory. Default <data>/backups.
 

@@ -29,14 +29,14 @@ export function backupSchedulerConfig() {
     intervalMs,
     keep,
     dir:
-      process.env.AMR_BACKUP_DIR ?? path.join(DATA_DIR, "backups"),
+      process.env.AMR_BACKUP_DIR?.trim() || path.join(DATA_DIR, "backups"),
   };
 }
 
 export function pruneBackups(dir: string, keep: number): string[] {
   if (!Number.isInteger(keep) || keep < 1) return [];
   if (!fs.existsSync(dir)) return [];
-  const stat = fs.lstatSync(dir);
+  const stat = fs.statSync(dir);
   if (!stat.isDirectory()) return [];
   const entries = fs
     .readdirSync(dir, { withFileTypes: true })
@@ -73,12 +73,17 @@ export function startBackupScheduler(): void {
   const run = async () => {
     if (state.running) return;
     state.running = true;
+    const name = `backup-${Date.now()}`;
+    const dest = path.join(cfg.dir, name);
     try {
-      const name = `backup-${Date.now()}`;
-      const dest = path.join(cfg.dir, name);
       await createBackup(dest);
       pruneBackups(cfg.dir, cfg.keep);
     } catch (err) {
+      try {
+        fs.rmSync(dest, { recursive: true, force: true });
+      } catch {
+        // swallow cleanup errors
+      }
       const code = (err as { code?: unknown; name?: unknown })?.code ?? (err as { name?: unknown })?.name;
       console.error("[backup-scheduler] run failed:", code ?? "Error");
     } finally {
