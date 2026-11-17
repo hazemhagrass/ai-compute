@@ -10,7 +10,12 @@ export function backupSchedulerConfig() {
   const rawInterval = Number(process.env.AMR_BACKUP_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
   const rawKeep = Number(process.env.AMR_BACKUP_KEEP ?? 7);
   let intervalMs = rawInterval;
-  if (!Number.isInteger(intervalMs) || intervalMs < 60000) {
+  const MAX_SAFE_INTERVAL = 2147483647;
+  if (
+    !Number.isInteger(intervalMs) ||
+    intervalMs < 60000 ||
+    intervalMs > MAX_SAFE_INTERVAL
+  ) {
     console.warn("[backup-scheduler] invalid AMR_BACKUP_INTERVAL_MS, using 24h");
     intervalMs = 24 * 60 * 60 * 1000;
   }
@@ -50,33 +55,50 @@ export function pruneBackups(dir: string, keep: number): string[] {
   return removed;
 }
 
-let started = false;
-let timer: NodeJS.Timeout | null = null;
+const STATE_KEY = Symbol.for("ai-model-router.backup-scheduler");
+type SchedulerState = { started: boolean; timer: NodeJS.Timeout | null; initial: NodeJS.Timeout | null; running: boolean };
+
+function getState(): SchedulerState {
+  const g = globalThis as Record<symbol, SchedulerState>;
+  if (!g[STATE_KEY]) g[STATE_KEY] = { started: false, timer: null, initial: null, running: false };
+  return g[STATE_KEY];
+}
 
 export function startBackupScheduler(): void {
-  if (started) return;
+  const state = getState();
+  if (state.started) return;
   const cfg = backupSchedulerConfig();
   if (!cfg.enabled) return;
-  started = true;
+  state.started = true;
   const run = async () => {
+    if (state.running) return;
+    state.running = true;
     try {
       const name = `backup-${Date.now()}`;
       const dest = path.join(cfg.dir, name);
       await createBackup(dest);
       pruneBackups(cfg.dir, cfg.keep);
     } catch (err) {
-      console.error("[backup-scheduler] run failed:", err);
+      const code = (err as { code?: unknown; name?: unknown })?.code ?? (err as { name?: unknown })?.name;
+      console.error("[backup-scheduler] run failed:", code ?? "Error");
+    } finally {
+      state.running = false;
     }
   };
-  setTimeout(() => {
+  state.initial = setTimeout(() => {
     void run();
-    timer = setInterval(() => void run(), cfg.intervalMs);
-    if (timer && typeof timer.unref === "function") timer.unref();
+    state.timer = setInterval(() => void run(), cfg.intervalMs);
+    if (state.timer && typeof state.timer.unref === "function") state.timer.unref();
   }, 0);
+  if (state.initial && typeof state.initial.unref === "function") state.initial.unref();
 }
 
 export function stopBackupScheduler(): void {
-  if (timer) clearInterval(timer);
-  timer = null;
-  started = false;
+  const state = getState();
+  if (state.timer) clearInterval(state.timer);
+  if (state.initial) clearTimeout(state.initial);
+  state.timer = null;
+  state.initial = null;
+  state.started = false;
+  state.running = false;
 }

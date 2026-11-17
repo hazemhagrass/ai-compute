@@ -5,11 +5,15 @@ export async function register(): Promise<void> {
     const { getDb } = await import("./lib/db");
     const { maybeApplyRetention } = await import("./lib/retention");
     maybeApplyRetention(getDb());
-  } catch {
+  } catch (err) {
+    const code = (err as { code?: unknown; name?: unknown })?.code ?? (err as { name?: unknown })?.name;
+    console.warn("[instrumentation] retention failed:", code ?? "Error");
   }
   try {
     const { startBackupScheduler } = await import("./lib/backup-scheduler");
     startBackupScheduler();
-  } catch {
+  } catch (err) {
+    const code = (err as { code?: unknown; name?: unknown })?.code ?? (err as { name?: unknown })?.name;
+    console.warn("[instrumentation] backup scheduler failed:", code ?? "Error");
   }
 }
