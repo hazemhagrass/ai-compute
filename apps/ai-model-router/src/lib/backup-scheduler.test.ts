@@ -2,47 +2,62 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, w
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { vi } from "vitest";
 import { afterAll, beforeEach, afterEach, describe, expect, it } from "vitest";
 
-import { BACKUP_NAME_RE, backupSchedulerConfig, pruneBackups } from "./backup-scheduler";
+import { BACKUP_NAME_RE, backupSchedulerConfig, pruneBackups, stopBackupScheduler } from "./backup-scheduler";
 import { createBackup } from "./backup";
+
+vi.mock("./backup", async () => {
+  const actual = await vi.importActual<typeof import("./backup")>("./backup");
+  return { ...actual, createBackup: vi.fn(actual.createBackup) };
+});
 
 describe("backup scheduler", () => {
   const ROOT = mkdtempSync(join(tmpdir(), "amr-sched-"));
+
+  const ENV_KEYS = [
+    "AMR_BACKUP_ENABLED",
+    "AMR_BACKUP_INTERVAL_MS",
+    "AMR_BACKUP_KEEP",
+    "AMR_BACKUP_DIR",
+  ];
+  let saved: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of ENV_KEYS) saved[k] = process.env[k];
+  });
+
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
 
   afterAll(() => {
     rmSync(ROOT, { recursive: true, force: true });
   });
 
   it("disabled by default", () => {
-    const prev = process.env.AMR_BACKUP_ENABLED;
     delete process.env.AMR_BACKUP_ENABLED;
     expect(backupSchedulerConfig().enabled).toBe(false);
-    if (prev !== undefined) process.env.AMR_BACKUP_ENABLED = prev;
   });
 
   it("AMR_BACKUP_KEEP abc falls back to 7", () => {
-    const prev = process.env.AMR_BACKUP_KEEP;
     process.env.AMR_BACKUP_KEEP = "abc";
     expect(backupSchedulerConfig().keep).toBe(7);
-    if (prev !== undefined) process.env.AMR_BACKUP_KEEP = prev;
-    else delete process.env.AMR_BACKUP_KEEP;
   });
 
   it("AMR_BACKUP_KEEP 0 falls back to 7", () => {
-    const prev = process.env.AMR_BACKUP_KEEP;
     process.env.AMR_BACKUP_KEEP = "0";
     expect(backupSchedulerConfig().keep).toBe(7);
-    if (prev !== undefined) process.env.AMR_BACKUP_KEEP = prev;
-    else delete process.env.AMR_BACKUP_KEEP;
   });
 
   it("AMR_BACKUP_KEEP -1 falls back to 7", () => {
-    const prev = process.env.AMR_BACKUP_KEEP;
     process.env.AMR_BACKUP_KEEP = "-1";
     expect(backupSchedulerConfig().keep).toBe(7);
-    if (prev !== undefined) process.env.AMR_BACKUP_KEEP = prev;
-    else delete process.env.AMR_BACKUP_KEEP;
   });
 
   it("pruneBackups(dir,0) deletes nothing", () => {
@@ -70,19 +85,13 @@ describe("backup scheduler", () => {
   });
 
   it("AMR_BACKUP_INTERVAL_MS abc falls back to 86400000", () => {
-    const prev = process.env.AMR_BACKUP_INTERVAL_MS;
     process.env.AMR_BACKUP_INTERVAL_MS = "abc";
     expect(backupSchedulerConfig().intervalMs).toBe(86400000);
-    if (prev !== undefined) process.env.AMR_BACKUP_INTERVAL_MS = prev;
-    else delete process.env.AMR_BACKUP_INTERVAL_MS;
   });
 
   it("AMR_BACKUP_INTERVAL_MS 1000 falls back to 86400000", () => {
-    const prev = process.env.AMR_BACKUP_INTERVAL_MS;
     process.env.AMR_BACKUP_INTERVAL_MS = "1000";
     expect(backupSchedulerConfig().intervalMs).toBe(86400000);
-    if (prev !== undefined) process.env.AMR_BACKUP_INTERVAL_MS = prev;
-    else delete process.env.AMR_BACKUP_INTERVAL_MS;
   });
 
   it("a run writes a backup", async () => {
@@ -138,14 +147,6 @@ describe("backup scheduler", () => {
   });
 });
 
-import { vi } from "vitest";
-import { stopBackupScheduler } from "./backup-scheduler";
-
-vi.mock("./backup", async () => {
-  const actual = await vi.importActual<typeof import("./backup")>("./backup");
-  return { ...actual, createBackup: vi.fn(actual.createBackup) };
-});
-
 describe("backup scheduler behavior", () => {
   const ENV_KEYS = [
     "AMR_BACKUP_ENABLED",
@@ -154,13 +155,20 @@ describe("backup scheduler behavior", () => {
     "AMR_BACKUP_DIR",
   ];
   let saved: Record<string, string | undefined>;
+  let backupDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     saved = {};
     for (const k of ENV_KEYS) saved[k] = process.env[k];
     vi.useFakeTimers();
     process.env.AMR_BACKUP_ENABLED = "true";
     process.env.AMR_BACKUP_INTERVAL_MS = "60000";
+    backupDir = mkdtempSync(join(tmpdir(), "amr-backup-"));
+    process.env.AMR_BACKUP_DIR = backupDir;
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    mod.mockReset();
+    mod.mockResolvedValue(undefined as never);
   });
 
   afterEach(() => {
@@ -171,6 +179,7 @@ describe("backup scheduler behavior", () => {
     stopBackupScheduler();
     vi.useRealTimers();
     vi.resetModules();
+    rmSync(backupDir, { recursive: true, force: true });
   });
 
   it("overflow 30 days falls back to 24h and warns", async () => {
@@ -239,7 +248,9 @@ describe("backup scheduler behavior", () => {
     const m2 = await import("./backup-scheduler");
     m2.startBackupScheduler();
     await vi.advanceTimersByTimeAsync(100);
-    // ensure no duplicate explosion: total calls should be firstCalls + 1 at most for initial
-    expect(mod.mock.calls.length).toBeLessThanOrEqual(firstCalls + 1);
+    expect(mod.mock.calls.length).toBe(firstCalls);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mod.mock.calls.length).toBe(firstCalls + 1);
   });
 });
