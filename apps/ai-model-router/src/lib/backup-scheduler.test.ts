@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -58,6 +58,16 @@ describe("backup scheduler", () => {
   it("AMR_BACKUP_KEEP -1 falls back to 7", () => {
     process.env.AMR_BACKUP_KEEP = "-1";
     expect(backupSchedulerConfig().keep).toBe(7);
+  });
+
+  it("AMR_BACKUP_DIR empty/whitespace falls back to default", () => {
+    delete process.env.AMR_BACKUP_DIR;
+    const unsetDir = backupSchedulerConfig().dir;
+    for (const v of ["", "   "]) {
+      process.env.AMR_BACKUP_DIR = v;
+      expect(backupSchedulerConfig().dir).toBe(unsetDir);
+    }
+    delete process.env.AMR_BACKUP_DIR;
   });
 
   it("pruneBackups(dir,0) deletes nothing", () => {
@@ -123,6 +133,7 @@ describe("backup scheduler", () => {
     const remaining = readdirSync(dir);
     const backups = remaining.filter((n: string) => BACKUP_NAME_RE.test(n));
     expect(backups.length).toBe(2);
+    expect(backups.sort()).toEqual(["backup-1000000000003", "backup-1000000000004"]);
     expect(remaining).toContain("decoy.txt");
     expect(remaining).toContain("other-dir");
   });
@@ -139,11 +150,47 @@ describe("backup scheduler", () => {
   it("a symlink named backup-13digits survives", () => {
     const dir = join(ROOT, "symlink");
     mkdirSync(dir, { recursive: true });
+    const targetDir = join(ROOT, "symlinktarget");
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(join(targetDir, "router.db"), "");
     const name = `backup-${4000000000000}`;
-    symlinkSync("/tmp", join(dir, name));
+    symlinkSync(targetDir, join(dir, name));
     pruneBackups(dir, 1);
     expect(existsSync(join(dir, name))).toBe(true);
+    expect(existsSync(targetDir)).toBe(true);
+    expect(existsSync(join(targetDir, "router.db"))).toBe(true);
     rmSync(join(dir, name), { force: true });
+    rmSync(targetDir, { recursive: true, force: true });
+  });
+
+  it("prune through a symlinked backup dir keeps newest N and symlinked entries", () => {
+    const realDir = join(ROOT, "symlinked-backup-real");
+    mkdirSync(realDir, { recursive: true });
+    for (let i = 0; i < 5; i++) {
+      mkdirSync(join(realDir, `backup-${5000000000000 + i}`), { recursive: true });
+      writeFileSync(join(realDir, `backup-${5000000000000 + i}`, "router.db"), "");
+    }
+    const linkEntry = join(realDir, `backup-${9999999999999}`);
+    symlinkSync(realDir, linkEntry);
+    const symlinkDir = join(ROOT, "symlinked-backup-link");
+    symlinkSync(realDir, symlinkDir);
+    pruneBackups(symlinkDir, 2);
+    const remaining = readdirSync(realDir);
+    // symlinked entry counted by name but is a symlink; real backup dirs only:
+    const realBackups = remaining.filter((n: string) => {
+      try {
+        const st = lstatSync(join(realDir, n));
+        return BACKUP_NAME_RE.test(n) && st.isDirectory() && !st.isSymbolicLink();
+      } catch {
+        return false;
+      }
+    });
+    expect(realBackups.sort()).toEqual(["backup-5000000000003", "backup-5000000000004"]);
+    expect(existsSync(linkEntry)).toBe(true);
+    expect(existsSync(symlinkDir)).toBe(true);
+    rmSync(symlinkDir, { force: true });
+    rmSync(linkEntry, { force: true });
+    rmSync(realDir, { recursive: true, force: true });
   });
 });
 
@@ -234,6 +281,8 @@ describe("backup scheduler behavior", () => {
         expect(String(arg)).not.toContain("/secret/path");
       }
     }
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mod).toHaveBeenCalledTimes(2);
     consoleErr.mockRestore();
   });
 
@@ -252,5 +301,77 @@ describe("backup scheduler behavior", () => {
     expect(vi.getTimerCount()).toBe(1);
     await vi.advanceTimersByTimeAsync(60000);
     expect(mod.mock.calls.length).toBe(firstCalls + 1);
+  });
+
+  it("disabled AMR_BACKUP_ENABLED values schedule no timers", async () => {
+    for (const v of ["TRUE", "1", "yes", ""]) {
+      stopBackupScheduler();
+      vi.resetModules();
+      process.env.AMR_BACKUP_ENABLED = v;
+      const { createBackup } = await import("./backup");
+      const mod = vi.mocked(createBackup);
+      mod.mockReset();
+      mod.mockResolvedValue(undefined as never);
+      const m = await import("./backup-scheduler");
+      m.startBackupScheduler();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(mod).not.toHaveBeenCalled();
+    }
+  });
+
+  it("failed createBackup cleans up dest dir", async () => {
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    mod.mockImplementation(async (dest: string) => {
+      mkdirSync(dest, { recursive: true });
+      writeFileSync(join(dest, "partial"), "");
+      throw new Error("boom");
+      return undefined as unknown as import("./backup").BackupResult;
+    });
+    const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
+    const m = await import("./backup-scheduler");
+    m.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(100);
+    const dest = mod.mock.calls[0][0] as string;
+    expect(existsSync(dest)).toBe(false);
+    for (const call of consoleErr.mock.calls) {
+      for (const arg of call) {
+        expect(String(arg)).not.toContain(backupDir);
+      }
+    }
+    consoleErr.mockRestore();
+  });
+
+  it("prune error keeps backup and reschedules", async () => {
+    vi.doMock("node:fs", async () => {
+      const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+      const throwingReaddir = () => {
+        throw new Error("readdir fail");
+      };
+      return {
+        ...actual,
+        default: { ...actual, readdirSync: throwingReaddir },
+        readdirSync: throwingReaddir,
+      };
+    });
+    vi.resetModules();
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    mod.mockImplementation(async (dest: string) => {
+      mkdirSync(dest, { recursive: true });
+      return undefined as unknown as import("./backup").BackupResult;
+    });
+    const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
+    const m = await import("./backup-scheduler");
+    m.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(100);
+    const dest = mod.mock.calls[0][0] as string;
+    expect(existsSync(dest)).toBe(true);
+    consoleErr.mockRestore();
+    vi.doUnmock("node:fs");
+    vi.resetModules();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mod).toHaveBeenCalledTimes(2);
   });
 });
