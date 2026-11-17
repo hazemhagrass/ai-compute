@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, w
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, afterEach, describe, expect, it } from "vitest";
 
 import { BACKUP_NAME_RE, backupSchedulerConfig, pruneBackups } from "./backup-scheduler";
 import { createBackup } from "./backup";
@@ -135,5 +135,111 @@ describe("backup scheduler", () => {
     pruneBackups(dir, 1);
     expect(existsSync(join(dir, name))).toBe(true);
     rmSync(join(dir, name), { force: true });
+  });
+});
+
+import { vi } from "vitest";
+import { stopBackupScheduler } from "./backup-scheduler";
+
+vi.mock("./backup", async () => {
+  const actual = await vi.importActual<typeof import("./backup")>("./backup");
+  return { ...actual, createBackup: vi.fn(actual.createBackup) };
+});
+
+describe("backup scheduler behavior", () => {
+  const ENV_KEYS = [
+    "AMR_BACKUP_ENABLED",
+    "AMR_BACKUP_INTERVAL_MS",
+    "AMR_BACKUP_KEEP",
+    "AMR_BACKUP_DIR",
+  ];
+  let saved: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of ENV_KEYS) saved[k] = process.env[k];
+    vi.useFakeTimers();
+    process.env.AMR_BACKUP_ENABLED = "true";
+    process.env.AMR_BACKUP_INTERVAL_MS = "60000";
+  });
+
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+    stopBackupScheduler();
+    vi.useRealTimers();
+    vi.resetModules();
+  });
+
+  it("overflow 30 days falls back to 24h and warns", async () => {
+    process.env.AMR_BACKUP_INTERVAL_MS = "2592000000";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const cfg = (await import("./backup-scheduler")).backupSchedulerConfig();
+    expect(cfg.intervalMs).toBe(86400000);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("2147483647 accepted", async () => {
+    process.env.AMR_BACKUP_INTERVAL_MS = "2147483647";
+    const cfg = (await import("./backup-scheduler")).backupSchedulerConfig();
+    expect(cfg.intervalMs).toBe(2147483647);
+  });
+
+  it("stop before initial: no createBackup, no timers", async () => {
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    const m = await import("./backup-scheduler");
+    m.startBackupScheduler();
+    m.stopBackupScheduler();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(mod).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("overlap: createBackup never resolves, called once after two intervals", async () => {
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    mod.mockReturnValue(new Promise(() => {}));
+    const m = await import("./backup-scheduler");
+    m.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(200000);
+    expect(mod).toHaveBeenCalledTimes(1);
+  });
+
+  it("log hygiene: error logged without secret path", async () => {
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    const err = new Error("boom /secret/path/router.db") as Error & { code?: string };
+    err.code = "EACCES";
+    mod.mockRejectedValue(err);
+    const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
+    const m = await import("./backup-scheduler");
+    m.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(consoleErr).toHaveBeenCalled();
+    for (const call of consoleErr.mock.calls) {
+      for (const arg of call) {
+        expect(String(arg)).not.toContain("/secret/path");
+      }
+    }
+    consoleErr.mockRestore();
+  });
+
+  it("hot reload: only one schedule", async () => {
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    const m1 = await import("./backup-scheduler");
+    m1.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(100);
+    const firstCalls = mod.mock.calls.length;
+    vi.resetModules();
+    const m2 = await import("./backup-scheduler");
+    m2.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(100);
+    // ensure no duplicate explosion: total calls should be firstCalls + 1 at most for initial
+    expect(mod.mock.calls.length).toBeLessThanOrEqual(firstCalls + 1);
   });
 });
