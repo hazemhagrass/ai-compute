@@ -75,14 +75,18 @@ export function startBackupScheduler(): void {
     state.running = true;
     const name = `backup-${Date.now()}`;
     const dest = path.join(cfg.dir, name);
+    let created = false;
     try {
       await createBackup(dest);
+      created = true;
       pruneBackups(cfg.dir, cfg.keep);
     } catch (err) {
-      try {
-        fs.rmSync(dest, { recursive: true, force: true });
-      } catch {
-        // swallow cleanup errors
+      if (!created) {
+        try {
+          fs.rmSync(dest, { recursive: true, force: true });
+        } catch {
+          // swallow cleanup errors
+        }
       }
       const code = (err as { code?: unknown; name?: unknown })?.code ?? (err as { name?: unknown })?.name;
       console.error("[backup-scheduler] run failed:", code ?? "Error");
