@@ -11,7 +11,8 @@ import {
   type ConfigChangePlan,
 } from "@/lib/hermes/config-plan";
 import { applyImportTierRouter, resolveTierRouterSource } from "@/lib/hermes/router-import";
-import { isValidProfileName } from "@/lib/hermes/profiles";
+import { isValidProfileId } from "@/lib/hermes/paths";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hermes/prof
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
-  if (!isValidProfileName(id)) return NextResponse.json({ error: 'profile not found' }, { status: 404 });
+  if (!isValidProfileId(id)) return NextResponse.json({ error: "profile not found" }, { status: 404 });
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const dryRun = isDryRun(request);
   const parsed = await parseBody(request, importSchema);
   if (!parsed.ok) return parsed.response;

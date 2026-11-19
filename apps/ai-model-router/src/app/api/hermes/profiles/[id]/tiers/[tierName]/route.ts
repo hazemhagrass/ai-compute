@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { ConfigChangeError } from "@/lib/hermes/config-errors";
 import {
   commitConfigChange,
@@ -73,6 +74,8 @@ export async function PATCH(
   const denied = await requireAuth();
   if (denied) return denied;
   const { id, tierName } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const dryRun = isDryRun(request);
   const parsed = await parseBody(request, renameSchema);
   if (!parsed.ok) return parsed.response;
@@ -98,6 +101,8 @@ export async function DELETE(
   const denied = await requireAuth();
   if (denied) return denied;
   const { id, tierName } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const dryRun = isDryRun(request);
 
   // Deleting a missing tier returns 404 and writes nothing.

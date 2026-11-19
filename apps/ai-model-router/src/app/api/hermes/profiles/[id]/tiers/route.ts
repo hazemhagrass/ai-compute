@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { ConfigChangeError } from "@/lib/hermes/config-errors";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import {
   commitConfigChange,
   expectedBaseHash,
@@ -101,6 +102,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   return NextResponse.json({ tierRouter: readHermesConfig(id).tier_router ?? null });
 }
 
@@ -108,6 +111,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const dryRun = isDryRun(request);
   const parsed = await parseBody(request, settingsSchema);
   if (!parsed.ok) return parsed.response;
@@ -140,6 +145,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hermes/prof
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const dryRun = isDryRun(request);
   const parsed = await parseBody(request, upsertTierSchema);
   if (!parsed.ok) return parsed.response;

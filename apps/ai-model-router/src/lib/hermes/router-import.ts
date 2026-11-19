@@ -12,8 +12,7 @@ import {
 } from "./config-validate";
 import { ConfigChangeError } from "./config-errors";
 import { readHermesConfig } from "./config-io";
-import { isValidProfileName } from "./profiles";
-import { profilePaths } from "./paths";
+import { isValidProfileId, profilePaths } from "./paths";
 import { getRouterPreset } from "./router-presets";
 
 export type TierRouterSource = { from: string } | { preset: string };
@@ -58,7 +57,7 @@ export function resolveTierRouterSource(source: TierRouterSource): TierRouterCon
   }
 
   const id = source.from.trim();
-  if (!isValidProfileName(id)) {
+  if (!isValidProfileId(id)) {
     throw new ConfigChangeError(404, `profile "${source.from}" does not exist`);
   }
   const { root, configPath } = profilePaths(id);
