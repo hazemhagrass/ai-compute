@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import time
 import os
 import sys
+import time
 
 from .bench import benchmark, benchmark_all, discover, probe_gpu
 from .ollama import OllamaClient, OllamaError, result_from_chunk
