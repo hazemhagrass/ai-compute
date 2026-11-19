@@ -85,7 +85,7 @@ export function startBackupScheduler(): void {
         pruneBackups(cfg.dir, cfg.keep);
       } catch (pruneErr) {
         const code = (pruneErr as { code?: unknown; name?: unknown })?.code ?? (pruneErr as { name?: unknown })?.name;
-        console.warn("[backup-scheduler] prune failed:", code ?? "Error");
+        console.error("[backup-scheduler] prune failed:", code ?? "Error");
       }
     } catch (err) {
       if (!created) {
