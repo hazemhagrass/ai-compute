@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 import { readHermesConfig, writeHermesConfig } from "./config-io";
-import { emptyHermesConfig } from "./config-schema";
+import { emptyHermesConfig, parseHermesConfig, type TierRouterConfig } from "./config-schema";
 import { PROFILES_DIR, defaultProfilePaths, namedProfilePaths } from "./paths";
 
 export interface HermesProfileSummary {
@@ -68,14 +68,17 @@ export function isValidProfileName(name: string): boolean {
   return PROFILE_NAME_RE.test(name);
 }
 
-export function createProfile(id: string): HermesProfileSummary {
+// Creates a profile with an empty config, or with the given tier_router seeded
+// in place of the empty one. Only the tier_router block is ever copied in; the
+// new profile always gets a fresh empty .env and no provider secrets.
+export function createProfile(id: string, tierRouter?: TierRouterConfig): HermesProfileSummary {
   if (id === "default") throw new Error("the default profile always exists");
   if (!isValidProfileName(id)) throw new Error("profile name must look like an identifier");
   const { root, envPath } = namedProfilePaths(id);
   if (fs.existsSync(root)) throw new Error(`profile "${id}" already exists`);
 
   fs.mkdirSync(root, { recursive: true });
-  writeHermesConfig(id, emptyHermesConfig());
+  writeHermesConfig(id, tierRouter ? parseHermesConfig({ tier_router: tierRouter }) : emptyHermesConfig());
   if (!fs.existsSync(envPath)) {
     fs.writeFileSync(envPath, "", { mode: 0o600 });
   }
