@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable
+from typing import Any
 
 from .bench import benchmark, benchmark_all, discover, probe_gpu
 from .ollama import OllamaClient, OllamaError, result_from_chunk
@@ -108,7 +109,7 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
         server_version = "OllamaRouter/1.0"
         protocol_version = "HTTP/1.1"
 
-        def log_message(self, format: str, *args) -> None:  # noqa: A002,A003
+        def log_message(self, format: str, *args) -> None:
             pass
 
         def _send(self, code: int, payload: Any, *, content_type: str = "application/json") -> None:
@@ -136,17 +137,17 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid JSON: {exc}") from exc
             if not isinstance(data, dict):
-                raise ValueError("request body must be a JSON object")
+                raise ValueError("request body must be a JSON object")  # noqa: TRY004
             return data
 
-        def do_OPTIONS(self) -> None:  # noqa: N802
+        def do_OPTIONS(self) -> None:
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.end_headers()
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
             try:
                 if path == "/":
@@ -169,7 +170,7 @@ def make_handler(service: RouterService) -> type[BaseHTTPRequestHandler]:
             except Exception as exc:  # noqa: BLE001
                 self._error(500, f"{type(exc).__name__}: {exc}")
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
             try:
                 body = self._read_json()
