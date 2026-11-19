@@ -28,8 +28,7 @@ export function backupSchedulerConfig() {
     enabled: process.env.AMR_BACKUP_ENABLED === "true",
     intervalMs,
     keep,
-    dir:
-      process.env.AMR_BACKUP_DIR?.trim() || path.join(DATA_DIR, "backups"),
+    dir: path.resolve(process.env.AMR_BACKUP_DIR?.trim() || path.join(DATA_DIR, "backups")),
   };
 }
 
@@ -71,7 +70,10 @@ export function startBackupScheduler(): void {
   if (!cfg.enabled) return;
   state.started = true;
   const run = async () => {
-    if (state.running) return;
+    if (state.running) {
+      console.warn("[backup-scheduler] skipping run: previous run still running");
+      return;
+    }
     state.running = true;
     const name = `backup-${Date.now()}`;
     const dest = path.join(cfg.dir, name);
@@ -79,7 +81,12 @@ export function startBackupScheduler(): void {
     try {
       await createBackup(dest);
       created = true;
-      pruneBackups(cfg.dir, cfg.keep);
+      try {
+        pruneBackups(cfg.dir, cfg.keep);
+      } catch (pruneErr) {
+        const code = (pruneErr as { code?: unknown; name?: unknown })?.code ?? (pruneErr as { name?: unknown })?.name;
+        console.warn("[backup-scheduler] prune failed:", code ?? "Error");
+      }
     } catch (err) {
       if (!created) {
         try {
@@ -94,11 +101,28 @@ export function startBackupScheduler(): void {
       state.running = false;
     }
   };
+  let delay = 0;
+  try {
+    if (fs.existsSync(cfg.dir)) {
+      const newest = fs
+        .readdirSync(cfg.dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && !e.isSymbolicLink())
+        .filter((e) => BACKUP_NAME_RE.test(e.name))
+        .map((e) => Number(e.name.slice(7)))
+        .filter((n) => Number.isFinite(n));
+      if (newest.length) {
+        const latest = Math.max(...newest);
+        delay = Math.max(0, latest + cfg.intervalMs - Date.now());
+      }
+    }
+  } catch {
+    delay = 0;
+  }
   state.initial = setTimeout(() => {
     void run();
     state.timer = setInterval(() => void run(), cfg.intervalMs);
     if (state.timer && typeof state.timer.unref === "function") state.timer.unref();
-  }, 0);
+  }, delay);
   if (state.initial && typeof state.initial.unref === "function") state.initial.unref();
 }
 

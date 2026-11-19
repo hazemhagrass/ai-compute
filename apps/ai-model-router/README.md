@@ -100,7 +100,7 @@ Disabled by default. Set AMR_BACKUP_ENABLED=true to enable.
 - AMR_BACKUP_KEEP: number of backups to retain. Default 7. Must be an integer at least 1, otherwise falls back to 7 with a warning.
 - AMR_BACKUP_DIR: backup directory. Default <data>/backups.
 
-Prune deletes only directories whose name matches backup-<13 digit timestamp> and that contain router.db. Files, symlinks and non-matching names survive. KEEP less than 1 deletes nothing.
+Prune deletes only directories whose name matches backup-<13 digit timestamp> and that contain router.db. Files, symlinks and non-matching names survive. Values below 1 fall back to 7 (never delete nothing). AMR_BACKUP_DIR may be relative; it is resolved against the process working directory.
 
 ## License
 
