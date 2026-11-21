@@ -141,9 +141,26 @@ export default function PricingFreshnessBadge({
 }
 
 
+export interface VisibleRefreshDoc {
+  visibilityState: string;
+  addEventListener(
+    type: string,
+    listener: (event: Event) => void,
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: (event: Event) => void,
+  ): void;
+}
+
+export interface VisibleRefreshWin {
+  addEventListener(type: string, listener: (event: Event) => void): void;
+  removeEventListener(type: string, listener: (event: Event) => void): void;
+}
+
 export function subscribeVisibleRefresh(
-  doc: Document,
-  win: Window,
+  doc: VisibleRefreshDoc,
+  win: VisibleRefreshWin,
   load: () => void,
 ): () => void {
   const onVisible = () => {

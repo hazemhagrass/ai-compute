@@ -3,10 +3,10 @@ import { subscribeVisibleRefresh } from "./PricingFreshnessBadge";
 
 describe("subscribeVisibleRefresh", () => {
   it("fires load on window focus", () => {
-    const doc = { visibilityState: "visible", addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown;
+    const doc = { visibilityState: "visible", addEventListener: vi.fn(), removeEventListener: vi.fn() };
     const win = new EventTarget();
     const load = vi.fn();
-    const unsub = subscribeVisibleRefresh(doc as unknown, win as unknown, load);
+    const unsub = subscribeVisibleRefresh(doc, win, load);
     win.dispatchEvent(new Event("focus"));
     expect(load).toHaveBeenCalledTimes(1);
     unsub();
@@ -18,10 +18,10 @@ describe("subscribeVisibleRefresh", () => {
       visibilityState: "hidden",
       addEventListener: (t: string, h: (e: Event) => void) => { handlers[t] = h; },
       removeEventListener: (t: string) => { delete handlers[t]; },
-    } as unknown;
+    };
     const win = new EventTarget();
     const load = vi.fn();
-    const unsub = subscribeVisibleRefresh(doc as unknown, win as unknown, load);
+    const unsub = subscribeVisibleRefresh(doc, win, load);
     doc.visibilityState = "hidden";
     handlers.visibilitychange(new Event("visibilitychange"));
     expect(load).not.toHaveBeenCalled();
@@ -37,10 +37,10 @@ describe("subscribeVisibleRefresh", () => {
       visibilityState: "visible",
       addEventListener: (t: string, h: (e: Event) => void) => { handlers[t] = h; },
       removeEventListener: (t: string) => { delete handlers[t]; },
-    } as unknown;
+    };
     const win = new EventTarget();
     const load = vi.fn();
-    const unsub = subscribeVisibleRefresh(doc as unknown, win as unknown, load);
+    const unsub = subscribeVisibleRefresh(doc, win, load);
     unsub();
     win.dispatchEvent(new Event("focus"));
     expect(load).not.toHaveBeenCalled();
