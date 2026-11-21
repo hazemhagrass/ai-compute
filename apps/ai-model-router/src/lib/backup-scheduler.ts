@@ -133,5 +133,4 @@ export function stopBackupScheduler(): void {
   state.timer = null;
   state.initial = null;
   state.started = false;
-  state.running = false;
 }
