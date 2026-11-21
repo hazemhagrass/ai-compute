@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
-import { api } from "./store";
+import { api, ApiResponseError } from "./store";
 import { Card, Empty, fmtNum, fmtUsd } from "./ui";
 import { Field, inputCls } from "./ProvidersPanel";
 
@@ -16,6 +16,7 @@ interface HermesProfileSummary {
   defaultProvider: string;
   tierRouterEnabled: boolean;
   tierCount: number;
+  configError?: string;
 }
 
 interface HermesProviderView {
@@ -33,6 +34,13 @@ interface HermesProviderView {
   usedInTiers: string[];
 }
 
+interface RouterPresetSummary {
+  name: string;
+  label: string;
+  description: string;
+  tierCount: number;
+}
+
 interface ModelRef {
   provider: string;
   model: string;
@@ -45,6 +53,48 @@ interface TierEntry {
   escalate_to?: string | null;
   pool: ModelRef[];
   fallback: ModelRef[];
+}
+
+interface TierValidationError {
+  tier: string;
+  index: number;
+  field: "provider" | "model";
+  message: string;
+  list?: "pool" | "fallback";
+}
+
+interface DryRunResult {
+  dryRun: boolean;
+  yaml: string;
+  diff: string;
+  baseHash: string;
+  valid: boolean;
+  errors: TierValidationError[];
+  warnings: TierValidationError[];
+}
+
+function isStalePreview(err: unknown): boolean {
+  return err instanceof ApiResponseError && err.status === 409;
+}
+
+function planFailure(err: unknown): Partial<DryRunResult> | null {
+  if (err instanceof ApiResponseError && err.body && typeof err.body === "object") {
+    const body = err.body as Partial<DryRunResult>;
+    if (Array.isArray(body.errors) && body.errors.length > 0) return body;
+  }
+  return null;
+}
+
+function mergeFailure(preview: DryRunResult | null, body: Partial<DryRunResult>): DryRunResult {
+  return {
+    dryRun: preview?.dryRun ?? false,
+    yaml: body.yaml ?? preview?.yaml ?? "",
+    diff: body.diff ?? preview?.diff ?? "",
+    baseHash: body.baseHash ?? preview?.baseHash ?? "",
+    valid: false,
+    errors: body.errors ?? [],
+    warnings: body.warnings ?? preview?.warnings ?? [],
+  };
 }
 
 interface SystemOneConfig {
@@ -90,6 +140,45 @@ interface ProfileUsageSummary {
   byProvider: { provider: string; calls: number; tokens: number; costUsd: number }[];
 }
 
+interface RouterLiveCooldown {
+  provider: string;
+  model: string;
+  base_url?: string;
+  scope: string;
+  expires_at: string;
+  approx: boolean;
+}
+
+interface RouterLiveDecision {
+  at: string;
+  tier_requested: string;
+  tier_used: string;
+  source: string;
+  model?: string;
+  provider?: string;
+  switched?: boolean;
+}
+
+interface RouterLiveRestore {
+  enabled: boolean;
+  last_event?: "restored" | "deferred";
+  last_model?: string;
+  last_provider?: string;
+  last_at?: string;
+  pending_capture?: boolean;
+}
+
+interface RouterLiveState {
+  profile: string;
+  source: "state" | "logs" | "none";
+  generated_at: string;
+  state_stale?: boolean;
+  cooldowns: RouterLiveCooldown[];
+  decisions: RouterLiveDecision[];
+  restore: RouterLiveRestore;
+  warnings: string[];
+}
+
 const CATALOG: { id: string; label: string }[] = [
   { id: "anthropic", label: "Anthropic" },
   { id: "openrouter", label: "OpenRouter" },
@@ -124,7 +213,7 @@ export default function HermesPanel({
   const [providers, setProviders] = useState<HermesProviderView[] | null>(null);
   const [tierRouter, setTierRouter] = useState<TierRouterConfig | null>(null);
   const [usage, setUsage] = useState<ProfileUsageSummary | null>(null);
-  const [tab, setTab] = useState<"providers" | "router" | "aliases" | "usage">("providers");
+  const [tab, setTab] = useState<"providers" | "router" | "live" | "aliases" | "usage">("providers");
   const [showAddProvider, setShowAddProvider] = useState(false);
   const [showNewProfile, setShowNewProfile] = useState(false);
 
@@ -247,6 +336,14 @@ export default function HermesPanel({
               router {activeProfile.tierRouterEnabled ? "on" : "off"} · {activeProfile.tierCount} tier
               {activeProfile.tierCount === 1 ? "" : "s"}
             </span>
+            {activeProfile.configError && (
+              <span
+                className="rounded-md bg-[var(--bad)]/12 px-2 py-1 text-[var(--bad)]"
+                title={activeProfile.configError}
+              >
+                config error
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -278,6 +375,7 @@ export default function HermesPanel({
               [
                 ["providers", "Providers & keys"],
                 ["router", "Router & tiers"],
+                ["live", "Live"],
                 ["aliases", "Fallback & aliases"],
                 ["usage", "Usage"],
               ] as const
@@ -310,11 +408,14 @@ export default function HermesPanel({
           ) : tab === "router" ? (
             <RouterTab
               profileId={activeId}
+              profiles={profiles}
               providers={providers}
               tierRouter={tierRouter}
               onRefresh={refresh}
               onToast={onToast}
             />
+          ) : tab === "live" ? (
+            <RouterLiveTab key={activeId} profileId={activeId} tierRouter={tierRouter} />
           ) : tab === "aliases" ? (
             <FallbackAliasesTab key={activeId} profileId={activeId} providers={providers} onToast={onToast} />
           ) : (
@@ -336,7 +437,31 @@ function NewProfileForm({
   onToast: (m: string, t?: Tone) => void;
 }) {
   const [id, setId] = useState("");
+  const [startFrom, setStartFrom] = useState("");
+  const [profiles, setProfiles] = useState<HermesProfileSummary[]>([]);
+  const [presets, setPresets] = useState<RouterPresetSummary[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [p, r] = await Promise.all([
+          api<{ profiles: HermesProfileSummary[] }>("/api/hermes/profiles"),
+          api<{ presets: RouterPresetSummary[] }>("/api/hermes/presets"),
+        ]);
+        if (!cancelled) {
+          setProfiles(p.profiles);
+          setPresets(r.presets);
+        }
+      } catch {
+        // The plain create path still works without the source lists.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function create() {
     if (!id.trim()) {
@@ -345,7 +470,12 @@ function NewProfileForm({
     }
     setSaving(true);
     try {
-      await api(`/api/hermes/profiles`, { method: "POST", json: { id: id.trim() } });
+      const source = startFrom.startsWith("profile:")
+        ? { from: startFrom.slice("profile:".length) }
+        : startFrom.startsWith("preset:")
+          ? { preset: startFrom.slice("preset:".length) }
+          : {};
+      await api(`/api/hermes/profiles`, { method: "POST", json: { id: id.trim(), ...source } });
       onCreated(id.trim());
     } catch (err) {
       onToast(err instanceof Error ? err.message : "Failed to create profile", "bad");
@@ -356,7 +486,7 @@ function NewProfileForm({
 
   return (
     <Card title="New profile" className="border-[var(--accent)]/40">
-      <Field label="Profile name" hint="creates ~/.hermes/profiles/<name>/ with an empty config — letters, digits, . _ -">
+      <Field label="Profile name" hint="creates ~/.hermes/profiles/<name>/ with an empty config — letters, digits, _ - (max 64)">
         <input
           value={id}
           onChange={(e) => setId(e.target.value)}
@@ -369,6 +499,38 @@ function NewProfileForm({
             }
           }}
         />
+      </Field>
+      <Field
+        label="Start from (optional)"
+        hint="Copies only the tier_router block from the chosen profile or preset. .env files, API keys and provider secrets are never copied."
+        className="mt-4"
+      >
+        <select
+          value={startFrom}
+          onChange={(e) => setStartFrom(e.target.value)}
+          className={inputCls}
+          aria-label="Copy the tier router from a profile or preset"
+        >
+          <option value="">Empty router</option>
+          {profiles.length > 0 && (
+            <optgroup label="Profiles">
+              {profiles.map((p) => (
+                <option key={p.id} value={`profile:${p.id}`}>
+                  {p.label} {p.isDefault ? "(default)" : ""} · {p.tierCount} tier{p.tierCount === 1 ? "" : "s"}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {presets.length > 0 && (
+            <optgroup label="Presets">
+              {presets.map((p) => (
+                <option key={p.name} value={`preset:${p.name}`}>
+                  {p.label} · {p.tierCount} tier{p.tierCount === 1 ? "" : "s"}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
       </Field>
       <div className="mt-4 flex gap-3">
         <button
@@ -856,20 +1018,276 @@ function ProviderForm({
   );
 }
 
+function DeleteTierConfirm({
+  profileId,
+  name,
+  preview,
+  onPreview,
+  onCancel,
+  onDeleted,
+  onToast,
+}: {
+  profileId: string;
+  name: string;
+  preview: DryRunResult;
+  onPreview: (preview: DryRunResult) => void;
+  onCancel: () => void;
+  onDeleted: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  async function fetchPreview() {
+    try {
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers/${encodeURIComponent(name)}?dry_run=1`,
+        { method: "DELETE" },
+      );
+      onPreview(res);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Delete preview failed", "bad");
+    }
+  }
+
+  async function confirmDelete() {
+    setSaving(true);
+    try {
+      await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers/${encodeURIComponent(name)}`,
+        {
+          method: "DELETE",
+          ...(preview.baseHash ? { headers: { "if-match": preview.baseHash } } : {}),
+        },
+      );
+      onDeleted();
+    } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before deleting.", "bad");
+        await fetchPreview();
+        return;
+      }
+      onToast(err instanceof Error ? err.message : "Delete failed", "bad");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card title={`Delete tier: ${name}`} className="border-[var(--bad)]/40">
+      <p className="mb-2 text-[11px] text-[var(--fg-dim)]">
+        This is the diff deleting &quot;{name}&quot; will write to config.yaml.
+      </p>
+      <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => void confirmDelete()}
+          disabled={saving}
+          className="rounded-xl bg-[var(--bad)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Deleting\u2026" : "Confirm delete"}
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function CopyRouterPanel({
+  profileId,
+  profiles,
+  onDone,
+  onCancel,
+  onToast,
+}: {
+  profileId: string;
+  profiles: HermesProfileSummary[];
+  onDone: () => void;
+  onCancel: () => void;
+  onToast: (m: string, t?: Tone) => void;
+}) {
+  const [presets, setPresets] = useState<RouterPresetSummary[]>([]);
+  const [kind, setKind] = useState<"profile" | "preset">("profile");
+  const [source, setSource] = useState("");
+  const [preview, setPreview] = useState<DryRunResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const selectId = useId();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api<{ presets: RouterPresetSummary[] }>("/api/hermes/presets");
+        if (!cancelled) setPresets(res.presets);
+      } catch (err) {
+        if (!cancelled) onToast(err instanceof Error ? err.message : "Failed to load presets", "bad");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onToast]);
+
+  const options =
+    kind === "profile"
+      ? profiles
+          .filter((p) => p.id !== profileId)
+          .map((p) => ({ value: p.id, label: `${p.label} · ${p.tierCount} tier${p.tierCount === 1 ? "" : "s"}` }))
+      : presets.map((p) => ({ value: p.name, label: `${p.label} · ${p.tierCount} tier${p.tierCount === 1 ? "" : "s"}` }));
+
+  function importBody() {
+    return kind === "profile" ? { from: source } : { preset: source };
+  }
+
+  async function fetchPreview() {
+    if (!source) {
+      onToast("Choose a profile or preset to copy from", "bad");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${encodeURIComponent(profileId)}/tiers/import?dry_run=1`,
+        { method: "POST", json: importBody() },
+      );
+      setPreview(res);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Copy preview failed", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCopy() {
+    if (!preview) return;
+    setBusy(true);
+    try {
+      await api<DryRunResult>(`/api/hermes/profiles/${encodeURIComponent(profileId)}/tiers/import`, {
+        method: "POST",
+        json: importBody(),
+        ...(preview.baseHash ? { headers: { "if-match": preview.baseHash } } : {}),
+      });
+      onToast("Router copied", "good");
+      onDone();
+    } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before copying.", "bad");
+        await fetchPreview();
+        return;
+      }
+      const failed = planFailure(err);
+      if (failed) setPreview(mergeFailure(preview, failed));
+      onToast(err instanceof Error ? err.message : "Copy failed", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Copy router into this profile" className="border-[var(--accent)]/40">
+      <p className="mb-3 text-[11px] text-[var(--fg-dim)]">
+        Copies only the tier_router block from a profile or preset, replacing this profile&apos;s router after you
+        confirm the diff. .env files, API keys and provider secrets are never copied.
+      </p>
+      <div role="radiogroup" aria-label="Copy the tier router from a profile or a preset" className="flex gap-4 text-sm">
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="radio"
+            name={`${selectId}-kind`}
+            checked={kind === "profile"}
+            onChange={() => {
+              setKind("profile");
+              setSource("");
+              setPreview(null);
+            }}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+          From a profile
+        </label>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="radio"
+            name={`${selectId}-kind`}
+            checked={kind === "preset"}
+            onChange={() => {
+              setKind("preset");
+              setSource("");
+              setPreview(null);
+            }}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+          From a preset
+        </label>
+      </div>
+      <Field label="Source" className="mt-3">
+        <select
+          id={selectId}
+          value={source}
+          onChange={(e) => {
+            setSource(e.target.value);
+            setPreview(null);
+          }}
+          className={inputCls}
+        >
+          <option value="">Choose a {kind === "profile" ? "profile" : "preset"}…</option>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {preview && <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />}
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={() => void fetchPreview()}
+          disabled={busy || !source}
+          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)] disabled:opacity-50"
+        >
+          Preview changes
+        </button>
+        {preview && (
+          <button
+            onClick={() => void confirmCopy()}
+            disabled={busy || !preview.valid}
+            className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? "Copying…" : "Confirm copy"}
+          </button>
+        )}
+        <button
+          onClick={onCancel}
+          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function RouterTab({
   profileId,
+  profiles,
   providers,
   tierRouter,
   onRefresh,
   onToast,
 }: {
   profileId: string;
+  profiles: HermesProfileSummary[];
   providers: HermesProviderView[];
   tierRouter: TierRouterConfig | null;
   onRefresh: () => void;
   onToast: (m: string, t?: Tone) => void;
 }) {
   const [addingTier, setAddingTier] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [deleting, setDeleting] = useState<{ name: string; preview: DryRunResult } | null>(null);
   const enabled = tierRouter?.enabled ?? false;
   const tiers = tierRouter?.tiers ?? {};
 
@@ -893,13 +1311,14 @@ function RouterTab({
   }
 
   async function deleteTier(name: string) {
-    if (!confirm(`Delete tier "${name}"?`)) return;
     try {
-      await api(`/api/hermes/profiles/${profileId}/tiers/${name}`, { method: "DELETE" });
-      onToast(`Deleted tier ${name}`, "good");
-      onRefresh();
+      const preview = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers/${encodeURIComponent(name)}?dry_run=1`,
+        { method: "DELETE" },
+      );
+      setDeleting({ name, preview });
     } catch (err) {
-      onToast(err instanceof Error ? err.message : "Delete failed", "bad");
+      onToast(err instanceof Error ? err.message : "Delete preview failed", "bad");
     }
   }
 
@@ -961,7 +1380,13 @@ function RouterTab({
         )}
       </Card>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => setCopying(!copying)}
+          className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+        >
+          Copy router from…
+        </button>
         <button
           onClick={() => setAddingTier(!addingTier)}
           className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90"
@@ -969,6 +1394,35 @@ function RouterTab({
           + Add tier
         </button>
       </div>
+
+      {copying && (
+        <CopyRouterPanel
+          profileId={profileId}
+          profiles={profiles}
+          onCancel={() => setCopying(false)}
+          onDone={() => {
+            setCopying(false);
+            onRefresh();
+          }}
+          onToast={onToast}
+        />
+      )}
+
+      {deleting && (
+        <DeleteTierConfirm
+          profileId={profileId}
+          name={deleting.name}
+          preview={deleting.preview}
+          onPreview={(preview) => setDeleting({ name: deleting.name, preview })}
+          onCancel={() => setDeleting(null)}
+          onDeleted={() => {
+            onToast(`Deleted tier ${deleting.name}`, "good");
+            setDeleting(null);
+            onRefresh();
+          }}
+          onToast={onToast}
+        />
+      )}
 
       {addingTier && (
         <TierForm
@@ -1189,11 +1643,16 @@ function ModelRefListEditor({
   providers,
   refs,
   onChange,
+  errors,
+  warnings,
 }: {
   providers: HermesProviderView[];
   refs: ModelRef[];
   onChange: (next: ModelRef[]) => void;
+  errors?: TierValidationError[];
+  warnings?: TierValidationError[];
 }) {
+  const uid = useId();
   const [provider, setProvider] = useState(providers[0]?.id ?? "");
   const [model, setModel] = useState("");
 
@@ -1210,17 +1669,45 @@ function ModelRefListEditor({
   return (
     <div>
       <div className="flex flex-wrap gap-1.5">
-        {refs.map((r, i) => (
-          <span
-            key={`${r.provider}/${r.model}/${i}`}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--panel-2)] px-2 py-1 font-mono text-[11px]"
-          >
-            {r.provider}/{r.model}
-            <button onClick={() => remove(i)} className="text-[var(--bad)] hover:opacity-70">
-              ×
-            </button>
-          </span>
-        ))}
+        {refs.map((r, i) => {
+          const messages = [
+            ...(errors ?? [])
+              .filter((e) => e.index === i)
+              .map((e) => ({ text: e.message, cls: "text-[var(--bad)]" })),
+            ...(warnings ?? [])
+              .filter((w) => w.index === i)
+              .map((w) => ({ text: w.message, cls: "text-[var(--warn)]" })),
+          ];
+          const describedBy = messages.map((_, k) => `${uid}-row-${i}-msg-${k}`).join(" ");
+          return (
+            <span key={`${r.provider}/${r.model}/${i}`} className="flex flex-col gap-0.5">
+              <span
+                role="group"
+                aria-label={`Row ${i + 1}: ${r.provider}/${r.model}`}
+                aria-describedby={describedBy || undefined}
+                className="flex items-center gap-1.5 rounded-md bg-[var(--panel-2)] px-2 py-1 font-mono text-[11px]"
+              >
+                {r.provider}/{r.model}
+                <button
+                  onClick={() => remove(i)}
+                  aria-label={`Remove ${r.provider}/${r.model}`}
+                  className="text-[var(--bad)] hover:opacity-70"
+                >
+                  ×
+                </button>
+              </span>
+              {messages.map((m, k) => (
+                <span
+                  key={k}
+                  id={`${uid}-row-${i}-msg-${k}`}
+                  className={`max-w-[16rem] text-[10px] ${m.cls}`}
+                >
+                  {m.text}
+                </span>
+              ))}
+            </span>
+          );
+        })}
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <select value={provider} onChange={(e) => setProvider(e.target.value)} className={`${inputCls} max-w-[10rem]`}>
@@ -1253,6 +1740,45 @@ function ModelRefListEditor({
   );
 }
 
+function DryRunDiff({
+  diff,
+  valid,
+  warnings = [],
+}: {
+  diff: string;
+  valid: boolean;
+  warnings?: TierValidationError[];
+}) {
+  return (
+    <div className="mt-3">
+      <p
+        role="status"
+        aria-live="polite"
+        className={`text-[10px] font-medium uppercase tracking-wider ${
+          valid ? "text-[var(--fg-dim)]" : "text-[var(--bad)]"
+        }`}
+      >
+        {valid ? "Pending changes to config.yaml" : "Fix the highlighted rows before saving"}
+      </p>
+      {warnings.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {warnings.map((w, i) => (
+            <li key={`${w.tier}-${w.index}-${w.field}-${i}`} className="text-[10px] text-[var(--warn)]">
+              Warning: {w.message} (saving is still allowed)
+            </li>
+          ))}
+        </ul>
+      )}
+      <pre
+        aria-label="Proposed changes to config.yaml"
+        className="mt-1 max-h-64 overflow-auto rounded-lg border border-[var(--border)] bg-[var(--panel-2)] p-3 font-mono text-[11px] leading-relaxed"
+      >
+        {diff}
+      </pre>
+    </div>
+  );
+}
+
 function ClassifierPoolEditor({
   profileId,
   providers,
@@ -1268,22 +1794,44 @@ function ClassifierPoolEditor({
 }) {
   const [local, setLocal] = useState<ModelRef[]>(pool);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<DryRunResult | null>(null);
   const dirty = JSON.stringify(local) !== JSON.stringify(pool);
   const [lastPool, setLastPool] = useState(pool);
   if (pool !== lastPool) {
     setLastPool(pool);
     setLocal(pool);
+    setPreview(null);
   }
 
-  async function save() {
+  async function run(dryRun: boolean) {
     setSaving(true);
     try {
-      await api(`/api/hermes/profiles/${profileId}/tiers`, {
-        method: "PATCH",
-        json: { classifier_pool: local },
-      });
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers${dryRun ? "?dry_run=1" : ""}`,
+        {
+          method: "PATCH",
+          json: { classifier_pool: local },
+          ...(dryRun || !preview?.baseHash ? {} : { headers: { "if-match": preview.baseHash } }),
+        },
+      );
+      if (dryRun) {
+        setPreview(res);
+        return;
+      }
+      setPreview(null);
       onSaved();
     } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before saving.", "bad");
+        await run(true);
+        return;
+      }
+      const failure = planFailure(err);
+      if (failure) {
+        setPreview(mergeFailure(preview, failure));
+        onToast(err instanceof Error ? err.message : "Save failed", "bad");
+        return;
+      }
       onToast(err instanceof Error ? err.message : "Save failed", "bad");
     } finally {
       setSaving(false);
@@ -1296,15 +1844,45 @@ function ClassifierPoolEditor({
 
   return (
     <div>
-      <ModelRefListEditor providers={providers} refs={local} onChange={setLocal} />
-      {dirty && (
-        <button
-          onClick={save}
-          disabled={saving}
-          className="mt-3 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save classifier pool"}
-        </button>
+      <ModelRefListEditor
+        providers={providers}
+        refs={local}
+        onChange={(next) => {
+          setLocal(next);
+          setPreview(null);
+        }}
+        errors={preview?.errors}
+        warnings={preview?.warnings}
+      />
+      {preview ? (
+        <>
+          <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => void run(false)}
+              disabled={saving || !preview.valid}
+              className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Confirm save"}
+            </button>
+            <button
+              onClick={() => setPreview(null)}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-[var(--panel-2)]"
+            >
+              Back to edit
+            </button>
+          </div>
+        </>
+      ) : (
+        dirty && (
+          <button
+            onClick={() => void run(true)}
+            disabled={saving}
+            className="mt-3 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? "Checking…" : "Save classifier pool"}
+          </button>
+        )
       )}
     </div>
   );
@@ -1758,30 +2336,60 @@ function TierForm({
   const [pool, setPool] = useState<ModelRef[]>(initial?.pool ?? []);
   const [fallback, setFallback] = useState<ModelRef[]>(initial?.fallback ?? []);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<DryRunResult | null>(null);
 
-  async function save() {
+  function payload() {
+    return {
+      name: name.trim(),
+      mode,
+      escalate_to: escalateTo || null,
+      pool,
+      fallback,
+    };
+  }
+
+  function validateLocal(): boolean {
     if (!name.trim()) {
       onToast("Tier name is required", "bad");
-      return;
+      return false;
     }
     if (pool.length === 0) {
       onToast("A tier needs at least one model in its pool", "bad");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function run(dryRun: boolean) {
+    if (!validateLocal()) return;
     setSaving(true);
     try {
-      await api(`/api/hermes/profiles/${profileId}/tiers`, {
-        method: "POST",
-        json: {
-          name: name.trim(),
-          mode,
-          escalate_to: escalateTo || null,
-          pool,
-          fallback,
+      const res = await api<DryRunResult>(
+        `/api/hermes/profiles/${profileId}/tiers${dryRun ? "?dry_run=1" : ""}`,
+        {
+          method: "POST",
+          json: payload(),
+          ...(dryRun || !preview?.baseHash ? {} : { headers: { "if-match": preview.baseHash } }),
         },
-      });
+      );
+      if (dryRun) {
+        setPreview(res);
+        return;
+      }
+      setPreview(null);
       onSaved();
     } catch (err) {
+      if (isStalePreview(err)) {
+        onToast("The config changed since the preview. Review the refreshed diff before saving.", "bad");
+        await run(true);
+        return;
+      }
+      const failure = planFailure(err);
+      if (failure) {
+        setPreview(mergeFailure(preview, failure));
+        onToast(err instanceof Error ? err.message : "Save failed", "bad");
+        return;
+      }
       onToast(err instanceof Error ? err.message : "Save failed", "bad");
     } finally {
       setSaving(false);
@@ -1802,7 +2410,10 @@ function TierForm({
         <Field label="Tier name" hint="e.g. trivial, normal, complex, plan">
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setPreview(null);
+            }}
             disabled={!!editingName}
             placeholder="normal"
             className={`${inputCls} font-mono`}
@@ -1810,7 +2421,14 @@ function TierForm({
         </Field>
 
         <Field label="Selection mode">
-          <select value={mode} onChange={(e) => setMode(e.target.value as "round_robin" | "priority")} className={inputCls}>
+          <select
+            value={mode}
+            onChange={(e) => {
+              setMode(e.target.value as "round_robin" | "priority");
+              setPreview(null);
+            }}
+            className={inputCls}
+          >
             <option value="round_robin">Round robin (spread load across the pool)</option>
             <option value="priority">Priority (always try pool[0] first)</option>
           </select>
@@ -1821,7 +2439,14 @@ function TierForm({
           hint="Optional: when this tier's pool is exhausted, retry with a different tier's pool"
           className="md:col-span-2"
         >
-          <select value={escalateTo} onChange={(e) => setEscalateTo(e.target.value)} className={inputCls}>
+          <select
+            value={escalateTo}
+            onChange={(e) => {
+              setEscalateTo(e.target.value);
+              setPreview(null);
+            }}
+            className={inputCls}
+          >
             <option value="">(none)</option>
             {existingNames
               .filter((n) => n !== editingName)
@@ -1834,28 +2459,68 @@ function TierForm({
         </Field>
 
         <Field label="Model pool" hint="Models this tier routes to, in order" className="md:col-span-2">
-          <ModelRefListEditor providers={providers} refs={pool} onChange={setPool} />
+          <ModelRefListEditor
+            providers={providers}
+            refs={pool}
+            onChange={(next) => {
+              setPool(next);
+              setPreview(null);
+            }}
+            errors={preview?.errors.filter((e) => e.list !== "fallback")}
+            warnings={preview?.warnings.filter((w) => w.list !== "fallback")}
+          />
         </Field>
 
         <Field label="Fallback" hint="Used only when every pool model fails" className="md:col-span-2">
-          <ModelRefListEditor providers={providers} refs={fallback} onChange={setFallback} />
+          <ModelRefListEditor
+            providers={providers}
+            refs={fallback}
+            onChange={(next) => {
+              setFallback(next);
+              setPreview(null);
+            }}
+            errors={preview?.errors.filter((e) => e.list === "fallback")}
+            warnings={preview?.warnings.filter((w) => w.list === "fallback")}
+          />
         </Field>
       </div>
 
+      {preview && <DryRunDiff diff={preview.diff} valid={preview.valid} warnings={preview.warnings} />}
+
       <div className="mt-5 flex gap-3">
-        <button
-          onClick={save}
-          disabled={saving}
-          className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save tier"}
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
-        >
-          Cancel
-        </button>
+        {preview ? (
+          <>
+            <button
+              onClick={() => void run(false)}
+              disabled={saving || !preview.valid}
+              className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Confirm save"}
+            </button>
+            <button
+              onClick={() => setPreview(null)}
+              className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+            >
+              Back to edit
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => void run(true)}
+              disabled={saving}
+              className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#06070c] hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Checking…" : "Save tier"}
+            </button>
+            <button
+              onClick={onCancel}
+              className="rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm hover:bg-[var(--panel-2)]"
+            >
+              Cancel
+            </button>
+          </>
+        )}
       </div>
     </Card>
   );
@@ -2120,6 +2785,260 @@ function AliasesEditor({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+const ROUTER_LIVE_POLL_MS = 10_000;
+
+function fmtClock(iso: string | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function fmtCountdown(ms: number): string {
+  if (ms <= 0) return "expired";
+  const s = Math.ceil(ms / 1000);
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  const h = Math.floor(s / 3600);
+  return `${h}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
+function ApproxBadge() {
+  return (
+    <span
+      title="Window derived from logged failures: approximate, not the router's exact deadline"
+      className="ml-1 rounded bg-[var(--panel-2)] px-1 py-0.5 text-[10px] whitespace-nowrap text-[var(--fg-dim)]"
+    >
+      approx
+    </span>
+  );
+}
+
+function RouterLiveTab({
+  profileId,
+  tierRouter,
+}: {
+  profileId: string;
+  tierRouter: TierRouterConfig | null;
+}) {
+  const [live, setLive] = useState<RouterLiveState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const load = useCallback(async () => {
+    const res = await api<{ routerLive: RouterLiveState }>(
+      `/api/hermes/profiles/${profileId}/router-live`,
+    );
+    return res.routerLive;
+  }, [profileId]);
+
+  useEffect(() => {
+    // The parent keys this tab by profileId, so switching profiles remounts the component
+    // with fresh state; the effect only needs to poll.
+    let cancelled = false;
+    const poll = () => {
+      load()
+        .then((data) => {
+          if (cancelled) return;
+          setLive(data);
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "Failed to load live router state");
+          }
+        });
+    };
+    void poll();
+    const pollTimer = setInterval(poll, ROUTER_LIVE_POLL_MS);
+    const tickTimer = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(pollTimer);
+      clearInterval(tickTimer);
+    };
+  }, [load]);
+
+  if (!live) {
+    return (
+      <Card>
+        <Empty>{error ? `Live view error: ${error}. Retrying every 10s.` : "Loading live router state…"}</Empty>
+      </Card>
+    );
+  }
+
+  const routerDisabled = tierRouter ? !tierRouter.enabled : false;
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <Card>
+          <p className="text-xs text-[var(--bad)]">
+            Last refresh failed: {error} (keeping last good data, retrying every 10s)
+          </p>
+        </Card>
+      )}
+
+      <Card
+        title="Live tier router"
+        subtitle={`Read-only status of the running router. As of ${fmtClock(live.generated_at)}, refreshed every 10s.`}
+        action={
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            {live.source === "state" ? (
+              <span className="rounded-md bg-[var(--good)]/12 px-2 py-1 text-[var(--good)]">
+                source: state file (exact)
+              </span>
+            ) : live.source === "logs" ? (
+              <span className="rounded-md bg-[var(--panel-2)] px-2 py-1">
+                source: log-derived (approx)
+              </span>
+            ) : (
+              <span className="rounded-md bg-[var(--panel-2)] px-2 py-1">no data</span>
+            )}
+            {live.state_stale && (
+              <span className="rounded-md bg-[var(--warn)]/12 px-2 py-1 text-[var(--warn)]">state stale</span>
+            )}
+          </div>
+        }
+      >
+        {live.source === "none" ? (
+          <Empty>
+            {routerDisabled
+              ? "Tier router is disabled for this profile. Enable it in Router & tiers to see live activity."
+              : "No tier-router activity has been recorded yet."}
+          </Empty>
+        ) : (
+          <div className="space-y-5">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
+                Restore primary
+              </p>
+              {live.restore.last_event === undefined ? (
+                <p className="mt-1 text-xs text-[var(--fg-dim)]">
+                  {live.restore.enabled
+                    ? "Enabled, but no restore has run yet in the recent window."
+                    : "Disabled: the router keeps the routed model for the whole session."}
+                </p>
+              ) : (
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-md bg-[var(--panel-2)] px-2 py-1">
+                    {live.restore.last_event === "restored"
+                      ? "restored primary"
+                      : "restore deferred"}
+                    {live.restore.last_model
+                      ? `: ${live.restore.last_model} via ${live.restore.last_provider || "unknown"}`
+                      : ""}
+                  </span>
+                  <span className="text-[var(--fg-dim)]">at {fmtClock(live.restore.last_at)}</span>
+                  {live.restore.pending_capture && (
+                    <span className="rounded-md bg-[var(--warn)]/12 px-2 py-1 text-[var(--warn)]">
+                      capture pending: will retry
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
+                Cooling pool entries ({live.cooldowns.length})
+              </p>
+              {live.cooldowns.length === 0 ? (
+                <p className="mt-1 text-xs text-[var(--fg-dim)]">
+                  No pool entries are cooling right now.
+                </p>
+              ) : (
+                <div className="mt-1 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[var(--fg-dim)]">
+                      <tr>
+                        <th className="py-2 pr-3 font-medium">Entry</th>
+                        <th className="py-2 pr-3 font-medium">Scope</th>
+                        <th className="py-2 pr-3 font-medium">Remaining</th>
+                        <th className="py-2 pr-3 font-medium">Expires at</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {live.cooldowns.map((c) => {
+                        const remaining = new Date(c.expires_at).getTime() - now;
+                        return (
+                          <tr key={`${c.provider}|${c.model}|${c.base_url ?? ""}|${c.scope}|${c.expires_at}`} className="border-t border-[var(--border)]">
+                            <td className="py-2 pr-3 font-mono">
+                              {c.model}
+                              <span className="text-[var(--fg-dim)]"> via {c.provider || "unknown"}</span>
+                              {c.approx && <ApproxBadge />}
+                            </td>
+                            <td className="py-2 pr-3">{c.scope}</td>
+                            <td className="py-2 pr-3">{fmtCountdown(remaining)}</td>
+                            <td className="py-2 pr-3">{fmtClock(c.expires_at)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--fg-dim)]">
+                Last tier decisions
+              </p>
+              {live.decisions.length === 0 ? (
+                <p className="mt-1 text-xs text-[var(--fg-dim)]">
+                  No tier decisions logged yet. The router only logs a line when the routed model differs from
+                  the one already active (already-on-target turns are silent).
+                </p>
+              ) : (
+                <div className="mt-1 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[var(--fg-dim)]">
+                      <tr>
+                        <th className="py-2 pr-3 font-medium">Time</th>
+                        <th className="py-2 pr-3 font-medium">Tier</th>
+                        <th className="py-2 pr-3 font-medium">Source</th>
+                        <th className="py-2 pr-3 font-medium">Routed to</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {live.decisions.map((d) => (
+                        <tr key={`${d.at}|${d.tier_used}|${d.model ?? ""}|${d.source}`} className="border-t border-[var(--border)]">
+                          <td className="py-2 pr-3">{fmtClock(d.at)}</td>
+                          <td className="py-2 pr-3">
+                            {d.tier_requested}
+                            {d.tier_requested !== d.tier_used &&
+                              ` → ${d.tier_used}`}
+                          </td>
+                          <td className="py-2 pr-3 font-mono">{d.source || "—"}</td>
+                          <td className="py-2 pr-3 font-mono">
+                            {d.model ? `${d.model} via ${d.provider || "unknown"}` : "—"}
+                            {d.switched === false && (
+                              <span className="ml-1 rounded bg-[var(--panel-2)] px-1 py-0.5 text-[10px] text-[var(--fg-dim)]">
+                                already on target
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {live.warnings.length > 0 && (
+              <div className="space-y-1 text-[11px] text-[var(--fg-dim)]">
+                {live.warnings.map((w, i) => (
+                  <p key={i}>Note: {w}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

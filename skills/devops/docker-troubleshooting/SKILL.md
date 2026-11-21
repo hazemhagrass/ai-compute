@@ -5,6 +5,29 @@ description: "Use when a container won't start or a build breaks. Debug Docker s
 
 Diagnose Docker issues methodically: check the symptoms (container status, exit codes), read the evidence (logs, events, inspect), isolate the cause (image, network, volume, host), then fix and verify.
 
+## Shared infrastructure is off limits
+
+**Never modify, connect, disconnect, restart, or reconfigure shared infrastructure containers** (shared reverse proxies, tunnels, certificate stores, for example Nginx Proxy Manager and cloudflared) to fix a single app's problem. These containers route every site on the host; one change for one subdomain can take all of them down. This includes:
+
+- `docker network connect/disconnect` on a shared proxy or tunnel
+- Editing proxy config files or its database
+- `docker cp` into a shared container (CA bundles, certs, configs)
+- Restarting a shared proxy or tunnel
+- Modifying tunnel config or CA bundles
+- Any TLS/certificate changes on shared containers
+
+Instead:
+- Diagnose read-only (logs, inspect, curl with SNI)
+- Fix on the app's own container/network/port
+- Hand the user a recipe to apply in the proxy UI or dashboard themselves
+- If shared infra was touched (emergency only), revert all changes and verify other sites still work
+
+Revert procedure for a shared proxy or tunnel container:
+- Restore the previous config or database backup for that container
+- Restart only that container
+- Verify every other site still answers (curl each site's URL, check status and TLS)
+- Confirm the affected subdomain resolves correctly before declaring done
+
 ## The debugging loop
 
 1. **Identify the symptom** - what's visibly broken?

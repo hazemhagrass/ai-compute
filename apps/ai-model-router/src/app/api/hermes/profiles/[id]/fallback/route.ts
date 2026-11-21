@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth";
 import { getFallbackChain, setFallbackChain } from "@/lib/hermes/fallback";
 import { modelRefSchema } from "@/lib/hermes/config-schema";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   return NextResponse.json({ chain: getFallbackChain(id) });
 }
 
@@ -21,6 +24,8 @@ export async function PUT(request: Request, ctx: RouteContext<"/api/hermes/profi
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, chainSchema);
   if (!parsed.ok) return parsed.response;
 

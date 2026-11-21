@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { getCatalogIdForProvider } from "@/lib/hermes/providers";
 import { probeHermesProvider } from "@/lib/hermes/probe";
 
@@ -14,6 +15,8 @@ export async function POST(
   const denied = await requireAuth();
   if (denied) return denied;
   const { id, providerId } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
 
   const entry = readHermesConfig(id).providers?.[providerId];
   if (!entry) return NextResponse.json({ error: "not found" }, { status: 404 });

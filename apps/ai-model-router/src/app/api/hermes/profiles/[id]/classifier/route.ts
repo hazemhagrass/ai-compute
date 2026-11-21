@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { setClassifierSettings, removeRoute, setRoute, setSystemOne } from "@/lib/hermes/tiers";
 import { parseBody } from "@/lib/schemas";
 
@@ -38,6 +39,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/hermes/pro
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, classifierSettingsSchema);
   if (!parsed.ok) return parsed.response;
 
@@ -57,6 +60,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hermes/prof
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, setRouteSchema);
   if (!parsed.ok) return parsed.response;
 
@@ -68,6 +73,8 @@ export async function DELETE(request: Request, ctx: RouteContext<"/api/hermes/pr
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, removeRouteSchema);
   if (!parsed.ok) return parsed.response;
 

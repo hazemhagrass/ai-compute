@@ -10,6 +10,12 @@ import {
   sessionCookieOptions,
   setPassword,
 } from "@/lib/auth";
+import {
+  clientKeyFromRequest,
+  clientLockoutRemainingMs,
+  clearClientFailures,
+  recordClientFailure,
+} from "@/lib/login-rate-limit";
 import { parseBody } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -50,11 +56,25 @@ export async function PUT(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Per-client rate limit: reject before parsing or checking the password so a
+  // locked client cannot keep probing the account lockout either.
+  const clientKey = clientKeyFromRequest(request);
+  const clientLockoutMs = clientLockoutRemainingMs(clientKey);
+  if (clientLockoutMs > 0) {
+    return NextResponse.json(
+      { error: "Too many failed attempts. Try again later." },
+      { status: 429, headers: { "retry-after": String(Math.ceil(clientLockoutMs / 1000)) } },
+    );
+  }
+
   const parsed = await parseBody(request, loginSchema);
   if (!parsed.ok) return parsed.response;
 
   const result = await login(parsed.data.password);
   if (!result.ok) {
+    // Count only failures where this client actually reached the password
+    // check; the account-level global lockout already answers 429 itself.
+    if (!result.retryAfterMs) recordClientFailure(clientKey);
     return NextResponse.json(
       { error: result.error },
       {
@@ -65,6 +85,8 @@ export async function POST(request: Request) {
       },
     );
   }
+
+  clearClientFailures(clientKey);
 
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, result.token!, sessionCookieOptions);
