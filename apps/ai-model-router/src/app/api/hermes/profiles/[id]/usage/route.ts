@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { readProfileUsage } from "@/lib/hermes/usage";
 
 export const dynamic = "force-dynamic";
@@ -9,5 +10,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   return NextResponse.json({ usage: readProfileUsage(id) });
 }

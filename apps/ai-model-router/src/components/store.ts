@@ -32,7 +32,7 @@ export async function apiWithMeta<T>(
   if (raw) {
     if (!res.ok && throwOnError) {
       const msg = `HTTP ${res.status} ${res.statusText}`;
-      throw new ApiResponseError(msg, null);
+      throw new ApiResponseError(msg, null, res.status);
     }
     return { data: null as T, res };
   }
@@ -46,17 +46,19 @@ export async function apiWithMeta<T>(
   if (!res.ok && throwOnError) {
     const msg =
       (parsed as { error?: string })?.error ?? `${res.status} ${res.statusText}`;
-    throw new ApiResponseError(msg, parsed);
+    throw new ApiResponseError(msg, parsed, res.status);
   }
   return { data: parsed as T, res };
 }
 
 export class ApiResponseError extends Error {
   body: unknown;
-  constructor(message: string, body: unknown) {
+  status: number;
+  constructor(message: string, body: unknown, status = 0) {
     super(message);
     this.name = "ApiResponseError";
     this.body = body;
+    this.status = status;
   }
 }
 
