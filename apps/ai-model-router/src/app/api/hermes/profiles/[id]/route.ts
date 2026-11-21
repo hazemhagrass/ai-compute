@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { deleteProfile, listHermesProfiles } from "@/lib/hermes/profiles";
 import { parseBody } from "@/lib/schemas";
 
@@ -13,6 +14,8 @@ export async function DELETE(request: Request, ctx: RouteContext<"/api/hermes/pr
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, deleteSchema);
   if (!parsed.ok) return parsed.response;
 
