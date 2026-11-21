@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth";
 import { readHermesConfig } from "@/lib/hermes/config-io";
+import { profileRouteGuard } from "@/lib/hermes/profile-route";
 import { addProvider, listProviderViews } from "@/lib/hermes/providers";
 import { parseBody } from "@/lib/schemas";
 
@@ -26,6 +27,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/hermes/profiles
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const config = readHermesConfig(id);
   return NextResponse.json({ providers: listProviderViews(id, config) });
 }
@@ -34,6 +37,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hermes/prof
   const denied = await requireAuth();
   if (denied) return denied;
   const { id } = await ctx.params;
+  const guard = profileRouteGuard(id);
+  if (guard) return guard;
   const parsed = await parseBody(request, addProviderSchema);
   if (!parsed.ok) return parsed.response;
 

@@ -6,11 +6,14 @@ import YAML from "yaml";
 import { emptyTierRouter, type HermesConfig, parseHermesConfig } from "./config-schema";
 import { profilePaths } from "./paths";
 
+export function parseHermesConfigText(text: string): HermesConfig {
+  return parseHermesConfig(text.trim() ? YAML.parse(text) : {});
+}
+
 export function readHermesConfig(profileId: string): HermesConfig {
   const { configPath } = profilePaths(profileId);
   if (!fs.existsSync(configPath)) return parseHermesConfig({});
-  const raw = YAML.parse(fs.readFileSync(configPath, "utf8"));
-  return parseHermesConfig(raw);
+  return parseHermesConfigText(fs.readFileSync(configPath, "utf8"));
 }
 
 export function writeHermesConfig(profileId: string, config: HermesConfig): void {
