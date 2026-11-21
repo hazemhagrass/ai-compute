@@ -5,26 +5,28 @@ description: "Use when a container won't start or a build breaks. Debug Docker s
 
 Diagnose Docker issues methodically: check the symptoms (container status, exit codes), read the evidence (logs, events, inspect), isolate the cause (image, network, volume, host), then fix and verify.
 
-## CRITICAL: Shared infrastructure is OFF LIMITS
+## Shared infrastructure is off limits
 
-**NEVER modify, connect, disconnect, restart, or reconfigure shared infrastructure containers** (Nginx Proxy Manager (NPM), cloudflared, or any container that serves multiple sites/apps) to fix a single app's problem. This includes:
+**Never modify, connect, disconnect, restart, or reconfigure shared infrastructure containers** (shared reverse proxies, tunnels, certificate stores, for example Nginx Proxy Manager and cloudflared) to fix a single app's problem. These containers route every site on the host; one change for one subdomain can take all of them down. This includes:
 
-- `docker network connect/disconnect` on NPM or cloudflared
-- Editing NPM's `default.conf`, `proxy_host/*.conf`, or its SQLite database
-- `docker cp` into NPM or cloudflared (CA bundles, certs, configs)
-- Restarting NPM or cloudflared
-- Modifying cloudflared tunnel config or CA bundles
+- `docker network connect/disconnect` on a shared proxy or tunnel
+- Editing proxy config files or its database
+- `docker cp` into a shared container (CA bundles, certs, configs)
+- Restarting a shared proxy or tunnel
+- Modifying tunnel config or CA bundles
 - Any TLS/certificate changes on shared containers
 
-These containers carry EVERY site on the box. One change to fix one subdomain can take down all sites simultaneously (this has happened). The user has explicitly and repeatedly forbidden this.
-
-**Instead:**
+Instead:
 - Diagnose read-only (logs, inspect, curl with SNI)
-- Fix on the APP's own container/network/port
-- Hand the user a recipe to apply in the NPM UI / Cloudflare dashboard themselves
-- If shared infra WAS touched (emergency only), revert ALL changes and verify OTHER sites still work
+- Fix on the app's own container/network/port
+- Hand the user a recipe to apply in the proxy UI or dashboard themselves
+- If shared infra was touched (emergency only), revert all changes and verify other sites still work
 
-See `self-hosted-web-app-deploy` skill → `references/cloudflared-npm-origin-chain.md` for the full diagnosis procedure and revert recipe.
+Revert procedure for a shared proxy or tunnel container:
+- Restore the previous config or database backup for that container
+- Restart only that container
+- Verify every other site still answers (curl each site's URL, check status and TLS)
+- Confirm the affected subdomain resolves correctly before declaring done
 
 ## The debugging loop
 
