@@ -5,7 +5,13 @@ import { join } from "node:path";
 import { vi } from "vitest";
 import { afterAll, beforeEach, afterEach, describe, expect, it } from "vitest";
 
-import { BACKUP_NAME_RE, backupSchedulerConfig, pruneBackups, stopBackupScheduler } from "./backup-scheduler";
+import {
+  BACKUP_NAME_RE,
+  backupSchedulerConfig,
+  pruneBackups,
+  resetBackupSchedulerStateForTests,
+  stopBackupScheduler,
+} from "./backup-scheduler";
 import { createBackup } from "./backup";
 
 vi.mock("./backup", async () => {
@@ -224,6 +230,7 @@ describe("backup scheduler behavior", () => {
       else process.env[k] = saved[k];
     }
     stopBackupScheduler();
+    resetBackupSchedulerStateForTests();
     vi.useRealTimers();
     vi.resetModules();
     rmSync(backupDir, { recursive: true, force: true });
@@ -263,6 +270,28 @@ describe("backup scheduler behavior", () => {
     m.startBackupScheduler();
     await vi.advanceTimersByTimeAsync(200000);
     expect(mod).toHaveBeenCalledTimes(1);
+  });
+
+  it("stop+start during a pending run never overlaps and resumes after it settles", async () => {
+    const { createBackup } = await import("./backup");
+    const mod = vi.mocked(createBackup);
+    let resolveRun!: () => void;
+    const pending = new Promise<void>((r) => {
+      resolveRun = r;
+    });
+    mod.mockReturnValueOnce(pending as never);
+    const m = await import("./backup-scheduler");
+    m.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(mod).toHaveBeenCalledTimes(1);
+    m.stopBackupScheduler();
+    m.startBackupScheduler();
+    await vi.advanceTimersByTimeAsync(60000 + 100);
+    expect(mod).toHaveBeenCalledTimes(1);
+    resolveRun();
+    await pending;
+    await vi.advanceTimersByTimeAsync(60000 + 100);
+    expect(mod).toHaveBeenCalledTimes(2);
   });
 
   it("log hygiene: error logged without secret path", async () => {
