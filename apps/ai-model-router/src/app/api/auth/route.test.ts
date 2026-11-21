@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = new Map<string, string>();
 
@@ -39,10 +39,17 @@ async function lockClient(ip: string) {
   }
 }
 
+let originalProxyHops: string | undefined;
 beforeEach(() => {
   store.clear();
   vi.useRealTimers();
   limiter.resetClientRateLimits();
+  originalProxyHops = process.env.AMR_TRUSTED_PROXY_HOPS;
+});
+afterEach(() => {
+  vi.useRealTimers();
+  if (originalProxyHops === undefined) delete process.env.AMR_TRUSTED_PROXY_HOPS;
+  else process.env.AMR_TRUSTED_PROXY_HOPS = originalProxyHops;
 });
 
 describe("POST /api/auth (login) rate limiting", () => {
@@ -75,24 +82,24 @@ describe("POST /api/auth (login) rate limiting", () => {
   it("does not leak account facts in the locked response", async () => {
     process.env.AMR_TRUSTED_PROXY_HOPS = "1";
     try {
-    await setPassword("the-right-password");
-    vi.useFakeTimers();
-    await lockClient("203.0.113.7");
+      await setPassword("the-right-password");
+      vi.useFakeTimers();
+      await lockClient("203.0.113.7");
 
-    const locked = await post({ password: "the-right-password" });
-    // Step past the global account backoff so the baseline below is a plain
-    // 401 from the password check, not a 429 from the other lockout layer.
-    vi.advanceTimersByTime(60_000);
-    const wrongPassword = await post({ password: "another-wrong" }, "198.51.100.5");
+      const locked = await post({ password: "the-right-password" });
+      // Step past the global account backoff so the baseline below is a plain
+      // 401 from the password check, not a 429 from the other lockout layer.
+      vi.advanceTimersByTime(60_000);
+      const wrongPassword = await post({ password: "another-wrong" }, "198.51.100.5");
 
-    const lockedBody = await locked.json();
-    const wrongBody = await wrongPassword.json();
-    expect(locked.status).toBe(429);
-    expect(wrongPassword.status).toBe(401);
-    expect(Object.keys(lockedBody).sort()).toEqual(Object.keys(wrongBody).sort());
-    expect(typeof wrongBody.error).toBe("string");
+      const lockedBody = await locked.json();
+      const wrongBody = await wrongPassword.json();
+      expect(locked.status).toBe(429);
+      expect(wrongPassword.status).toBe(401);
+      expect(Object.keys(lockedBody).sort()).toEqual(Object.keys(wrongBody).sort());
+      expect(typeof wrongBody.error).toBe("string");
     } finally {
-      delete process.env.AMR_TRUSTED_PROXY_HOPS;
+      // restored by afterEach
     }
   });
 
@@ -138,7 +145,7 @@ describe("POST /api/auth (login) rate limiting", () => {
 
       expect(other.status).toBe(200);
     } finally {
-      delete process.env.AMR_TRUSTED_PROXY_HOPS;
+      // restored by afterEach
     }
   });
   it("spoofed X-Forwarded-For does not escape the lockout", async () => {
@@ -150,6 +157,5 @@ describe("POST /api/auth (login) rate limiting", () => {
 
     const res = await post({ password: "the-right-password" }, "9.9.9.9");
     expect(res.status).toBe(429);
-    vi.useRealTimers();
   });
 });
