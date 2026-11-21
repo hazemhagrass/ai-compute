@@ -110,7 +110,8 @@ describe("pricing freshness store", () => {
       source: string;
     }[];
     expect(persisted).toHaveLength(50);
-    // The oldest non-catalog record made room for the backfill.
+    // source-0 had fetchedAt 0, rejected by isUsableFetchedAt, so it is
+    // treated as never-fetched and evicted first to make room for backfill.
     expect(getFreshnessRecord("source-0")).toBeUndefined();
     expect(getFreshnessRecord("source-1")).toEqual({ source: "source-1", fetchedAt: 1000 });
   });

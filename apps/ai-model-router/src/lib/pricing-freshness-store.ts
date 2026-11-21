@@ -36,6 +36,35 @@ function readRecords(): PricingFreshnessRecord[] {
  * write-on-read, but it runs only while no record for the source exists,
  * so steady state reads and writes stay separated.
  */
+function evictStaleRecordsProtectingCatalog(
+  records: PricingFreshnessRecord[],
+): PricingFreshnessRecord[] {
+  if (records.length <= FRESHNESS_MAX_SOURCES) return records;
+  // Identify catalog index (last occurrence).
+  const catalogIndices = records
+    .map((r, i) => (r.source === CATALOG_SOURCE ? i : -1))
+    .filter((i) => i >= 0);
+  const protectedIdx = new Set(catalogIndices);
+  // Evict only from non-protected records.
+  const candidates = records
+    .map((r, i) => ({ i, r }))
+    .filter(({ i }) => !protectedIdx.has(i));
+  const overflow = records.length - FRESHNESS_MAX_SOURCES;
+  // number of catalog records protected
+  const evictCount = Math.max(0, overflow);
+  // We need to drop evictCount from candidates, choosing stalest.
+  const ranked = candidates
+    .map(({ i, r }) => ({
+      i,
+      ts: isUsableFetchedAt(r.fetchedAt) ? r.fetchedAt : Number.NEGATIVE_INFINITY,
+    }))
+    .sort((a, b) => a.ts - b.ts || a.i - b.i)
+    .slice(0, evictCount)
+    .map((e) => e.i);
+  const drop = new Set(ranked);
+  return records.filter((_, i) => !drop.has(i));
+}
+
 export function getPricingFreshnessRecords(): PricingFreshnessRecord[] {
   const records = readRecords();
   if (records.some((r) => r.source === CATALOG_SOURCE)) return records;
@@ -43,10 +72,12 @@ export function getPricingFreshnessRecords(): PricingFreshnessRecord[] {
   if (isUsableFetchedAt(ts)) {
     // Same eviction as a real fetch, so backfilling into a full store
     // cannot persist one record past the bound.
-    const backfilled = evictStaleRecords([
-      ...records,
-      { source: CATALOG_SOURCE, fetchedAt: ts },
-    ]);
+    const withCatalog = [...records, { source: CATALOG_SOURCE, fetchedAt: ts }];
+    // Protect the catalog record so it survives eviction even when the
+    // store is full of newer non-catalog records; evict among non-catalog
+    // records only. This keeps the "readers always see a catalog record"
+    // invariant and prevents write-on-read on every subsequent read.
+    const backfilled = evictStaleRecordsProtectingCatalog(withCatalog);
     setSetting(FRESHNESS_KEY, JSON.stringify(backfilled));
     return backfilled;
   }

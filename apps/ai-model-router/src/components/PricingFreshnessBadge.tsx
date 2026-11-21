@@ -120,15 +120,10 @@ export default function PricingFreshnessBadge({
     // account: this mounted badge never sees the save, so re-read both
     // fetches when the panel becomes visible again (window focus, tab
     // visibility) instead of coloring on the old value until a reload.
-    const onVisible = () => {
-      if (document.visibilityState === "visible") load();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", load);
+    const unsubscribe = subscribeVisibleRefresh(document, window, load);
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", load);
+      unsubscribe();
     };
   }, [refreshToken]);
 
@@ -143,4 +138,22 @@ export default function PricingFreshnessBadge({
       prefix={prefix}
     />
   );
+}
+
+
+export function subscribeVisibleRefresh(
+  doc: Document,
+  win: Window,
+  load: () => void,
+): () => void {
+  const onVisible = () => {
+    if (doc.visibilityState === "visible") load();
+  };
+  const onFocus = () => load();
+  doc.addEventListener("visibilitychange", onVisible);
+  win.addEventListener("focus", onFocus);
+  return () => {
+    doc.removeEventListener("visibilitychange", onVisible);
+    win.removeEventListener("focus", onFocus);
+  };
 }
