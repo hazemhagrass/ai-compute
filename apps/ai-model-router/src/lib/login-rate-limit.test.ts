@@ -129,10 +129,10 @@ describe("stale-count expiry", () => {
     vi.useFakeTimers();
     for (let i = 0; i < 4; i++) recordClientFailure("stale-key");
     vi.advanceTimersByTime(LOGIN_RATE_LIMIT_COOLDOWN_MS + 1);
+    for (let i = 0; i < 4; i++) recordClientFailure("stale-key");
+    expect(clientLockoutRemainingMs("stale-key")).toBe(0);
     recordClientFailure("stale-key");
-    expect(clientLockoutRemainingMs("stale-key")).toBe(0);
-    for (let i = 0; i < 2; i++) recordClientFailure("stale-key");
-    expect(clientLockoutRemainingMs("stale-key")).toBe(0);
+    expect(clientLockoutRemainingMs("stale-key")).toBeGreaterThan(0);
   });
 
   it("5 failures within window lock", () => {
