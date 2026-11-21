@@ -102,10 +102,10 @@ Disabled by default. Set AMR_BACKUP_ENABLED=true to enable.
 
 Prune deletes only directories whose name matches backup-<13 digit timestamp> and that contain router.db. Files, symlinks and non-matching names survive. Values below 1 fall back to 7 (never delete nothing). AMR_BACKUP_DIR may be relative; it is resolved against the process working directory.
 
+## Environment variables
+
+- `AMR_TRUSTED_PROXY_HOPS`: number of reverse proxies in front of the app. Default 0. With 0, all clients share one login rate-limit bucket and forwarding headers are ignored because clients can forge them. Set it to the number of reverse proxies in front of the app to key rate limits by client IP. A value above 0 is safe only when the app is reachable ONLY through those proxies; otherwise a direct client controls X-Forwarded-For and can spoof its address.
+
 ## License
 
 MIT
-
-## Environment variables
-
-- `AMR_TRUSTED_PROXY_HOPS`: number of reverse proxies in front of the app. Default 0. With 0, all clients share one login rate-limit bucket and forwarding headers are ignored because clients can forge them. Set it to the number of reverse proxies in front of the app to key rate limits by client IP.
