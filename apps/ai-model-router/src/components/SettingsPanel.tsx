@@ -237,7 +237,7 @@ function SubscriptionForm({
       </label>
       <button
         type="submit"
-        className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c]"
+        className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
       >
         Save subscription
       </button>
@@ -373,7 +373,7 @@ function KeysList({
         </label>
         <button
           type="submit"
-          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c]"
+          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
         >
           Add key
         </button>
@@ -428,11 +428,11 @@ function PricingFreshnessSection({
         </label>
         <button
           type="submit"
-          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c]"
+          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
         >
           Save
         </button>
-        {error && <span className="text-xs text-red-400">{error}</span>}
+        {error && <span className="text-xs text-[var(--bad)]">{error}</span>}
       </form>
     </section>
   );
@@ -552,7 +552,7 @@ function BudgetsSection({
         />
         <button
           type="submit"
-          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[#06070c]"
+          className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
         >
           Add budget
         </button>
