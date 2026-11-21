@@ -94,3 +94,7 @@ Authentication uses scrypt (password + per-password salt) with HMAC-signed httpO
 ## License
 
 MIT
+
+## Environment variables
+
+- `AMR_TRUSTED_PROXY_HOPS`: number of reverse proxies in front of the app. Default 0. With 0, all clients share one login rate-limit bucket and forwarding headers are ignored because clients can forge them. Set it to the number of reverse proxies in front of the app to key rate limits by client IP.

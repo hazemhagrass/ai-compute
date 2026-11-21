@@ -141,4 +141,15 @@ describe("POST /api/auth (login) rate limiting", () => {
       delete process.env.AMR_TRUSTED_PROXY_HOPS;
     }
   });
+  it("spoofed X-Forwarded-For does not escape the lockout", async () => {
+    delete process.env.AMR_TRUSTED_PROXY_HOPS;
+    await setPassword("the-right-password");
+    vi.useFakeTimers();
+    await lockClient("203.0.113.7");
+    vi.advanceTimersByTime(60_000);
+
+    const res = await post({ password: "the-right-password" }, "9.9.9.9");
+    expect(res.status).toBe(429);
+    vi.useRealTimers();
+  });
 });
