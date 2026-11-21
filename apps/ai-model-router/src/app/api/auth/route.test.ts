@@ -73,6 +73,8 @@ describe("POST /api/auth (login) rate limiting", () => {
   });
 
   it("does not leak account facts in the locked response", async () => {
+    process.env.AMR_TRUSTED_PROXY_HOPS = "1";
+    try {
     await setPassword("the-right-password");
     vi.useFakeTimers();
     await lockClient("203.0.113.7");
@@ -89,6 +91,9 @@ describe("POST /api/auth (login) rate limiting", () => {
     expect(wrongPassword.status).toBe(401);
     expect(Object.keys(lockedBody).sort()).toEqual(Object.keys(wrongBody).sort());
     expect(typeof wrongBody.error).toBe("string");
+    } finally {
+      delete process.env.AMR_TRUSTED_PROXY_HOPS;
+    }
   });
 
   it("rejects a correct password during the lockout window", async () => {
@@ -122,13 +127,18 @@ describe("POST /api/auth (login) rate limiting", () => {
   });
 
   it("keys clients independently", async () => {
-    await setPassword("the-right-password");
-    vi.useFakeTimers();
-    await lockClient("203.0.113.7");
-    vi.advanceTimersByTime(60_000);
+    process.env.AMR_TRUSTED_PROXY_HOPS = "1";
+    try {
+      await setPassword("the-right-password");
+      vi.useFakeTimers();
+      await lockClient("203.0.113.7");
+      vi.advanceTimersByTime(60_000);
 
-    const other = await post({ password: "the-right-password" }, "198.51.100.22");
+      const other = await post({ password: "the-right-password" }, "198.51.100.22");
 
-    expect(other.status).toBe(200);
+      expect(other.status).toBe(200);
+    } finally {
+      delete process.env.AMR_TRUSTED_PROXY_HOPS;
+    }
   });
 });
