@@ -138,8 +138,6 @@ describe("pricing freshness store", () => {
     expect(getFreshnessRecord("openrouter")).toBeDefined();
   });
 
-
-
   it("keeps the catalog record on every read when the store is full of newer records", () => {
     for (let i = 0; i < 50; i++) {
       updateFreshnessRecord(`source-${i}`, 1_000_000 + i);
@@ -153,7 +151,7 @@ describe("pricing freshness store", () => {
     const second = getPricingFreshnessRecords();
     expect(second).toHaveLength(50);
     expect(getFreshnessRecord("openrouter")).toBeDefined();
-    // second call must not write
+    // second call leaves the stored records unchanged
     expect(store.get("pricing_freshness")).toBe(afterFirst);
     expect(before).not.toBe(afterFirst);
   });

@@ -42,6 +42,7 @@ export function getPricingFreshnessRecords(): PricingFreshnessRecord[] {
   const ts = Number(getSetting(CATALOG_TS_KEY, "0"));
   if (isUsableFetchedAt(ts)) {
     const withCatalog = [...records, { source: CATALOG_SOURCE, fetchedAt: ts }];
+    // Protection keeps the just-backfilled catalog record, which would otherwise be evicted when its timestamp is the oldest.
     const backfilled = evictStaleRecords(withCatalog, { protectCatalog: true });
     setSetting(FRESHNESS_KEY, JSON.stringify(backfilled));
     return backfilled;
@@ -59,6 +60,7 @@ export function getFreshnessRecord(
  * Evicts least-recently-updated records first, with never-fetched records
  * (null) treated as the oldest, so an actively refreshed source never
  * loses its slot just because it was pushed first.
+ * protectCatalog exempts the catalog source from eviction.
  */
 function evictStaleRecords(
   records: PricingFreshnessRecord[],

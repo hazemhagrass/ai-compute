@@ -140,7 +140,6 @@ export default function PricingFreshnessBadge({
   );
 }
 
-
 export interface VisibleRefreshDoc {
   visibilityState: string;
   addEventListener(
