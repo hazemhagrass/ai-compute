@@ -1,9 +1,14 @@
 import { getSetting, setSetting } from "./db";
+import { appendPricingAudit } from "./pricing-audit";
+import {
+  CATALOG_SOURCE,
+  CATALOG_TS_KEY,
+  updateFreshnessRecord,
+} from "./pricing-freshness-store";
 import { listModels, updateModel } from "./repo";
 
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const CACHE_KEY = "openrouter_catalog";
-const CACHE_TS_KEY = "openrouter_catalog_ts";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export interface CatalogEntry {
@@ -65,7 +70,7 @@ export async function fetchCatalog(force = false): Promise<{
   cachedAt: string;
   fromCache: boolean;
 }> {
-  const ts = Number(getSetting(CACHE_TS_KEY, "0"));
+  const ts = Number(getSetting(CATALOG_TS_KEY, "0"));
   const fresh = Date.now() - ts < CACHE_TTL_MS;
   if (!force && fresh) {
     const raw = getSetting(CACHE_KEY, "");
@@ -73,7 +78,7 @@ export async function fetchCatalog(force = false): Promise<{
       try {
         return {
           entries: JSON.parse(raw) as CatalogEntry[],
-          cachedAt: new Date(ts).toISOString(),
+          cachedAt: new Date(Number(ts)).toISOString(),
           fromCache: true,
         };
       } catch {
@@ -92,9 +97,12 @@ export async function fetchCatalog(force = false): Promise<{
     if (!res.ok) throw new Error(`OpenRouter returned ${res.status}`);
     const json = (await res.json()) as { data?: OrModel[] };
     const entries = (json.data ?? []).map(mapEntry).sort((a, b) => a.id.localeCompare(b.id));
+    const fetchedAt = Date.now();
     setSetting(CACHE_KEY, JSON.stringify(entries));
-    setSetting(CACHE_TS_KEY, String(Date.now()));
-    return { entries, cachedAt: new Date().toISOString(), fromCache: false };
+    setSetting(CATALOG_TS_KEY, String(fetchedAt));
+    updateFreshnessRecord(CATALOG_SOURCE, fetchedAt);
+    appendPricingAudit({ actor: "system", action: "catalog_refresh", details: { count: entries.length } });
+    return { entries, cachedAt: new Date(fetchedAt).toISOString(), fromCache: false };
   } finally {
     clearTimeout(timer);
   }
@@ -131,6 +139,20 @@ export interface PriceMatch {
   changed: boolean;
 }
 
+// Per-model row kept inside the aggregate catalog_apply audit entry: old
+// and new prices so the audit shows the change, not just the result.
+interface CatalogPriceChange {
+  modelId: string;
+  oldInput: number;
+  oldOutput: number;
+  inputCost: number;
+  outputCost: number;
+}
+
+// How many per-model rows the aggregate entry stores. The count field is
+// always exact, so a bigger sync is summarized, not lost.
+const AUDIT_APPLY_DETAIL_CAP = 25;
+
 export async function syncPricing(apply: boolean): Promise<{
   matches: PriceMatch[];
   unmatched: string[];
@@ -155,7 +177,7 @@ export async function syncPricing(apply: boolean): Promise<{
 
   const matches: PriceMatch[] = [];
   const unmatched: string[] = [];
-  let applied = 0;
+  const appliedChanges: CatalogPriceChange[] = [];
 
   for (const m of listModels()) {
     if (m.inputCost === 0 && m.outputCost === 0 && m.tags.includes("local")) continue;
@@ -189,11 +211,39 @@ export async function syncPricing(apply: boolean): Promise<{
         contextWindow: hit.contextLength || m.contextWindow,
         maxOutput: hit.maxOutput || m.maxOutput,
       });
-      applied++;
+      appliedChanges.push({
+        modelId: m.modelId,
+        oldInput: m.inputCost,
+        oldOutput: m.outputCost,
+        inputCost: hit.inputCost,
+        outputCost: hit.outputCost,
+      });
     }
   }
 
-  return { matches, unmatched, applied, catalogSize: entries.length };
+  // One aggregate catalog_apply entry per sync, not one per model: a
+  // price sweep can touch more models than the audit keeps (MAX = 50),
+  // and per-model entries would splice the catalog_refresh and
+  // manual_price_edit history they extend out of the log. Appended in a
+  // single write.
+  if (appliedChanges.length > 0) {
+    appendPricingAudit({
+      actor: "system",
+      action: "catalog_apply",
+      details: {
+        count: appliedChanges.length,
+        truncated: appliedChanges.length > AUDIT_APPLY_DETAIL_CAP,
+        changes: appliedChanges.slice(0, AUDIT_APPLY_DETAIL_CAP),
+      },
+    });
+  }
+
+  return {
+    matches,
+    unmatched,
+    applied: appliedChanges.length,
+    catalogSize: entries.length,
+  };
 }
 
 export function cheapnessFromPrice(outputCostPer1M: number): number {

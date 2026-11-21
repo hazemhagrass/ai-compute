@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth";
 import { listBudgets } from "@/lib/budget";
+import { isUsableFetchedAt } from "@/lib/pricing-freshness";
+import { getPricingFreshnessRecords } from "@/lib/pricing-freshness-store";
 import { listProviderKeys } from "@/lib/provider-keys";
 import { listModels, listProviders, listTasks } from "@/lib/repo";
 import { getRoutingPolicy } from "@/lib/routing-policy";
@@ -34,6 +36,15 @@ export async function GET() {
     })),
     budgets: listBudgets(),
     routingPolicy: getRoutingPolicy(),
+    pricing: {
+      sources: getPricingFreshnessRecords().map((r) => ({
+        source: r.source,
+        fetchedAt: r.fetchedAt,
+        fetchedAtIso: isUsableFetchedAt(r.fetchedAt)
+          ? new Date(r.fetchedAt).toISOString()
+          : null,
+      })),
+    },
     providerKeys: providers.flatMap((p) =>
       listProviderKeys(p.id).map((k) => ({
         providerSlug: p.slug,

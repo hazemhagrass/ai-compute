@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fetchCatalog, recalcCheapness, syncPricing } from "@/lib/pricing";
+import { getPricingAudit } from "@/lib/pricing-audit";
 import { pricingSchema } from "@/lib/schemas";
 import { requireAuth } from "@/lib/auth";
 
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
       fromCache,
       total: filtered.length,
       entries: filtered.slice(0, limit),
+      audit: getPricingAudit(),
     });
   } catch (err) {
     return NextResponse.json(

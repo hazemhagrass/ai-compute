@@ -6,6 +6,7 @@ import {
   keyVerifyStatus,
   money,
   parseModelList,
+  pricingStaleDaysValue,
 } from "./settings.rules";
 
 describe("budgetIdFrom", () => {
@@ -63,5 +64,21 @@ describe("money", () => {
   it("formats cents as dollars", () => {
     expect(money(1234)).toBe("$12.34");
     expect(money(0)).toBe("$0.00");
+  });
+});
+
+describe("pricingStaleDaysValue", () => {
+  it("accepts integers inside 1..365", () => {
+    expect(pricingStaleDaysValue("1")).toBe(1);
+    expect(pricingStaleDaysValue("14")).toBe(14);
+    expect(pricingStaleDaysValue("365")).toBe(365);
+  });
+
+  it("rejects out-of-range and non-numeric drafts", () => {
+    expect(pricingStaleDaysValue("0")).toBeNull();
+    expect(pricingStaleDaysValue("366")).toBeNull();
+    expect(pricingStaleDaysValue("-5")).toBeNull();
+    expect(pricingStaleDaysValue("")).toBeNull();
+    expect(pricingStaleDaysValue("abc")).toBeNull();
   });
 });

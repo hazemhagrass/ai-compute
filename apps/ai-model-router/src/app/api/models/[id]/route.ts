@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { deleteModel, getModel, updateModel, getProvider } from "@/lib/repo";
+import { appendPricingAudit } from "@/lib/pricing-audit";
 import { parseBody, updateModelSchema } from "@/lib/schemas";
 import { requireAuth } from "@/lib/auth";
 import { validateModelIdAgainstProvider } from "@/lib/model-validation";
@@ -50,8 +51,18 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/models/[id
     }
   }
 
+  const priceChanged =
+    (parsed.data.inputCost !== undefined && parsed.data.inputCost !== existing.inputCost) ||
+    (parsed.data.outputCost !== undefined && parsed.data.outputCost !== existing.outputCost);
   const model = updateModel(Number(id), parsed.data);
   if (!model) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (priceChanged) {
+    appendPricingAudit({
+      actor: "user",
+      action: "manual_price_edit",
+      details: { modelId: existing.modelId, inputCost: model.inputCost, outputCost: model.outputCost },
+    });
+  }
   return NextResponse.json({ model });
 }
 
