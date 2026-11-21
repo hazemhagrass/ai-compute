@@ -55,12 +55,35 @@ export function pruneBackups(dir: string, keep: number): string[] {
 }
 
 const STATE_KEY = Symbol.for("ai-model-router.backup-scheduler");
-type SchedulerState = { started: boolean; timer: NodeJS.Timeout | null; initial: NodeJS.Timeout | null; running: boolean };
+type SchedulerState = {
+  started: boolean;
+  timer: NodeJS.Timeout | null;
+  initial: NodeJS.Timeout | null;
+  running: boolean;
+  runSeq: number;
+};
 
 function getState(): SchedulerState {
   const g = globalThis as Record<symbol, SchedulerState>;
-  if (!g[STATE_KEY]) g[STATE_KEY] = { started: false, timer: null, initial: null, running: false };
+  if (!g[STATE_KEY]) g[STATE_KEY] = { started: false, timer: null, initial: null, running: false, runSeq: 0 };
   return g[STATE_KEY];
+}
+
+/**
+ * Test-only: drop the shared scheduler state so one test's in-flight run cannot
+ * skip later tests' runs. Bumping runSeq orphans any in-flight run, whose
+ * finally then must not clear a newer run's guard. Never call this from
+ * production code.
+ */
+export function resetBackupSchedulerStateForTests(): void {
+  const state = getState();
+  if (state.timer) clearInterval(state.timer);
+  if (state.initial) clearTimeout(state.initial);
+  state.timer = null;
+  state.initial = null;
+  state.started = false;
+  state.running = false;
+  state.runSeq += 1;
 }
 
 export function startBackupScheduler(): void {
@@ -74,6 +97,7 @@ export function startBackupScheduler(): void {
       console.warn("[backup-scheduler] skipping run: previous run still running");
       return;
     }
+    const seq = ++state.runSeq;
     state.running = true;
     const name = `backup-${Date.now()}`;
     const dest = path.join(cfg.dir, name);
@@ -98,7 +122,9 @@ export function startBackupScheduler(): void {
       const code = (err as { code?: unknown; name?: unknown })?.code ?? (err as { name?: unknown })?.name;
       console.error("[backup-scheduler] run failed:", code ?? "Error");
     } finally {
-      state.running = false;
+      // Only the run that set the guard may clear it, so a stale run settling
+      // after a reset can never unguard a newer in-flight run.
+      if (state.runSeq === seq) state.running = false;
     }
   };
   let delay = 0;
