@@ -91,6 +91,21 @@ Cost tracking happens at recordUsage: every chat logs input/output/cached/reason
 
 Authentication uses scrypt (password + per-password salt) with HMAC-signed httpOnly session cookies (12h rolling). The SSRF guard blocks private addresses by default but allows `kind="local"` providers (Ollama on localhost) to pass through. Secrets are AES-256-GCM encrypted with a master key in `.secret`; rotation re-encrypts every stored key in one transaction and verifies decryption before committing.
 
+## Scheduled backups
+
+Disabled by default. Set AMR_BACKUP_ENABLED=true to enable.
+
+- AMR_BACKUP_ENABLED: true enables the scheduler. Default false.
+- AMR_BACKUP_INTERVAL_MS: run interval in milliseconds. Default 86400000 (24h). Must be an integer at least 60000 and at most 2147483647, otherwise falls back to 24h with a warning. An immediate backup runs at every server start.
+- AMR_BACKUP_KEEP: number of backups to retain. Default 7. Must be an integer at least 1, otherwise falls back to 7 with a warning.
+- AMR_BACKUP_DIR: backup directory. Default <data>/backups.
+
+Prune deletes only directories whose name matches backup-<13 digit timestamp> and that contain router.db. Files, symlinks and non-matching names survive. Values below 1 fall back to 7 (never delete nothing). AMR_BACKUP_DIR may be relative; it is resolved against the process working directory.
+
 ## License
 
 MIT
+
+## Environment variables
+
+- `AMR_TRUSTED_PROXY_HOPS`: number of reverse proxies in front of the app. Default 0. With 0, all clients share one login rate-limit bucket and forwarding headers are ignored because clients can forge them. Set it to the number of reverse proxies in front of the app to key rate limits by client IP.

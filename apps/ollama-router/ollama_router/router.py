@@ -31,18 +31,18 @@ from .registry import Perf, Registry
 Intent = str
 
 INTENT_PATTERNS: list[tuple[Intent, re.Pattern[str]]] = [
-    ("embedding", re.compile(r"\b(embed|embedding|vector|similarity search)\b", re.I)),
+    ("embedding", re.compile(r"\b(embed|embedding|vector|similarity search)\b", re.IGNORECASE)),
     ("code", re.compile(
         r"\b(refactor|debug|stack ?trace|compile|function|class|regex|sql|"
         r"typescript|python|javascript|rust|golang|java\b|bug|unit test|"
-        r"implement|code|api|endpoint)\b", re.I)),
+        r"implement|code|api|endpoint)\b", re.IGNORECASE)),
     ("reasoning", re.compile(
         r"\b(prove|derive|step by step|reason|analy[sz]e|why does|trade-?off|"
-        r"compare|evaluate|plan|strategy|explain how)\b", re.I)),
+        r"compare|evaluate|plan|strategy|explain how)\b", re.IGNORECASE)),
     ("extraction", re.compile(
         r"\b(extract|parse|classif|categor|label|tag|json|schema|"
-        r"summar|tl;?dr|rewrite|translate)\b", re.I)),
-    ("chat", re.compile(r".", re.S)),
+        r"summar|tl;?dr|rewrite|translate)\b", re.IGNORECASE)),
+    ("chat", re.compile(r".", re.DOTALL)),
 ]
 
 FAMILY_AFFINITY: dict[Intent, tuple[str, ...]] = {
@@ -86,7 +86,7 @@ class Objective:
     fit: float = 1.0
 
     @staticmethod
-    def get(name: str) -> "Objective":
+    def get(name: str) -> Objective:
         """Look up an objective by name, rejecting unknown ones.
 
         Silently falling back to balanced would hide a typo: the caller asks
