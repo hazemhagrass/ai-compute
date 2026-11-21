@@ -110,7 +110,8 @@ describe("pricing freshness store", () => {
       source: string;
     }[];
     expect(persisted).toHaveLength(50);
-    // The oldest non-catalog record made room for the backfill.
+    // source-0 had fetchedAt 0, rejected by isUsableFetchedAt, so it is
+    // treated as never-fetched and evicted first to make room for backfill.
     expect(getFreshnessRecord("source-0")).toBeUndefined();
     expect(getFreshnessRecord("source-1")).toEqual({ source: "source-1", fetchedAt: 1000 });
   });
@@ -135,6 +136,24 @@ describe("pricing freshness store", () => {
     expect(records).toHaveLength(50);
     expect(getFreshnessRecord("dead-feed")).toBeUndefined();
     expect(getFreshnessRecord("openrouter")).toBeDefined();
+  });
+
+  it("keeps the catalog record on every read when the store is full of newer records", () => {
+    for (let i = 0; i < 50; i++) {
+      updateFreshnessRecord(`source-${i}`, 1_000_000 + i);
+    }
+    store.set("openrouter_catalog_ts", "500000");
+    const before = store.get("pricing_freshness");
+    const first = getPricingFreshnessRecords();
+    expect(first).toHaveLength(50);
+    expect(getFreshnessRecord("openrouter")).toBeDefined();
+    const afterFirst = store.get("pricing_freshness");
+    const second = getPricingFreshnessRecords();
+    expect(second).toHaveLength(50);
+    expect(getFreshnessRecord("openrouter")).toBeDefined();
+    // second call leaves the stored records unchanged
+    expect(store.get("pricing_freshness")).toBe(afterFirst);
+    expect(before).not.toBe(afterFirst);
   });
 
   it("returns the synthesized missing record for corrupted stored JSON", () => {

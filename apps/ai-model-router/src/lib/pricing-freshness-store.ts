@@ -41,12 +41,9 @@ export function getPricingFreshnessRecords(): PricingFreshnessRecord[] {
   if (records.some((r) => r.source === CATALOG_SOURCE)) return records;
   const ts = Number(getSetting(CATALOG_TS_KEY, "0"));
   if (isUsableFetchedAt(ts)) {
-    // Same eviction as a real fetch, so backfilling into a full store
-    // cannot persist one record past the bound.
-    const backfilled = evictStaleRecords([
-      ...records,
-      { source: CATALOG_SOURCE, fetchedAt: ts },
-    ]);
+    const withCatalog = [...records, { source: CATALOG_SOURCE, fetchedAt: ts }];
+    // Protection keeps the just-backfilled catalog record, which would otherwise be evicted when its timestamp is the oldest.
+    const backfilled = evictStaleRecords(withCatalog, { protectCatalog: true });
     setSetting(FRESHNESS_KEY, JSON.stringify(backfilled));
     return backfilled;
   }
@@ -63,14 +60,25 @@ export function getFreshnessRecord(
  * Evicts least-recently-updated records first, with never-fetched records
  * (null) treated as the oldest, so an actively refreshed source never
  * loses its slot just because it was pushed first.
+ * protectCatalog exempts the catalog source from eviction.
  */
 function evictStaleRecords(
   records: PricingFreshnessRecord[],
+  options: { protectCatalog?: boolean } = {},
 ): PricingFreshnessRecord[] {
   const overflow = records.length - FRESHNESS_MAX_SOURCES;
   if (overflow <= 0) return records;
-  const dropIdx = records
-    .map((r, i) => ({
+  const protectedIdx = new Set<number>();
+  if (options.protectCatalog) {
+    records.forEach((r, i) => {
+      if (r.source === CATALOG_SOURCE) protectedIdx.add(i);
+    });
+  }
+  const candidates = records
+    .map((r, i) => ({ i, r }))
+    .filter(({ i }) => !protectedIdx.has(i));
+  const dropIdx = candidates
+    .map(({ i, r }) => ({
       i,
       ts: isUsableFetchedAt(r.fetchedAt) ? r.fetchedAt : Number.NEGATIVE_INFINITY,
     }))
