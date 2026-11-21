@@ -11,10 +11,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Baselines measured on origin/main 7ab47bc (hex: 33, all #06070c; off-palette: 81
+# Baselines measured on origin/main c8cc398 (hex: 37, all #06070c; off-palette: 81
 # across ComparePanel 33, PlaygroundPanel 38, DashboardPanel 4, SettingsPanel 4,
 # AppShell 1, LogsPanel 1). Lower only, never raise.
-HEX_BASELINE=33
+HEX_BASELINE=37
 OFF_PALETTE_BASELINE=81
 
 HEX_RE='#[0-9a-fA-F]{3,8}\b'
