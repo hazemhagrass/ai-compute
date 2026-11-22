@@ -1,11 +1,16 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { vi } from "vitest";
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 
-import { BACKUP_NAME_RE, backupSchedulerConfig, stopBackupScheduler } from "./backup-scheduler";
+import {
+  BACKUP_NAME_RE,
+  backupSchedulerConfig,
+  resetBackupSchedulerStateForTests,
+  stopBackupScheduler,
+} from "./backup-scheduler";
 
 vi.mock("./backup", async () => {
   const actual = await vi.importActual<typeof import("./backup")>("./backup");
@@ -41,6 +46,7 @@ describe("backup scheduler schedule (new)", () => {
       else process.env[k] = saved[k];
     }
     stopBackupScheduler();
+    resetBackupSchedulerStateForTests();
     vi.useRealTimers();
     vi.resetModules();
     rmSync(backupDir, { recursive: true, force: true });
@@ -55,12 +61,16 @@ describe("backup scheduler schedule (new)", () => {
     const mod = vi.mocked(createBackup);
     const m = await import("./backup-scheduler");
     m.startBackupScheduler();
+    expect(mod).not.toHaveBeenCalled();
     // just before
     await vi.advanceTimersByTimeAsync(60000 - 1);
     expect(mod).not.toHaveBeenCalled();
     // past
     await vi.advanceTimersByTimeAsync(2);
     expect(mod).toHaveBeenCalledTimes(1);
+    const dest = mod.mock.calls[0][0] as string;
+    expect(dirname(dest)).toBe(backupDir);
+    expect(basename(dest)).toMatch(/^backup-\d{13}$/);
   });
 
   it("startup delay: no existing backup runs at 0", async () => {
@@ -70,6 +80,9 @@ describe("backup scheduler schedule (new)", () => {
     m.startBackupScheduler();
     await vi.advanceTimersByTimeAsync(0);
     expect(mod).toHaveBeenCalledTimes(1);
+    const dest = mod.mock.calls[0][0] as string;
+    expect(dirname(dest)).toBe(backupDir);
+    expect(basename(dest)).toMatch(/^backup-\d{13}$/);
   });
 
   it("startup delay: older-than-interval backup runs at 0", async () => {
@@ -82,6 +95,9 @@ describe("backup scheduler schedule (new)", () => {
     m.startBackupScheduler();
     await vi.advanceTimersByTimeAsync(0);
     expect(mod).toHaveBeenCalledTimes(1);
+    const dest = mod.mock.calls[0][0] as string;
+    expect(dirname(dest)).toBe(backupDir);
+    expect(basename(dest)).toMatch(/^backup-\d{13}$/);
   });
 
   // Major 3a: retention
