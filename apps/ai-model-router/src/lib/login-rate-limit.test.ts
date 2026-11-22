@@ -16,6 +16,9 @@ beforeEach(() => {
 });
 
 describe("recordClientFailure", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it("does not lock before N consecutive failures", () => {
     for (let i = 1; i < LOGIN_RATE_LIMIT_MAX_FAILURES; i++) {
       recordClientFailure("1.2.3.4");
@@ -42,7 +45,6 @@ describe("recordClientFailure", () => {
 
     recordClientFailure("1.2.3.4");
     expect(clientLockoutRemainingMs("1.2.3.4")).toBe(0);
-    vi.useRealTimers();
 
     for (let i = 1; i < LOGIN_RATE_LIMIT_MAX_FAILURES - 1; i++) recordClientFailure("1.2.3.4");
     expect(clientLockoutRemainingMs("1.2.3.4")).toBe(0);
@@ -120,13 +122,17 @@ describe("clientKeyFromRequest", () => {
 });
 
 describe("stale-count expiry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it("expires stale low counts after cooldown", () => {
     vi.useFakeTimers();
     for (let i = 0; i < 4; i++) recordClientFailure("stale-key");
     vi.advanceTimersByTime(LOGIN_RATE_LIMIT_COOLDOWN_MS + 1);
-    recordClientFailure("stale-key");
+    for (let i = 0; i < 4; i++) recordClientFailure("stale-key");
     expect(clientLockoutRemainingMs("stale-key")).toBe(0);
-    vi.useRealTimers();
+    recordClientFailure("stale-key");
+    expect(clientLockoutRemainingMs("stale-key")).toBeGreaterThan(0);
   });
 
   it("5 failures within window lock", () => {
