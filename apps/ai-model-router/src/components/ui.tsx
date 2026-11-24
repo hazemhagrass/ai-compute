@@ -378,7 +378,7 @@ export function HourHistogram({
               style={{
                 height: `${Math.max(2, (calls / max) * 100)}%`,
                 background: calls
-                  ? "linear-gradient(180deg, var(--accent) 0%, var(--accent2) 100%)"
+                  ? "linear-gradient(180deg, var(--accent) 0%, var(--accent-2) 100%)"
                   : "var(--panel-2)",
                 opacity: calls ? 1 : 0.5,
               }}

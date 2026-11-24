@@ -9,7 +9,7 @@
   --border-soft: #1a1f2e;
   --fg: #e8ecf5;
   --fg-muted: #8b94ad;
-  --fg-dim: #5c657d;
+  --fg-dim: #7d87a1;
   --accent: #6c8cff;
   --on-accent: #06070c;
   --accent-2: #a56cff;
@@ -45,6 +45,18 @@
 
 * {
   border-color: var(--border);
+}
+
+/* Keyboard focus: one shared accent ring for every interactive element. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 html,
@@ -114,4 +126,21 @@ input[type="range"] {
 
 .amr-pulse {
   animation: amr-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amr-in,
+  .amr-pulse,
+  .animate-pulse {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }

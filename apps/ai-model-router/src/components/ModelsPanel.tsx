@@ -207,7 +207,7 @@ export default function ModelsPanel({
             setPage(0);
           }}
           placeholder="Filter models, providers, tags…"
-          className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
+          className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
         />
         <select
           value={providerFilter}
@@ -215,7 +215,7 @@ export default function ModelsPanel({
             setProviderFilter(e.target.value === "all" ? "all" : Number(e.target.value));
             setPage(0);
           }}
-          className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
+          className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm focus:border-[var(--accent)]"
         >
           <option value="all">All providers</option>
           {providers.map((p) => (

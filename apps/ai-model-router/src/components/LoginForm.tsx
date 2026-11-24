@@ -71,7 +71,7 @@ export default function LoginForm({ configured }: { configured: boolean }) {
               onChange={(e) => setPassword(e.target.value)}
               autoFocus
               autoComplete={isSetup ? "new-password" : "current-password"}
-              className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
+              className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2.5 text-sm focus:border-[var(--accent)]"
             />
           </label>
 
@@ -86,7 +86,7 @@ export default function LoginForm({ configured }: { configured: boolean }) {
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   autoComplete="new-password"
-                  className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
+                  className="mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2.5 text-sm focus:border-[var(--accent)]"
                 />
               </label>
               <p className="text-[11px] text-[var(--fg-dim)]">
