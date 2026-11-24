@@ -114,7 +114,7 @@ export default function ProvidersPanel({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter providers…"
-          className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
+          className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
         />
         <button
           onClick={() => setEditingId("new")}
@@ -525,7 +525,7 @@ function ProviderForm({
 }
 
 export const inputCls =
-  "w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)] disabled:opacity-40";
+  "w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 text-sm placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)] disabled:opacity-40";
 
 export function Field({
   label,
@@ -609,7 +609,7 @@ function ImportButton({
         value={conflict}
         onChange={(e) => setConflict(e.target.value as "skip" | "upsert")}
         title="What to do when an imported row already exists (matched by slug/id)"
-        className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none"
+        className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm"
       >
         <option value="skip">Skip existing</option>
         <option value="upsert">Overwrite existing</option>

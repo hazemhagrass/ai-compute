@@ -118,7 +118,7 @@ export default function LogsPanel({
           value={q}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search prompts and answers…"
-          className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
+          className="min-w-[14rem] flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-4 py-2.5 text-sm placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
         />
         <select
           value={providerId}
@@ -127,7 +127,7 @@ export default function LogsPanel({
               providerId: e.target.value === "all" ? "all" : Number(e.target.value),
             })
           }
-          className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
+          className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm focus:border-[var(--accent)]"
         >
           <option value="all">All providers</option>
           {providers.map((p) => (
@@ -143,7 +143,7 @@ export default function LogsPanel({
               modelRowId: e.target.value === "all" ? "all" : Number(e.target.value),
             })
           }
-          className="max-w-[14rem] rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
+          className="max-w-[14rem] rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2.5 text-sm focus:border-[var(--accent)]"
         >
           <option value="all">All models</option>
           {models.map((m) => (

@@ -289,7 +289,7 @@ export default function HermesPanel({
           <select
             value={activeId ?? ""}
             onChange={(e) => setActiveId(e.target.value)}
-            className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+            className="rounded-xl border border-[var(--border)] bg-[var(--panel)]/70 px-3 py-2 text-sm focus:border-[var(--accent)]"
           >
             {profiles.map((p) => (
               <option key={p.id} value={p.id}>

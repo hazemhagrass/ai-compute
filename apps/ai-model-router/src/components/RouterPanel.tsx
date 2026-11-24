@@ -109,7 +109,7 @@ export default function RouterPanel({
               onChange={(e) => vm.setText(e.target.value)}
               rows={5}
               placeholder="e.g. I need to review a 4000-line Rust pull request and catch concurrency bugs, cost doesn't matter"
-              className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--panel-2)]/60 px-3.5 py-3 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
+              className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--panel-2)]/60 px-3.5 py-3 text-sm placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]"
             />
           )}
 
@@ -173,7 +173,7 @@ export default function RouterPanel({
                 onChange={(e) => vm.setMaxOutputCost(e.target.value)}
                 inputMode="decimal"
                 placeholder="any"
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 font-mono outline-none focus:border-[var(--accent)]"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 font-mono focus:border-[var(--accent)]"
               />
             </label>
             <label className="block">
@@ -183,7 +183,7 @@ export default function RouterPanel({
                 onChange={(e) => vm.setMinContext(e.target.value)}
                 inputMode="numeric"
                 placeholder="any"
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 font-mono outline-none focus:border-[var(--accent)]"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2 font-mono focus:border-[var(--accent)]"
               />
             </label>
 

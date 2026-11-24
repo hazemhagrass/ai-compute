@@ -343,7 +343,7 @@ Lines
 Text
 - **fg (#e8ecf5)** `--fg`: primary text and numbers.
 - **fg-muted (#8b94ad)** `--fg-muted`: secondary text, numeric columns, stat sub-lines, header tagline.
-- **fg-dim (#5c657d)** `--fg-dim`: tertiary text: card subtitles, caps labels, table headers, placeholders, axis labels, empty states. Fails AA for body text (see Accessibility).
+- **fg-dim (#7d87a1)** `--fg-dim`: tertiary text: card subtitles, caps labels, table headers, placeholders, axis labels, empty states. Meets AA for small text on every background token (see Accessibility, AICOMPUTE-27).
 
 Accent and status
 - **accent (#6c8cff)** `--accent`: the single interaction colour: active tab, primary buttons, focus border, range inputs (`accent-color`), the main chart series.
@@ -442,7 +442,7 @@ Hand-written SVG and divs, colours from `CHART_COLORS` and tokens via inline `st
 
 ### Navigation tabs (`AppShell.tsx`)
 Bar: `rounded-xl border bg-[var(--panel)]/60 p-1.5`, horizontal scroll. Tab: `rounded-lg px-4 py-2.5`, label `text-sm font-medium`, hint `text-[10px]`. Inactive hover `bg-[var(--panel-2)]`. Active `bg-[var(--accent)] text-[#06070c]`, hint at 70%. `transition-colors`.
-- States missing: no `aria-selected` / `role="tab"`, no visible focus ring.
+- States missing: no `aria-selected` / `role="tab"`. Keyboard focus now shows the shared accent ring from `globals.css` (AICOMPUTE-29).
 
 ### Buttons (inline, no primitive)
 Variants found, by frequency:
@@ -452,15 +452,15 @@ Variants found, by frequency:
 - **Danger**: `rounded-lg border border-[var(--bad)]/40 px-3 py-1.5 text-[var(--bad)] hover:bg-[var(--bad)]/10`.
 - **Text link button**: `text-xs hover:underline`, fg-muted or bad.
 - **Icon button**: notification bell, `rounded-lg border px-2.5 py-1.5`, has `aria-label="Notifications"`.
-States: hover is opacity 90% (primary) or panel-2 fill (secondary); disabled is `opacity-50` (32 `disabled:` uses); loading is a label change ("Working…"); no focus style.
+States: hover is opacity 90% (primary) or panel-2 fill (secondary); disabled is `opacity-50` (32 `disabled:` uses); loading is a label change ("Working…"); keyboard focus uses the shared accent ring from `globals.css` (AICOMPUTE-29).
 - Do: copy the exact class string of the variant above until a `Button` primitive exists. Don't: introduce new colours (ComparePanel and PlaygroundPanel use `bg-indigo-600 text-white`, see M2).
 
 ### Form fields (inline)
-- Form input: `mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]`; mono variant for keys and ids.
-- Toolbar input / select: `rounded-xl border bg-[var(--panel)]/70 px-4 py-2.5 text-sm outline-none placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]`.
+- Form input: `mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)]/60 px-3 py-2.5 text-sm focus:border-[var(--accent)]`; mono variant for keys and ids.
+- Toolbar input / select: `rounded-xl border bg-[var(--panel)]/70 px-4 py-2.5 text-sm placeholder:text-[var(--fg-dim)] focus:border-[var(--accent)]`.
 - Label: wrapping `<label>` with the caps label span above the field (implicit association). Help text `text-[11px]` fg-dim. Error: `rounded-lg border-[var(--bad)]/40 bg-[var(--bad)]/10 px-3 py-2 text-xs text-[var(--bad)]`.
 - Range: native, `accent-color: var(--accent)`.
-- Focus: only the border colour changes to accent (14 `outline-none`, 0 `focus-visible:`).
+- Focus: the border changes to accent, and one shared `globals.css` rule draws a 2px accent `focus-visible` ring on buttons, tabs, links, inputs, selects and textareas (0 `outline-none`, AICOMPUTE-29).
 
 ### Tables (inline)
 Plain `<table>` in DashboardPanel, AnalyticsPanel, ModelsPanel, LogsPanel. Header `text-xs uppercase text-[var(--fg-dim)]` (or `thead text-[var(--fg-dim)]`); rows `border-t border-[var(--border)]` (or `/50`); cells `py-2` or `px-3 py-2`; numeric columns `text-right font-mono tabular-nums`. Sortable headers use `SortHeader` in DashboardPanel.
@@ -506,7 +506,7 @@ Defined in `globals.css`:
 
 In components: `transition-colors` / `transition-opacity` / `transition-all` / `transition-[width]` (13 `transition` uses) with Tailwind default 150ms, `duration-300` (histogram bars) and `duration-500 ease-out` (bar and progress widths), one `animate-pulse`.
 
-Reduced motion: not handled. There is no `prefers-reduced-motion` rule (M8). Allowed durations: 150ms (Tailwind default), 280ms (`amr-in`), 300ms, 500ms, 1.4s (pulse loop). Easing: `ease-out` for entrances, `ease-in-out` for loops.
+Reduced motion: the `@media (prefers-reduced-motion: reduce)` block in `globals.css` disables `.amr-in`, `.amr-pulse` and `animate-pulse` animations, plus all transitions (AICOMPUTE-28). Allowed durations without that preference: 150ms (Tailwind default), 280ms (`amr-in`), 300ms, 500ms, 1.4s (pulse loop). Easing: `ease-out` for entrances, `ease-in-out` for loops.
 
 ## Accessibility
 
@@ -520,9 +520,9 @@ Contrast, WCAG 2.x, dark theme only (computed from the token hex values, solid b
 | fg-muted #8b94ad | bg | 6.61 | pass | pass |
 | fg-muted #8b94ad | panel | 6.13 | pass | pass |
 | fg-muted #8b94ad | panel-2 | 5.79 | pass | pass |
-| fg-dim #5c657d | bg | 3.44 | **fail** | pass |
-| fg-dim #5c657d | panel | 3.19 | **fail** | pass |
-| fg-dim #5c657d | panel-2 | 3.02 | **fail** | pass (barely) |
+| fg-dim #7d87a1 | bg | 5.58 | pass | pass |
+| fg-dim #7d87a1 | panel | 5.17 | pass | pass |
+| fg-dim #7d87a1 | panel-2 | 4.89 | pass | pass |
 | #06070c | accent #6c8cff | 6.55 | pass | pass |
 | #06070c | accent-2 #a56cff | 5.93 | pass | pass |
 | accent #6c8cff | panel | 6.04 | pass | pass |
@@ -535,9 +535,9 @@ Contrast, WCAG 2.x, dark theme only (computed from the token hex values, solid b
 | border #212738 | panel | 1.25 | n/a | **fail** (inputs boundary) |
 | border #212738 | bg | 1.35 | n/a | **fail** |
 
-fg-dim is used for small text (11px and 10px labels, table headers, placeholders, subtitles), so those fail AA. Input borders at 1.25:1 do not meet the 3:1 non-text contrast for the field boundary; the fill difference (panel-2 on panel) is also low.
+fg-dim is used for small text (11px and 10px labels, table headers, placeholders, subtitles) and now clears 4.5:1 on every background token, including translucent panel fills over `bg`. Input borders at 1.25:1 still do not meet the 3:1 non-text contrast for the field boundary; the fill difference (panel-2 on panel) is also low.
 
-Focus: no visible focus ring anywhere. Inputs use `outline-none` with `focus:border-[var(--accent)]` (accent on panel is 6.04:1, so the colour itself is fine, but a 1px border change is the only cue); buttons and tabs rely on the browser default outline, which `outline-none` removes on inputs and which is not styled.
+Focus: a single `focus-visible` rule in `globals.css` draws a 2px accent ring with a 2px offset on buttons, tabs, links, inputs, selects and textareas (AICOMPUTE-29). Accent on panel is 6.04:1, and the offset puts the ring over the surrounding surface even on accent-filled tabs and buttons. Inputs keep their accent border change in addition to the ring.
 
 Semantics: `aria-label` x3, `aria-hidden` x1 in total. Tabs have no tab roles; the dialog has no dialog role, Escape or focus trap; toasts have no live region. Most form fields use wrapping `<label>`, one uses `htmlFor`.
 
@@ -555,7 +555,7 @@ Not checked in this pass: rendered screenshots. The app was not running locally 
 6. Every interactive element has a visible focus indicator (`focus-visible:` ring in accent); `outline-none` is never used without one.
 7. Radius, shadow, z-index and spacing use the Tailwind scales listed above; no arbitrary `rounded-[..]`, `shadow-[..]`, `z-[..]`.
 8. Icon-only buttons have an `aria-label`; every data view handles loading, empty and error states.
-9. Animations use `amr-in`, `amr-pulse` or the listed durations, and must respect `prefers-reduced-motion` once that rule exists.
+9. Animations use `amr-in`, `amr-pulse` or the listed durations, and must respect the `prefers-reduced-motion` rule in `globals.css`.
 
 Shared Beinno basics (logo use, promo videos in English and Egyptian Arabic) apply as written in the `beinno-design-system` skill. The app currently ships no logo file of its own (`public/` holds only the Next.js starter SVGs); the wordmark is the text "AI Model **Router**" with the accent gradient on "Router".
 
@@ -568,12 +568,12 @@ Code vs. this spec, as of `7ab47bc`. Each needs a Plane ticket via beinno-plane 
 | M1 | Text on accent is the raw literal `#06070c` (33 uses, plus `/70`) | AppShell 84, 91; LoginForm 108; ProvidersPanel 121, 512; ModelsPanel 240, 442, 674; AnalyticsPanel 254, 383; DashboardPanel 191; SettingsPanel 227, 363, 473, 563; HermesPanel (13); RouterPanel 65, 67, 69, 217, 389 | Add `--on-accent: #06070c` to `:root` and replace |
 | M2 | Off-palette Tailwind colours and `dark:` variants (zinc, indigo, red, green, emerald, amber, white, black; 36 `dark:`). In Tailwind v4 `dark:` follows the OS `prefers-color-scheme`, so with a light OS these panels show white fields on the dark page | ComparePanel, PlaygroundPanel (whole panels); DashboardPanel 100, 202, 235; SettingsPanel 279, 291, 320, 428; AppShell 249 `text-white`; LogsPanel 267 `bg-black/70` | Restyle with tokens (input, button-primary, bad/good/warn); add a `--scrim` token |
 | M3 | Scrollbar thumb hover `#2d364d` is raw | globals.css 76 | Add a token (for example `--border-strong`) |
-| M4 | `HourHistogram` uses `var(--accent2)`, which is not defined (the variable is `--accent-2`). The whole `linear-gradient` is then invalid, so bars with calls likely render with no fill (not visually verified) | ui.tsx 381 | Use `var(--accent-2)` |
+| M4 | Fixed (AICOMPUTE-24): `HourHistogram` used undefined `var(--accent2)`, which invalidated the bar gradient | ui.tsx 381 | Now uses `var(--accent-2)` |
 | M5 | No shared Button, Input, Select, Table, Badge, Dialog or Toast primitive; 84 buttons styled inline with at least 6 primary variants; 42 buttons have their class computed inline | all panels, HermesPanel (28 buttons), ModelsPanel (14) | Extract primitives into `ui.tsx` over time |
 | M6 | Pixel font sizes 11/10/9px with no named token; 9px and 10px are below a comfortable reading size | 77 uses | Add named text tokens or move to `text-xs` minimum |
-| M7 | fg-dim fails AA for text (3.02 to 3.44:1) and is used on small text | labels, table headers, placeholders, subtitles | Raise `--fg-dim` lightness or use fg-muted for text |
-| M8 | No `prefers-reduced-motion` handling | globals.css | Add a reduced-motion block disabling `amr-in` / `amr-pulse` and transitions |
-| M9 | No visible focus: 14 `outline-none`, 0 `focus-visible:`; tabs and buttons have no styled focus | all panels, AppShell | Add an accent `focus-visible` ring to every interactive element |
+| M7 | Fixed (AICOMPUTE-27): fg-dim failed AA for small text (3.02 to 3.44:1) | labels, table headers, placeholders, subtitles | `--fg-dim` is now #7d87a1 (5.58:1 on bg, 5.17:1 on panel, 4.89:1 on panel-2) |
+| M8 | Fixed (AICOMPUTE-28): no `prefers-reduced-motion` handling | globals.css | Reduced-motion block disables `amr-in`, `amr-pulse`, `animate-pulse` and transitions |
+| M9 | Fixed (AICOMPUTE-29): no visible focus (14 `outline-none`, 0 `focus-visible:`) | all panels, AppShell | One shared accent `focus-visible` ring in globals.css; all 14 `outline-none` removed |
 | M10 | `@theme inline` names (`bg-panel`, `text-dim`, `accent2`...) are defined but unused (0 uses); code uses `bg-[var(--...)]`. Two naming systems for the same colours | globals.css 28 to 43 | Pick one pattern (keep `var()` as the documented house style, or migrate) |
 | M11 | Accessibility semantics missing: notification count white on bad 2.74:1; input borders 1.25:1; tabs without tab roles; dialog without role, Escape, focus trap; toasts without live region; only 3 `aria-label` | AppShell, LogsPanel, all forms | Fix per item |
 | M12 | No screenshot verification of this spec yet (app not running, repo read-only for this task) | n/a | Screenshot Hermes, Router, Analytics, Logs dialog and Compare at 1280px and 390px and compare with this file |
